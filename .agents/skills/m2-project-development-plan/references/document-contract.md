@@ -45,16 +45,18 @@ Use exactly the columns in `Templates\план_развития_проекта.c
 ## Source Priority
 
 1. Existing project development plan.
-2. Project risk summary.
-3. Project metrics.
-4. Workbook status/context rows.
-5. Individual plans only when they reveal a project-level capability or continuity gap.
+2. Business/project context, client expectations, strategy-chat statuses, and project goals.
+3. Project risk summary.
+4. Project metrics.
+5. Workbook status/context rows.
+6. Individual plans only when they reveal a project-level capability or continuity gap.
 
 ## Normalization
 
 - Keep one initiative per row.
 - Put repeated executive summary/current-state text in each row only if CSV consumption requires standalone rows; otherwise keep it concise.
 - Use exact review dates when provided by the source.
+- Each initiative should answer: what project/business problem it solves, what value it brings, how success is measured, and where progress will be synchronized.
 
 ## Rule
 

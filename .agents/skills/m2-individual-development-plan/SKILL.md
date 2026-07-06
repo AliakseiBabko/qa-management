@@ -12,13 +12,15 @@ Use this skill for one output family only:
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Identify the target person and project scope.
-3. Read the individual development plan first, then individual metrics, person workbook rows, and project context.
+2. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Identify the target person and project scope.
+4. Read the individual development plan first, then individual metrics, person workbook rows, and project context.
 
 ## Workflow
 
 1. Produce one row per development focus.
-2. Preserve the source distinction between:
+2. Start from what the project needs and how the person's role/value should grow on this project.
+3. Preserve the source distinction between:
    - goal for the period
    - focus area
    - why it matters
@@ -26,8 +28,9 @@ Use this skill for one output family only:
    - manager support
    - success criteria
    - current progress
-3. Tie the plan to the project context without turning it into a project-level plan.
-4. Use concrete, observable success criteria.
+4. Include M2 support/check cadence when evidence or user instructions provide it.
+5. Tie the plan to the project context without turning it into a project-level plan.
+6. Use concrete, observable success criteria.
 
 ## Guardrails
 
@@ -35,3 +38,4 @@ Use this skill for one output family only:
 - Do not mix development-plan content with metrics output.
 - Keep this skill scoped to one expected document format.
 - Do not invent personal motivation, dissatisfaction, or performance concerns without source evidence.
+- Do not describe role growth as “do QA tasks better” unless it also states the added project value, responsibility, authority, visibility, or trust.

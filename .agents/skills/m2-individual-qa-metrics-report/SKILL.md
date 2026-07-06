@@ -14,13 +14,15 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Identify the target person and project scope.
-3. Read individual metrics first, then source workbook rows, project context, and transcript-derived findings.
+2. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Identify the target person and project scope.
+4. Read individual metrics first, then source workbook rows, project context, and transcript-derived findings.
 
 ## Workflow
 
 1. Produce one row per meaningful individual metric.
-2. Prefer source scorecard dimensions when available:
+2. Include metrics that show the person's project value, role growth, visibility, trust, delivery impact, and quality impact when evidence exists.
+3. Prefer source scorecard dimensions when available:
    - delivery ownership
    - role effectiveness
    - quality / defects
@@ -29,8 +31,8 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
    - documentation / reporting
    - growth focus
    - data completeness
-3. Preserve score/status, trend, evidence, and next action.
-4. Mark whether evidence is direct, partial, or absent.
+4. Preserve score/status, trend, evidence, and next action.
+5. Mark whether evidence is direct, partial, or absent.
 
 ## Guardrails
 
@@ -38,3 +40,4 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 - Do not mix metrics with development-plan content.
 - Keep this skill scoped to one expected document format.
 - Do not convert manager opinions into numeric scores unless the source already provides a score or clear scale.
+- Do not use abstract goals as metrics. Convert them into observable indicators or leave the data gap explicit.

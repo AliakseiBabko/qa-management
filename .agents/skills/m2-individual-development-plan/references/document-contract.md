@@ -48,10 +48,13 @@ Use exactly the columns in `Templates\план_развития_qa_по_прое
 ## Source Priority
 
 1. Existing individual development plan.
-2. Individual metrics file.
-3. Person workbook rows and 1to1 analysis findings.
-4. Project development plan only for context.
+2. Project goals, business context, and what the project needs from the person.
+3. Individual metrics file.
+4. Person workbook rows and 1to1 analysis findings.
+5. Project development plan only for context.
 
 ## Rule
 
 Keep the plan project-contextual and person-specific. If a focus item is actually a project process initiative, move it to the project development-plan skill.
+
+Each focus item should state what it gives the project/client/business or how it grows the person's project role.

@@ -51,6 +51,7 @@ Use exactly the columns in `Templates\светофор_рисков_проект
 - Keep people-performance concerns out of the project-risk file unless they create explicit project continuity, delivery, or client risk.
 - Put source names or dated meetings in `Evidence / источники`.
 - Use `Unknown` for any risk dimension that is not supported by the evidence.
+- State why the risk matters and what future harm it can cause.
 
 ## Rule
 
