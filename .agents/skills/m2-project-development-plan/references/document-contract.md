@@ -23,6 +23,12 @@ Suggested naming pattern:
 
 `план_развития_проекта_<Project>_YYYY-MM-DD.csv`
 
+## Versioning
+
+- Do not overwrite an existing final project development-plan document by default.
+- If the target project/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
+- Update an existing project development-plan document in place only when the user explicitly asks for revision.
+
 ## Schema
 
 Use exactly the columns in `Templates\план_развития_проекта.csv`:
@@ -57,6 +63,9 @@ Use exactly the columns in `Templates\план_развития_проекта.c
 - Put repeated executive summary/current-state text in each row only if CSV consumption requires standalone rows; otherwise keep it concise.
 - Use exact review dates when provided by the source.
 - Each initiative should answer: what project/business problem it solves, what value it brings, how success is measured, and where progress will be synchronized.
+- Include topology/context initiatives when they are needed for project control: clarify streams, real team size, DC/PM ownership, vendor/intermediary chain, client path, tender/contract horizon, security/location constraints, or feedback route.
+- If the project needs better visibility before detailed improvement work is possible, create a visibility initiative with an owner, date, and expected artifact instead of inventing downstream actions.
+- If QA value or project-side trust is under question, include an initiative that proves QA business value through metrics, accepted improvements, defect/risk prevention, or client/team feedback.
 
 ## Rule
 

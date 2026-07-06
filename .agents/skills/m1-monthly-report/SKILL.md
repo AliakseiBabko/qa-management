@@ -33,10 +33,11 @@ Default source example:
    - Section 2: KPI / bonus / penalty rows
 2. For every row, fill only source-backed cells.
 3. Leave unsupported cells blank.
-4. Put each missing-data question in `Missing Data Question` when a row cannot be completed from evidence.
+4. Ask missing-data questions before finalizing when the requested report requires those cells.
 5. Use `Да` only when there is direct evidence that the obligation/KPI happened in the reporting period.
 6. Use `Нет` only when the source explicitly says it did not happen, or the user confirms it.
 7. Leave `Completed (Да/Нет)` blank when the status is unknown.
+8. Preserve the 2D CSV layout from `Templates\m1_monthly_report.csv`; do not convert it into a normalized table.
 
 ## Guardrails
 

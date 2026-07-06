@@ -21,3 +21,4 @@
 
 - Append a new row by default.
 - Revise an old row only when the user explicitly asks for correction.
+- Do not create `_vN` copies for this file family. The person file is an append-only longitudinal record, not a dated final snapshot.

@@ -22,3 +22,4 @@
 - Append a new row by default.
 - Revise an old row only when the user explicitly asks for correction.
 - Use the same schema as the M1 1to1 writer; only the destination folder and M2-oriented emphasis differ.
+- Do not create `_vN` copies for this file family. The person file is an append-only longitudinal record, not a dated final snapshot.

@@ -35,10 +35,11 @@ Default source example:
    - Section 2: KPI / bonuses / penalties
 2. For every row, fill only source-backed cells.
 3. Leave unsupported cells blank.
-4. Put each missing-data question in `Missing Data Question` when a row cannot be completed from evidence.
+4. Ask missing-data questions before finalizing when the requested report requires those cells.
 5. Use `Да` only when there is direct evidence for the reporting period.
 6. Use `Нет` only when the source explicitly says the case did not happen, or the user confirms it.
 7. Leave `Completed (Да/Нет)` blank when the status is unknown.
+8. Preserve the 2D CSV layout from `Templates\m2_monthly_report.csv`; do not convert it into a normalized table.
 
 ## Guardrails
 
@@ -46,4 +47,5 @@ Default source example:
 - Do not infer successful release, upsale, direct client access, positive feedback, or project improvement without direct evidence.
 - Do not calculate totals from unsupported counts.
 - Do not convert project risks into penalties unless the source explicitly maps them to a KPI/penalty row.
+- Do not add example/calculator comments from the workbook into a real report unless independently supported by actual evidence.
 - Keep business-facing text in Russian unless the user asks otherwise.
