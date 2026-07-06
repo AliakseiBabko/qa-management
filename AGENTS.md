@@ -26,6 +26,7 @@ Current canonical skills:
 | Skill | Role | Outcome | Canonical source |
 |-------|------|---------|------------------|
 | `qa-1to1-analysis` | Common | Shared structured analysis from a QA 1to1 transcript for both M1 and M2, including topic classification, evidence extraction, and people/project signal separation | `.agents/skills/qa-1to1-analysis/SKILL.md` |
+| `qa-management-roles` | Common | Shared M1/M2/M3/M4 role boundaries and role rules, including M1 people-management goals and M2 project-management/business-value rules | `.agents/skills/qa-management-roles/SKILL.md` |
 | `m1-people-1to1-file` | M1 | Individual person file in `G:\My Drive\QA_Management\10_M1_People_Management` based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
 | `m1-people-risk-report` | M1 | Dated people risk traffic-light file in `G:\My Drive\QA_Management\10_M1_People_Management` based on `Templates/светофор_рисков.csv` from this repo | `.agents/skills/m1-people-risk-report/SKILL.md` |
 | `m2-people-1to1-file` | M2 | Individual person file in `G:\My Drive\QA_Management\20_M2_Project_Management` based on `Templates/1to1.csv` from this repo | `.agents/skills/m2-people-1to1-file/SKILL.md` |
@@ -34,6 +35,8 @@ Current canonical skills:
 | `m2-individual-qa-metrics-report` | M2 | Individual QA metrics file within project scope | `.agents/skills/m2-individual-qa-metrics-report/SKILL.md` |
 | `m2-project-development-plan` | M2 | Project-level development-plan file | `.agents/skills/m2-project-development-plan/SKILL.md` |
 | `m2-individual-development-plan` | M2 | Individual development-plan file within project scope | `.agents/skills/m2-individual-development-plan/SKILL.md` |
+| `m1-monthly-report` | M1 | Monthly M1 KPI/bonus report CSV based on monthly report workbook structure and evidence-backed people-management data | `.agents/skills/m1-monthly-report/SKILL.md` |
+| `m2-monthly-report` | M2 | Monthly M2 KPI/bonus report CSV based on monthly report example structure and evidence-backed project-management data | `.agents/skills/m2-monthly-report/SKILL.md` |
 
 Load only the skill needed for the current outcome. Do not preload other role skills.
 
@@ -42,6 +45,7 @@ Load only the skill needed for the current outcome. Do not preload other role sk
 - `.agents/skills`: local skills and skill-local scripts
 - `Templates`: canonical CSV templates
 - `.agents/skills/qa-1to1-analysis/references`: shared 1to1 topic, risk, and wording rules
+- `.agents/skills/qa-management-roles/references`: shared M1/M2 role boundaries and management rules
 - `README.md`: repo overview
 
 ## Data Root

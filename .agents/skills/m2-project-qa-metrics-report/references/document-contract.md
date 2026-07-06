@@ -42,9 +42,10 @@ Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
 ## Source Priority
 
 1. Existing project metrics workbooks or extracted project metrics Markdown.
-2. Project development plans and project risk summaries.
-3. Workbook status rows and 1to1 analysis findings.
-4. Individual metrics only when project-level metrics are absent.
+2. Business/project goals, client expectations, and success criteria.
+3. Project development plans and project risk summaries.
+4. Workbook status rows and 1to1 analysis findings.
+5. Individual metrics only when project-level metrics are absent.
 
 ## Normalization
 
@@ -52,6 +53,7 @@ Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
 - Use `Все хорошо`, `Пока нормально`, `Обратить внимание`, or `Unknown` for `Уровень внимания` when possible.
 - Use `Есть данные`, `Есть данные (частично)`, `Нет данных`, or `N/A` for `Статус данных` when possible.
 - Preserve exact dates and source names in `Evidence / источник`.
+- Each metric should answer a concrete management question and connect to project/business/QA value.
 
 ## Rule
 

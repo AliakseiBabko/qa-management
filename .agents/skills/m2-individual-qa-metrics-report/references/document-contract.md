@@ -45,9 +45,10 @@ Use exactly the columns in `Templates\метрики_qa_по_проекту.csv`
 ## Source Priority
 
 1. Existing individual metrics workbook or extracted individual metrics Markdown.
-2. Person sheet from the project workbook.
-3. Individual development plan when it contains progress or capability evidence.
-4. Project-level context only for interpreting the person's role and constraints.
+2. Project goals and expected role/value for the person.
+3. Person sheet from the project workbook.
+4. Individual development plan when it contains progress or capability evidence.
+5. Project-level context only for interpreting the person's role and constraints.
 
 ## Rule
 

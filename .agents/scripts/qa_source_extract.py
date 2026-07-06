@@ -65,6 +65,10 @@ def sha256_file(path: Path) -> str:
 
 def infer_role(path: Path) -> str:
     text = f"{path.parent.name} {path.name}".casefold()
+    if "m1_monthly_report" in text or ("m1" in text and "monthly" in text and "report" in text):
+        return "m1_monthly_report"
+    if "m2_monthly_report" in text or ("m2" in text and "monthly" in text and "report" in text):
+        return "m2_monthly_report"
     if any(token in text for token in ("1to1", "1x1", "one-to-one")):
         return "one_to_one_source"
     if "свод" in text or "brief" in text:
@@ -99,8 +103,35 @@ def docx_paragraphs(path: Path) -> list[str]:
     return paragraphs
 
 
+def docx_comments(path: Path) -> list[dict[str, str]]:
+    comments: list[dict[str, str]] = []
+    with zipfile.ZipFile(path) as zf:
+        if "word/comments.xml" not in zf.namelist():
+            return comments
+        root = ET.fromstring(zf.read("word/comments.xml"))
+
+    for comment in root.findall("w:comment", WORD_NS):
+        parts = []
+        for paragraph in comment.findall(".//w:p", WORD_NS):
+            text = "".join(node.text or "" for node in paragraph.findall(".//w:t", WORD_NS))
+            text = re.sub(r"\s+", " ", text).strip()
+            if text:
+                parts.append(text)
+        if parts:
+            comments.append(
+                {
+                    "id": comment.attrib.get(f"{{{WORD_NS['w']}}}id", ""),
+                    "author": comment.attrib.get(f"{{{WORD_NS['w']}}}author", ""),
+                    "date": comment.attrib.get(f"{{{WORD_NS['w']}}}date", ""),
+                    "text": "\n".join(parts),
+                }
+            )
+    return comments
+
+
 def docx_to_markdown(path: Path, relative_source: str, role: str) -> str:
     paragraphs = docx_paragraphs(path)
+    comments = docx_comments(path)
     lines = [
         "---",
         f"source_file: {json.dumps(relative_source, ensure_ascii=False)}",
@@ -121,6 +152,22 @@ def docx_to_markdown(path: Path, relative_source: str, role: str) -> str:
             lines.append(text)
         else:
             lines.extend([text, ""])
+
+    if comments:
+        lines.extend(["", "## Word Comments", ""])
+        for index, comment in enumerate(comments, start=1):
+            lines.extend(
+                [
+                    f"### Comment {index}",
+                    "",
+                    f"- id: {comment['id']}",
+                    f"- author: {comment['author']}",
+                    f"- date: {comment['date']}",
+                    "",
+                    comment["text"],
+                    "",
+                ]
+            )
     return "\n".join(lines).rstrip() + "\n"
 
 

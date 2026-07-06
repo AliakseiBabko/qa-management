@@ -7,6 +7,7 @@ This repo stores:
 - shared skill definitions under `.agents/skills/`
 - canonical CSV templates under `Templates/`
 - shared 1to1 analysis rules under `.agents/skills/qa-1to1-analysis/references/`
+- shared M1/M2 role rules under `.agents/skills/qa-management-roles/references/`
 
 Operational data and generated report files stay in:
 
@@ -61,3 +62,24 @@ Default output:
 
 The generator preserves source evidence and writes draft CSVs for project risks, project metrics,
 individual QA metrics, project development plans, and individual development plans.
+
+## Monthly Reports
+
+Monthly KPI report skills:
+
+- `.agents/skills/qa-management-roles`
+- `.agents/skills/m1-monthly-report`
+- `.agents/skills/m2-monthly-report`
+
+CSV templates:
+
+- `Templates/m1_monthly_report.csv`
+- `Templates/m2_monthly_report.csv`
+
+Source examples:
+
+- `G:\My Drive\QA_Management\00_Source_Docs\M1_monthly_report.xlsx`
+- `G:\My Drive\QA_Management\00_Source_Docs\M2_monthly_report.xlsx`
+
+The M1 workbook contains real report examples. The M2 workbook is treated as an example/calculator
+unless explicitly provided as a real report for a target month.
