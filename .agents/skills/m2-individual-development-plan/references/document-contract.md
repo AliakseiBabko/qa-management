@@ -20,6 +20,12 @@ Suggested naming pattern:
 
 `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.csv`
 
+## Versioning
+
+- Do not overwrite an existing final individual development-plan document by default.
+- If the target project/person/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
+- Update an existing individual development-plan document in place only when the user explicitly asks for revision.
+
 ## Scope
 
 - one QA engineer
@@ -52,6 +58,13 @@ Use exactly the columns in `Templates\план_развития_qa_по_прое
 3. Individual metrics file.
 4. Person workbook rows and 1to1 analysis findings.
 5. Project development plan only for context.
+
+## Normalization
+
+- Tie each focus item to the project role the person needs to grow into: ownership, visibility, responsibility, authority, trust, client/team entry point, or process/module ownership.
+- If project expectations exceed the person's current level, state the project need and manager support explicitly instead of framing the gap only as personal underperformance.
+- If the person's value must be demonstrated to defend QA stake, include concrete evidence-producing actions: useful metrics, accepted process proposals, visible risk prevention, automation/reporting usefulness, or client/team feedback.
+- If project context blocks progress, such as vague requirements, weak documentation, access/security limits, unstable deadlines, or unclear ownership, put the manager support/escalation in the plan.
 
 ## Rule
 

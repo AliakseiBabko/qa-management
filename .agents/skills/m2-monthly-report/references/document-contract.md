@@ -20,25 +20,29 @@ Suggested naming pattern:
 
 `m2_monthly_report_<Manager>_YYYY-MM.csv`
 
-## Schema
+## Versioning
 
-Use exactly the columns in `Templates\m2_monthly_report.csv`:
+- Do not overwrite an existing final monthly report by default.
+- If the target manager/month file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
+- Update an existing monthly report in place only when the user explicitly asks for revision.
 
-1. `Report Type`
-2. `Manager`
-3. `Period`
-4. `Base Bonus ($)`
-5. `Final Bonus ($)`
-6. `Section`
-7. `Item No`
-8. `Item / Condition`
-9. `Coefficient / Bonus`
-10. `Completed (Да/Нет)`
-11. `Quantity`
-12. `Amount ($)`
-13. `Note`
-14. `Evidence / Comment`
-15. `Missing Data Question`
+## Layout
+
+Use the 2D CSV grid in `Templates\m2_monthly_report.csv`; it mirrors the workbook layout rather than a normalized table.
+
+Preserve:
+
+- report title row
+- manager/month row
+- base/final bonus row
+- section title rows
+- Section 1 obligation table
+- Section 1 status row
+- Section 2 KPI / bonus / penalty table
+- total row
+- instruction row
+
+Do not add a `Missing Data Question` column to the CSV. Ask missing-data questions in the conversation or leave the relevant cells blank.
 
 ## Source Workbook Structure
 

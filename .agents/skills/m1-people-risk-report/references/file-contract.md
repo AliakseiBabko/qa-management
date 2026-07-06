@@ -17,3 +17,9 @@
 ## Rule
 
 Never edit the template directly. Create or update a dated snapshot.
+
+## Versioning
+
+- Do not overwrite an existing dated final snapshot by default.
+- If the target `YYYY-MM-DD` file already exists, create the next versioned file with a `_vN` suffix, for example `_v2` or `_v3`.
+- Update an existing dated snapshot in place only when the user explicitly asks for revision.

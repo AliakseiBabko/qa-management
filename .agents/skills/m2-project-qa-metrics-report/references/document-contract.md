@@ -23,6 +23,12 @@ Suggested naming pattern:
 
 `метрики_проекта_qa_<Project>_YYYY-MM-DD.csv`
 
+## Versioning
+
+- Do not overwrite an existing final project QA metrics document by default.
+- If the target project/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
+- Update an existing project QA metrics document in place only when the user explicitly asks for revision.
+
 ## Schema
 
 Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
@@ -54,6 +60,10 @@ Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
 - Use `Есть данные`, `Есть данные (частично)`, `Нет данных`, or `N/A` for `Статус данных` when possible.
 - Preserve exact dates and source names in `Evidence / источник`.
 - Each metric should answer a concrete management question and connect to project/business/QA value.
+- Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task sizes are not comparable, estimates are abstract, or there is no stable release cadence.
+- When standard delivery metrics are weak, prefer metrics that answer the real project question: QA value, escaped defects, defect severity, blocker discovery, regression stability, automation usefulness, process maturity, client/team trust, accepted QA improvements, or risk reduction.
+- If metrics are missing because the project is in active risk mitigation, onboarding, overload, or instability, set `Статус данных` to `Нет данных` or `Есть данные (частично)`, explain the reason, and put a concrete next collection/review action.
+- Do not treat short-term absence of metrics as failure by itself; treat prolonged absence of metrics or feedback on an active project as a visibility risk.
 
 ## Rule
 

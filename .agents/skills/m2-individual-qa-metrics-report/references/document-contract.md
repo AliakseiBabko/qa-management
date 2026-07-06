@@ -20,6 +20,12 @@ Suggested naming pattern:
 
 `метрики_qa_<Project>_<Person>_YYYY-MM-DD.csv`
 
+## Versioning
+
+- Do not overwrite an existing final individual QA metrics document by default.
+- If the target project/person/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
+- Update an existing individual QA metrics document in place only when the user explicitly asks for revision.
+
 ## Scope
 
 - one QA engineer
@@ -49,6 +55,13 @@ Use exactly the columns in `Templates\метрики_qa_по_проекту.csv`
 3. Person sheet from the project workbook.
 4. Individual development plan when it contains progress or capability evidence.
 5. Project-level context only for interpreting the person's role and constraints.
+
+## Normalization
+
+- Validate that the metric reflects the person's real project role and constraints.
+- Do not use closed tasks, moved tasks, story points, or sprint throughput as primary person-level metrics when scope, task size, estimates, or release cadence are unstable.
+- If the person is constrained by project context, such as vague requirements, missing process, overload, access limits, unclear QA ownership, or senior-level expectations for a junior QA, state that in `Комментарии` and choose metrics that separate personal contribution from project constraints.
+- If metrics are not currently collectible, mark the data status clearly, explain why, and set the next collection/review action instead of inventing a score.
 
 ## Rule
 

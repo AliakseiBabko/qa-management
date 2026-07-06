@@ -77,6 +77,8 @@ Archived legacy locations:
 - Preserve English terms, definitions, and citations when they are part of the source or normal working vocabulary.
 - Preserve established template schemas and filename conventions unless the user requests a schema change.
 - Each report-generation skill should target one expected output document format.
+- Do not overwrite existing final dated/monthly documents by default. If a final document already exists for the same snapshot date or reporting month, create the next `_vN` file, for example `_v2`, `_v3`, unless the user explicitly asks to revise the existing file in place.
+- Personal 1to1 files are append-only longitudinal records, not versioned snapshot documents. Preserve old rows and revise an old row only when the user explicitly asks for correction.
 
 ## Multi-Agent Convention
 
