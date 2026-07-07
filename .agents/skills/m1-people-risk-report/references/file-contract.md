@@ -1,5 +1,11 @@
 # File Contract
 
+Primary Google Workspace output is a dated people-risk traffic-light Google Sheet
+in `10_M1_People_Management`, with local CSV fallback. Use the template below
+as the schema contract. When Google API access is available, apply the same
+versioning rule to the Google Sheet title and validate the header row before
+writing.
+
 ## Template
 
 `<repo-root>\Templates\светофор_рисков.csv`

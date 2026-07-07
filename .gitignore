@@ -1,0 +1,8 @@
+.local/
+*.db
+*.db-shm
+*.db-wal
+token.json
+credentials.json
+__pycache__/
+*.pyc

@@ -1,19 +1,20 @@
 ---
 name: m2-people-1to1-file
-description: Create or update an individual QA engineer 1to1 CSV file for M2 project management. Use when turning shared QA 1to1 transcript analysis into a per-person file in `G:\My Drive\QA_Management\20_M2_Project_Management` based on `Templates/1to1.csv` from this repository.
+description: Create or update an individual QA engineer 1to1 Google Sheet, with CSV fallback, for M2 project management. Use when turning shared QA 1to1 transcript analysis into a per-person longitudinal record in the QA Management Google Drive workspace based on `Templates/1to1.csv` from this repository.
 ---
 
 # M2 People 1to1 File
 
 Use this skill for one output family only:
 
-- `G:\My Drive\QA_Management\20_M2_Project_Management\<Person Name> 1to1.csv`
+- `<Person Name> 1to1` Google Sheet in `20_M2_Project_Management`, with local CSV fallback
 
 ## Required Start
 
 1. Start from structured findings from `qa-1to1-analysis`, or analyze the transcript directly if needed.
-2. Read `references/file-contract.md`.
-3. Read the existing person file if it exists.
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `references/file-contract.md`.
+4. Read the existing person Sheet/file if it exists.
 
 ## Workflow
 

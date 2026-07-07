@@ -1,5 +1,8 @@
 # Document Contract
 
+Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
+CSV fallback. Preserve the CSV template columns as the Sheet schema.
+
 ## Purpose
 
 Use this reference for the individual development-plan document family.

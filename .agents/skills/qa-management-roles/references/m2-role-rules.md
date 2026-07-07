@@ -59,6 +59,10 @@ Every metric must be:
 
 Avoid abstract goals as metrics. Convert goals into observable indicators.
 
+Connect project metrics with individual QA metrics when individual signals materially affect the project picture: capacity, coverage, QA cycle time, defect quality, escaped defects, automation contribution, stakeholder visibility, accepted improvements, blockers, overload, or continuity risk. Keep the boundary clear: individual QA metrics explain contribution and constraints; project metrics aggregate what those signals mean for project quality, speed, predictability, client/team trust, and business value.
+
+Do not mechanically compare people unless their context is comparable. Different streams, seniority, scope, access, deadlines, project process maturity, and role expectations can make raw person-to-person metrics misleading. Separate personal performance from project/system constraints.
+
 Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task size is not comparable, estimates are abstract, or there is no stable release cadence. In that case, choose metrics that explain the real management question: QA value, risk reduction, client trust, blocker discovery, escaped defects, process maturity, automation usefulness, or project visibility.
 
 If metrics cannot be collected during active risk mitigation, overload, onboarding, or project instability, document why, set a review date, and treat prolonged absence of metrics as an M2 management risk.

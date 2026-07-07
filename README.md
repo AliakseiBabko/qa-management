@@ -9,7 +9,15 @@ This repo stores:
 - shared 1to1 analysis rules under `.agents/skills/qa-1to1-analysis/references/`
 - shared M1/M2 role rules under `.agents/skills/qa-management-roles/references/`
 
-Operational data and generated report files stay in:
+Operational data and generated report files are managed in the QA Management Google Drive workspace:
+
+`https://drive.google.com/drive/u/0/folders/1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`
+
+Google Drive root folder ID:
+
+`1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`
+
+The desktop mirror / filesystem fallback is:
 
 `G:\My Drive\QA_Management`
 
@@ -23,6 +31,10 @@ Current Drive layout:
 - `20_M2_Project_Management/`: M2 project-management outputs
 - `80_Exports/`: export packages and external copies
 - `90_Archive/`: archived legacy folders and backups
+
+Final business outputs should prefer Google Sheets for tabular artifacts and Google Docs
+for narrative/status artifacts when Google API access is available. Local CSV/Markdown
+files remain valid as fallback, staging, source-extraction, and export artifacts.
 
 ## Source extraction
 
@@ -42,7 +54,40 @@ Default output:
 `G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD`
 
 The extractor does not modify source documents. It writes a `manifest.csv` and project-level
-subfolders with DOCX text as Markdown and XLSX sheets as CSV.
+subfolders with DOCX text as Markdown and XLSX sheets as CSV. These are intermediate
+analysis artifacts, not the preferred final business output format.
+
+## Google API Smoke Test
+
+Use the smoke test before replacing CSV outputs with Google Sheets or Google Docs updates.
+It creates temporary files in one folder, writes and reads test content, and trashes the
+temporary files by default.
+
+Prerequisites:
+
+- Google Cloud project: `qa-manage-integration`
+- Enabled APIs: Google Drive API, Google Sheets API, Google Docs API
+- OAuth Desktop client JSON downloaded to `.local/google/credentials.json`
+- Python packages:
+
+```powershell
+python -m pip install google-api-python-client google-auth google-auth-oauthlib
+```
+
+Run with a harmless test folder ID:
+
+```powershell
+python .agents\scripts\google_api_smoke_test.py --folder-id <GOOGLE_DRIVE_FOLDER_ID>
+```
+
+If IT provides a service account instead of OAuth Desktop credentials, share the
+test folder with the service account email and run:
+
+```powershell
+python .agents\scripts\google_api_smoke_test.py --auth service-account --credentials .local\google\service-account.json --folder-id <GOOGLE_DRIVE_FOLDER_ID>
+```
+
+Add `--keep-files` if you want to inspect the created Sheet and Doc manually.
 
 ## M2 batch generation
 
@@ -62,6 +107,19 @@ Default output:
 
 The generator preserves source evidence and writes draft CSVs for project risks, project metrics,
 individual QA metrics, project development plans, and individual development plans.
+
+## Status Reports
+
+Short chat-ready M2 project status reports are handled by:
+
+- `.agents/skills/m2-project-status-report`
+
+Regular reports should be saved as Google Docs under `20_M2_Project_Management/status_reports`
+when Google API access is available. Local Markdown fallback path:
+
+`G:\My Drive\QA_Management\20_M2_Project_Management\status_reports`
+
+Use project name and report date in the filename.
 
 ## Monthly Reports
 

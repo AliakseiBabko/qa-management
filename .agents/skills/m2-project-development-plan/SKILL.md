@@ -1,20 +1,21 @@
 ---
 name: m2-project-development-plan
-description: Create or update a development-plan report for M2 project management. Use when preparing a development-plan document for one project or for the QA engineers working on that project set.
+description: Create or update a development-plan report as a Google Sheet, with CSV fallback, for M2 project management. Use when preparing a development-plan document for one project or for the QA engineers working on that project set.
 ---
 
 # M2 Project Development Plan
 
 Use this skill for one output family only:
 
-- project-level development-plan document
+- project-level development-plan Google Sheet, with CSV fallback
 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`.
-3. Identify the target project, period, review cycle, and next review date if present.
-4. Read project development plans first, then project metrics, risk summaries, and workbook status rows.
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Identify the target project, period, review cycle, and next review date if present.
+5. Read project development plans first, then project metrics, risk summaries, and workbook status rows.
 
 ## Workflow
 

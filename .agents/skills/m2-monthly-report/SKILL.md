@@ -1,13 +1,13 @@
 ---
 name: m2-monthly-report
-description: Create or update an M2 monthly KPI report CSV from project-management evidence, the M2 monthly report example workbook structure, M2 project metrics, development plans, risk reports, staffing/status data, client feedback, or explicit manager facts. Use when preparing monthly M2 bonus/KPI reporting, checking which M2 obligations/KPIs can be supported, identifying missing evidence, or turning M2 monthly-report source data into a CSV.
+description: Create or update an M2 monthly KPI report as a Google Sheet, with CSV fallback, from project-management evidence, the M2 monthly report example workbook structure, M2 project metrics, development plans, risk reports, staffing/status data, client feedback, or explicit manager facts. Use when preparing monthly M2 bonus/KPI reporting, checking which M2 obligations/KPIs can be supported, identifying missing evidence, or turning M2 monthly-report source data into a spreadsheet.
 ---
 
 # M2 Monthly Report
 
 Use this skill for one output family only:
 
-- M2 monthly KPI report CSV
+- M2 monthly KPI report Google Sheet, with CSV fallback
 
 Default source example:
 
@@ -16,17 +16,18 @@ Default source example:
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`.
-3. Identify the target M2 manager and reporting month.
-4. Treat `M2_monthly_report.xlsx` as an example/calculator unless the user explicitly says it is the real report for that manager/month.
-5. Read the smallest relevant evidence set:
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Identify the target M2 manager and reporting month.
+5. Treat `M2_monthly_report.xlsx` as an example/calculator unless the user explicitly says it is the real report for that manager/month.
+6. Read the smallest relevant evidence set:
    - project metrics
    - project and individual development plans
    - project risk reports
    - staffing/onboarding/offboarding evidence
    - client feedback and status-thread evidence
    - release, upsale, rate, paid, timesheet, security, FTE, and project-count evidence
-6. Ask questions only for fields required to complete the requested report and not present in the evidence.
+7. Ask questions only for fields required to complete the requested report and not present in the evidence.
 
 ## Workflow
 

@@ -1,6 +1,6 @@
 ---
 name: qa-1to1-analysis
-description: Analyze 1to1 transcripts with QA engineers and extract reusable structured findings for both M1 people management and M2 project management. Use when classifying the dominant meeting topic, identifying concrete facts, separating people-side and project-side signals, calibrating risk signals, or preparing evidence for downstream 1to1 CSV writer and risk-report skills.
+description: Analyze 1to1 transcripts with QA engineers and extract reusable structured findings for both M1 people management and M2 project management. Use when classifying the dominant meeting topic, identifying concrete facts, separating people-side and project-side signals, calibrating risk signals, or preparing evidence for downstream 1to1 Google Sheet/CSV-fallback writer and risk-report skills.
 ---
 
 # QA 1to1 Analysis

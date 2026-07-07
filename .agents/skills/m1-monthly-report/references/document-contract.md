@@ -1,8 +1,11 @@
 # Document Contract
 
+Primary final output is a Google Sheet in `10_M1_People_Management`, with local
+CSV fallback. Preserve the CSV template layout as the Sheet layout/schema.
+
 ## Purpose
 
-Use this reference for M1 monthly KPI report CSV generation.
+Use this reference for M1 monthly KPI report Google Sheet generation, with CSV fallback.
 
 ## Template
 

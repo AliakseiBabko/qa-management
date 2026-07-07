@@ -1,5 +1,8 @@
 # Document Contract
 
+Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
+CSV fallback. Preserve the CSV template columns as the Sheet schema.
+
 ## Purpose
 
 Use this reference for the individual QA metrics document family.
@@ -62,6 +65,8 @@ Use exactly the columns in `Templates\метрики_qa_по_проекту.csv`
 - Do not use closed tasks, moved tasks, story points, or sprint throughput as primary person-level metrics when scope, task size, estimates, or release cadence are unstable.
 - If the person is constrained by project context, such as vague requirements, missing process, overload, access limits, unclear QA ownership, or senior-level expectations for a junior QA, state that in `Комментарии` and choose metrics that separate personal contribution from project constraints.
 - If metrics are not currently collectible, mark the data status clearly, explain why, and set the next collection/review action instead of inventing a score.
+- Mark when an individual metric should feed the project-level metrics view because it affects capacity, coverage, QA cycle time, defect quality, escaped defects, automation contribution, stakeholder visibility, accepted improvements, blockers, overload, or continuity risk.
+- Keep person-level conclusions scoped to contribution and constraints. Do not imply project-level health from one person unless that person's role or stream materially affects the overall project picture.
 
 ## Rule
 
