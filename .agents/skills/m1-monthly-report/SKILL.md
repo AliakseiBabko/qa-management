@@ -1,13 +1,13 @@
 ---
 name: m1-monthly-report
-description: Create or update an M1 monthly KPI report CSV from real people-management evidence, the M1 monthly report workbook structure, 1to1 outputs, risk reports, HR/RM/project notes, or explicit manager facts. Use when preparing monthly M1 bonus/KPI reporting, checking which M1 obligations/KPIs can be supported, identifying missing evidence, or turning M1 monthly-report source data into a CSV.
+description: Create or update an M1 monthly KPI report as a Google Sheet, with CSV fallback, from real people-management evidence, the M1 monthly report workbook structure, 1to1 outputs, risk reports, HR/RM/project notes, or explicit manager facts. Use when preparing monthly M1 bonus/KPI reporting, checking which M1 obligations/KPIs can be supported, identifying missing evidence, or turning M1 monthly-report source data into a spreadsheet.
 ---
 
 # M1 Monthly Report
 
 Use this skill for one output family only:
 
-- M1 monthly KPI report CSV
+- M1 monthly KPI report Google Sheet, with CSV fallback
 
 Default source example:
 
@@ -16,15 +16,16 @@ Default source example:
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m1-role-rules.md`.
-3. Identify the target M1 manager and reporting month.
-4. Read the smallest relevant evidence set:
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m1-role-rules.md`.
+4. Identify the target M1 manager and reporting month.
+5. Read the smallest relevant evidence set:
    - existing M1 monthly report workbook or extracted CSV
    - M1 1to1 files
    - people risk snapshot
    - HR/RM notes
    - assessment, PR, interview, onboarding, security, FTE, timesheet, team-size, and project-start evidence
-5. Ask questions only for fields required to complete the requested report and not present in the evidence.
+6. Ask questions only for fields required to complete the requested report and not present in the evidence.
 
 ## Workflow
 

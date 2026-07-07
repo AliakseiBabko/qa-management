@@ -1,22 +1,23 @@
 ---
 name: m2-individual-qa-metrics-report
-description: Create or update an individual QA metrics report for M2 project management. Use when preparing a metrics document for one QA engineer within a project or project-set context.
+description: Create or update an individual QA metrics report as a Google Sheet, with CSV fallback, for M2 project management. Use when preparing a metrics document for one QA engineer within a project or project-set context.
 ---
 
 # M2 Individual QA Metrics Report
 
 Use this skill for one output family only:
 
-- individual QA metrics document inside a project scope
+- individual QA metrics Google Sheet inside a project scope, with CSV fallback
 
 This is currently a placeholder skill boundary. Use it when the outcome must be an individual-level metrics artifact rather than a project-level metrics file.
 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`.
-3. Identify the target person and project scope.
-4. Read individual metrics first, then source workbook rows, project context, and transcript-derived findings.
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Identify the target person and project scope.
+5. Read individual metrics first, then source workbook rows, project context, and transcript-derived findings.
 
 ## Workflow
 

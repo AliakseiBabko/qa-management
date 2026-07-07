@@ -1,0 +1,93 @@
+# Document Contract
+
+Primary saved regular-report output is a Google Doc in `20_M2_Project_Management\status_reports`,
+with local Markdown fallback. On-demand reports are returned in chat by default.
+
+## Purpose
+
+Use this reference for short M2 project status reports.
+
+## Expected Output
+
+A short text status update that can be copied into a project, strategy, or management chat.
+
+Use Markdown/plain text. Do not use CSV for this report family.
+
+## Target Folder
+
+For saved regular reports:
+
+`G:\My Drive\QA_Management\20_M2_Project_Management\status_reports`
+
+Suggested naming pattern:
+
+`status_<Project>_YYYY-MM-DD.md`
+
+For multi-project reports:
+
+`status_multi-project_YYYY-MM-DD.md`
+
+## Versioning
+
+- Save every regular report with project name and report date.
+- Do not overwrite an existing final status report by default.
+- If the target report already exists, create the next versioned file with a `_vN` suffix before `.md`, for example `_v2` or `_v3`.
+- On-demand reports are returned in chat by default. Save them only when the user asks to save, or when the user explicitly calls it a regular report.
+
+## Period Rules
+
+- Resolve relative periods to absolute dates using the current date.
+- "Last week" means the previous Monday-Sunday calendar week unless the user gives a different convention.
+- "Current status" means status as of the current date, based on the requested period plus the latest available relevant evidence.
+- State the exact period in the output title, for example `2026-06-29 - 2026-07-05`.
+
+## Source Rules
+
+- Start from evidence inside the requested period.
+- Use older project artifacts only to explain baseline, plan, owner, or unresolved carry-over risk.
+- Prefer extracted source files over original DOCX/XLSX when available:
+  `G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD\<Project>\...`
+- For large extracts, inspect manifests/JSON previews first, then search for relevant dates, project names, status labels, blockers, risks, metrics, owners, and next actions.
+- If no suitable extract exists for DOCX/XLSX, run `.agents/scripts/qa_source_extract.py` before reading the source directly.
+- Keep evidence traceable internally, but do not clutter the chat-ready status with source paths unless the user asks for evidence.
+
+## Content Rules
+
+Include only sections supported by evidence:
+
+1. `Done / changed`
+2. `Metrics / quality`
+3. `Risks / blockers`
+4. `Feedback / communication`
+5. `Next steps`
+6. `Help needed`
+
+Keep each section short:
+
+- one to three bullets per section
+- concrete facts, owners, dates, and next actions where known
+- no long background narrative
+
+## M2 Focus
+
+A project status report should show:
+
+- project movement since the previous report
+- quality and QA-process signal
+- risk/blocker movement
+- plan progress
+- stakeholder/client communication
+- staffing or continuity issues when they affect project delivery
+- next management action
+
+## Missing Evidence
+
+If data for the requested period is missing, write a short status anyway only if there is enough reliable context. Add a brief line such as:
+
+`Data note: no fresh project metrics/status rows found for the period; status is based on latest available risk/plan evidence.`
+
+Do not fill gaps with assumptions.
+
+## Language
+
+Use Russian by default for business-facing status text unless the user asks for another language. Preserve normal English project terms and metric names when they are part of the working vocabulary.

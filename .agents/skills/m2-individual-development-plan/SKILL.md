@@ -1,20 +1,21 @@
 ---
 name: m2-individual-development-plan
-description: Create or update an individual development-plan report for M2 project management. Use when preparing a development-plan document for one QA engineer within a project or project-set context.
+description: Create or update an individual development-plan report as a Google Sheet, with CSV fallback, for M2 project management. Use when preparing a development-plan document for one QA engineer within a project or project-set context.
 ---
 
 # M2 Individual Development Plan
 
 Use this skill for one output family only:
 
-- individual development-plan document inside a project scope
+- individual development-plan Google Sheet inside a project scope, with CSV fallback
 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`.
-3. Identify the target person and project scope.
-4. Read the individual development plan first, then individual metrics, person workbook rows, and project context.
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Identify the target person and project scope.
+5. Read the individual development plan first, then individual metrics, person workbook rows, and project context.
 
 ## Workflow
 

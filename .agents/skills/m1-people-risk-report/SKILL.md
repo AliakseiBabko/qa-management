@@ -1,19 +1,20 @@
 ---
 name: m1-people-risk-report
-description: Create or update the M1 people risk traffic-light CSV from QA people-management evidence. Use when generating dated files like `G:\My Drive\QA_Management\10_M1_People_Management\светофор_рисков_YYYY-MM-DD.csv` from `Templates\светофор_рисков.csv` in this repository.
+description: Create or update the M1 people risk traffic-light Google Sheet, with CSV fallback, from QA people-management evidence. Use when generating dated people-risk snapshots in the QA Management Google Drive workspace from `Templates\светофор_рисков.csv` in this repository.
 ---
 
 # M1 People Risk Report
 
 Use this skill for one output family only:
 
-- `G:\My Drive\QA_Management\10_M1_People_Management\светофор_рисков_YYYY-MM-DD.csv`
+- dated people-risk traffic-light Google Sheet in `10_M1_People_Management`, with local CSV fallback
 
 ## Required Start
 
-1. Read `references/file-contract.md`.
-2. Read one representative existing snapshot when available.
-3. Read the relevant person files in `G:\My Drive\QA_Management\10_M1_People_Management` and/or structured findings from `qa-1to1-analysis`.
+1. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `references/file-contract.md`.
+3. Read one representative existing snapshot when available.
+4. Read the relevant person Sheets/files in `10_M1_People_Management` and/or structured findings from `qa-1to1-analysis`.
 
 ## Workflow
 

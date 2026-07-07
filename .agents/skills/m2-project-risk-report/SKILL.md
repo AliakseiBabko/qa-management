@@ -1,27 +1,28 @@
 ---
 name: m2-project-risk-report
-description: Create or update a project risk traffic-light document for M2 project management. Use when producing a project-focused risk report from QA 1to1 findings, project transcripts, delivery signals, or other project data sources.
+description: Create or update a project risk traffic-light Google Sheet, with CSV fallback, for M2 project management. Use when producing a project-focused risk report from QA 1to1 findings, project transcripts, delivery signals, or other project data sources.
 ---
 
 # M2 Project Risk Report
 
 Use this skill for one output family only:
 
-- project risk traffic-light file
+- project risk traffic-light Google Sheet, with CSV fallback
 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`.
-3. Identify the target project and reporting snapshot date.
-4. Read the smallest relevant evidence set:
+2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Identify the target project and reporting snapshot date.
+5. Read the smallest relevant evidence set:
    - extracted project risk/summary documents
    - project development plans
    - project metrics
    - business/project context and client expectations
    - workbook 1to1/status rows
    - `qa-1to1-analysis` findings when transcripts are one of the inputs
-5. State source gaps before filling the template.
+6. State source gaps before filling the template.
 
 ## Workflow
 
