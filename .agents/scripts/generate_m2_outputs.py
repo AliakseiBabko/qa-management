@@ -194,6 +194,14 @@ def rows_from_metric_csv(rows: list[list[str]]) -> list[dict[str, str]]:
     header_idx, mapping = header
     output = []
     for row in rows[header_idx + 1 :]:
+        non_empty = [cell for cell in row if cell.strip()]
+        if not non_empty:
+            continue
+        if len(non_empty) == 1:
+            # A lone populated cell marks the start of the next narrative
+            # section (e.g. "Data gaps", "Stream metrics baseline") rather
+            # than another row of this table, so the scorecard ends here.
+            break
         metric = get(row, mapping, "metric")
         if not metric:
             continue
@@ -401,14 +409,14 @@ def generate_project_plans(extract_root: Path, rows: list[dict[str, str]], snaps
         focus_items = bullet_items(focus_text)[:12] or [compact(focus_text, 500) or summary]
         review_cycle = review_value(text, "Review cycle")
         next_review = review_value(text, "Следующий review")
-        for focus in focus_items:
+        for index, focus in enumerate(focus_items):
             outputs[item["project"]].append(
                 [
                     item["project"],
                     snapshot_date,
                     review_cycle,
-                    summary,
-                    current,
+                    summary if index == 0 else "",
+                    current if index == 0 else "",
                     compact(focus, 450),
                     "",
                     compact(focus, 450),
@@ -440,7 +448,7 @@ def generate_individual_plans(extract_root: Path, rows: list[dict[str, str]], sn
         next_review = review_value(text, "Следующий review")
         stream = review_value(text, "Stream")
         key = f"{item['project']}__{person}"
-        for focus in focus_items:
+        for index, focus in enumerate(focus_items):
             outputs[key].append(
                 [
                     item["project"],
@@ -448,14 +456,14 @@ def generate_individual_plans(extract_root: Path, rows: list[dict[str, str]], sn
                     stream,
                     snapshot_date,
                     review_cycle,
-                    goal,
+                    goal if index == 0 else "",
                     compact(focus, 450),
                     "",
                     compact(focus, 450),
                     "",
                     "",
                     "",
-                    progress,
+                    progress if index == 0 else "",
                     next_review,
                     source_label(item),
                 ]

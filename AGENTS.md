@@ -72,6 +72,29 @@ Expected data folders under that root:
 - `80_Exports`: exported packages, shares, or generated external copies
 - `90_Archive`: archived legacy folders and backups
 
+M2 project-management outputs are project-based. Each active project should have
+its own folder under `20_M2_Project_Management`, for example:
+
+```text
+20_M2_Project_Management/<Project>/
+├─ project_risk.gsheet
+├─ project_development_plan.gsheet
+├─ project_metrics.gsheet
+├─ evidence_log.gsheet
+├─ people/<Person>/
+│  ├─ individual_development_plan.gsheet
+│  └─ individual_metrics.gsheet
+├─ status_reports/
+├─ source_docs/
+└─ archive/
+```
+
+Use `_project_registry.gsheet` / `_project_registry.csv` in
+`20_M2_Project_Management` to track active project names, aliases, people, and
+source locations. For broad cross-project sources, split extracted facts by
+project first, update each project folder separately, then archive the aggregate
+source/output as evidence.
+
 Archived legacy locations:
 
 - `90_Archive/VSCode_Settings_Backup`: former top-level `.vscode`
@@ -86,6 +109,7 @@ Archived legacy locations:
 - Preserve English terms, definitions, and citations when they are part of the source or normal working vocabulary.
 - Preserve established template schemas and filename conventions unless the user requests a schema change.
 - Prefer Google Sheets for final tabular business outputs and Google Docs for final narrative/status outputs. Use local CSV/Markdown in `G:\My Drive\QA_Management` only as fallback, staging, or source-extraction output when Google API access is unavailable or not requested.
+- For M2, route final tabular outputs into the relevant project folder. Do not keep cross-project KT or batch files as canonical final documents; use them only as intermediate evidence that feeds project-local files.
 - Each report-generation skill should target one expected output document format.
 - Do not overwrite existing final dated/monthly documents by default. If a final document already exists for the same snapshot date or reporting month, create the next `_vN` file, for example `_v2`, `_v3`, unless the user explicitly asks to revise the existing file in place.
 - Personal 1to1 files are append-only longitudinal records, not versioned snapshot documents. Preserve old rows and revise an old row only when the user explicitly asks for correction.
