@@ -7,7 +7,7 @@ description: Create or update an individual QA engineer 1to1 Google Sheet, with 
 
 Use this skill for one output family only:
 
-- `<Person Name> 1to1` Google Sheet in `20_M2_Project_Management`, with local CSV fallback
+- `<Person Name> 1to1` Google Sheet in `20_M2_Project_Management\<Project>\people\<Person>`, with local CSV fallback
 
 ## Required Start
 

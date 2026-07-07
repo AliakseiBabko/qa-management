@@ -28,13 +28,41 @@ Current Drive layout:
 - `02_Transcripts_Inbox/`: raw transcript intake
 - `03_Transcripts_Processed/`: processed transcripts
 - `10_M1_People_Management/`: M1 person files and people risk snapshots
-- `20_M2_Project_Management/`: M2 project-management outputs
+- `20_M2_Project_Management/`: project-based M2 project-management outputs
 - `80_Exports/`: export packages and external copies
 - `90_Archive/`: archived legacy folders and backups
 
 Final business outputs should prefer Google Sheets for tabular artifacts and Google Docs
 for narrative/status artifacts when Google API access is available. Local CSV/Markdown
 files remain valid as fallback, staging, source-extraction, and export artifacts.
+
+## M2 Project Layout
+
+M2 is organized by project context. The active project registry lives in:
+
+`G:\My Drive\QA_Management\20_M2_Project_Management\_project_registry.csv`
+
+and as a Google Sheet in the same Drive folder.
+
+Each project folder follows this shape:
+
+```text
+20_M2_Project_Management/<Project>/
+├─ project_risk.gsheet
+├─ project_development_plan.gsheet
+├─ project_metrics.gsheet
+├─ evidence_log.gsheet
+├─ people/<Person>/
+│  ├─ individual_development_plan.gsheet
+│  └─ individual_metrics.gsheet
+├─ status_reports/
+├─ source_docs/
+└─ archive/
+```
+
+Broad KT/session sources should be split by project before updating final files.
+Use `evidence_log` as the append-only trace of which source changed which project
+files. Keep aggregate KT outputs in archive, not as canonical final documents.
 
 ## Source extraction
 
@@ -107,6 +135,16 @@ Default output:
 
 The generator preserves source evidence and writes draft CSVs for project risks, project metrics,
 individual QA metrics, project development plans, and individual development plans.
+
+To reorganize generated or KT-derived M2 data into project folders, use:
+
+```powershell
+python .agents\scripts\reorganize_m2_project_workspace.py
+```
+
+This script creates project folders, project-local CSV fallbacks, Google Sheets,
+and an M2 project registry. Treat it as a migration/setup utility, not as a
+daily intake processor.
 
 ## Status Reports
 

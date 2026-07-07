@@ -1,7 +1,7 @@
 # Document Contract
 
-Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
-CSV fallback. Preserve the CSV template columns as the Sheet schema.
+Primary final output is a Google Sheet in `20_M2_Project_Management\<Project>`,
+with local CSV fallback. Preserve the CSV template columns as the Sheet schema.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ One project-level metrics-oriented report format per skill invocation.
 
 Suggested target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>`
 
 Suggested naming pattern:
 

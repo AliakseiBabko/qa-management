@@ -1,7 +1,7 @@
 # Document Contract
 
-Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
-CSV fallback. Preserve the CSV template columns as the Sheet schema.
+Primary final output is a Google Sheet in `20_M2_Project_Management\<Project>`,
+with local CSV fallback. Preserve the CSV template columns as the Sheet schema.
 
 ## Purpose
 
@@ -17,7 +17,7 @@ One project-risk traffic-light document per reporting snapshot.
 
 Suggested target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>`
 
 Suggested naming pattern:
 
@@ -25,7 +25,9 @@ Suggested naming pattern:
 
 ## Versioning
 
-- Do not overwrite an existing final project-risk snapshot by default.
+- Use the living project-local `project_risk` file for current state, and append
+  source traceability to the project `evidence_log`.
+- Do not overwrite an existing formal dated project-risk snapshot by default.
 - If the target snapshot-date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
 - Update an existing project-risk snapshot in place only when the user explicitly asks for revision.
 

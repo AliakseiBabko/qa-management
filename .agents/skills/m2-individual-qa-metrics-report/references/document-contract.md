@@ -1,7 +1,8 @@
 # Document Contract
 
-Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
-CSV fallback. Preserve the CSV template columns as the Sheet schema.
+Primary final output is a Google Sheet in
+`20_M2_Project_Management\<Project>\people\<Person>`, with local CSV fallback.
+Preserve the CSV template columns as the Sheet schema.
 
 ## Purpose
 
@@ -17,7 +18,7 @@ One individual metrics-oriented report format.
 
 Suggested target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>`
 
 Suggested naming pattern:
 
@@ -25,7 +26,9 @@ Suggested naming pattern:
 
 ## Versioning
 
-- Do not overwrite an existing final individual QA metrics document by default.
+- Use the living project-local person file `individual_metrics` for metric
+  snapshots, and append source traceability to the project `evidence_log`.
+- Do not overwrite an existing formal dated individual QA metrics document by default.
 - If the target project/person/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
 - Update an existing individual QA metrics document in place only when the user explicitly asks for revision.
 

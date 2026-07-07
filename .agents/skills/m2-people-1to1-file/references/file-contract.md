@@ -6,11 +6,11 @@
 
 ## Target
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\<Person Name> 1to1.csv`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person Name>\<Person Name> 1to1.csv`
 
 Primary Google Workspace target:
 
-`20_M2_Project_Management\<Person Name> 1to1` Google Sheet
+`20_M2_Project_Management\<Project>\people\<Person Name>\<Person Name> 1to1` Google Sheet
 
 Use the CSV target only as local fallback or staging. Preserve `Templates\1to1.csv` as the schema contract.
 

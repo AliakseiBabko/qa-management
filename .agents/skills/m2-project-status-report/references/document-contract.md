@@ -1,7 +1,8 @@
 # Document Contract
 
-Primary saved regular-report output is a Google Doc in `20_M2_Project_Management\status_reports`,
-with local Markdown fallback. On-demand reports are returned in chat by default.
+Primary saved regular-report output is a Google Doc in
+`20_M2_Project_Management\<Project>\status_reports`, with local Markdown
+fallback. On-demand reports are returned in chat by default.
 
 ## Purpose
 
@@ -17,7 +18,7 @@ Use Markdown/plain text. Do not use CSV for this report family.
 
 For saved regular reports:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\status_reports`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\status_reports`
 
 Suggested naming pattern:
 
