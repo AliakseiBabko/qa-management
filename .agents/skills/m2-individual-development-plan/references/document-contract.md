@@ -5,9 +5,24 @@ Primary final output is a Google Doc in
 fallback. This is a narrative document: one living Doc per person, not a row
 per focus area.
 
+This Doc and `individual_metrics` are two halves of one whole: the Sheet
+holds only values and a short explanation of each; this Doc carries
+everything else — why a metric matters, what's missing from it, what's
+actually going on, and what to do about it. Never duplicate metric values
+here — link to the Sheet instead.
+
 ## Purpose
 
 Use this reference for the individual development-plan document family.
+
+## Template
+
+`<repo-root>\Templates\план_развития_qa_по_проекту.md`
+
+Use this as the section skeleton for every individual development plan. It
+was derived from the real M2 homework corpus in
+`00_Source_Docs\M2_personal_development_plan` and the head of QA's recurring
+review comments on that homework.
 
 ## Expected Output
 
@@ -39,43 +54,81 @@ unavailable): `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.md`
 
 ## Section Skeleton
 
-Write the Doc as headed prose, in this order. Omit a section if there is no
-evidence for it rather than inventing content, but keep the order when
-sections are present.
+Write the Doc as headed prose, in this order (full skeleton in the template
+file above). Omit a section if there is no evidence for it rather than
+inventing content, but say so as an open question instead of silently
+dropping it.
 
 1. **Title** — `<Person> — план развития (<Project>)`, followed by a short
    metadata line (Stream/role, Обновлено, Review cycle, Следующий review).
-2. **Цель на период** — one paragraph: what the person should move toward
-   over the review horizon and why it matters for the project.
-3. **Фокус развития / Зоны роста** — the specific growth areas, each as its
-   own bullet or short paragraph naming what is weak/missing today.
-4. **План действий** — the actual plan, broken into review horizons (e.g. 2
-   weeks / 1 month / 2 months / 3 months, or 30/60/90 days). Each action item
-   is a bullet carrying its own success criterion inline, e.g.
-   `Action. Критерий: Y.`
-5. **Поддержка менеджера** — what M2 support/check cadence is committed, if
-   any.
-6. **Текущий прогресс** — current progress against the goal, if there is a
-   prior plan to compare against.
-7. **Источники / Evidence** — bullet list of source references (1:1s, chats,
-   docs) the plan draws on.
+2. **Роль на проекте** — who this person is, what they actually do, and what
+   is expected of them. This is the role description and the expectations
+   combined — not a skills résumé and not a separate "context" section.
+3. **Метрики** — a hyperlink to the person's `individual_metrics` Sheet, plus
+   prose covering what the Sheet itself cannot: which core metrics are
+   missing and why, how the ones that exist get collected, and why a metric
+   was substituted or adjusted for this project if it was. Never restate the
+   Sheet's actual values here.
+4. **Текущее состояние** — a short narrative of how things actually stand
+   right now, informed by the metrics but not a row-by-row recap of them.
+5. **Фокус развития** — the specific growth areas. Each item must
+   answer **how it grows the role**: influence, responsibility, trust,
+   visibility to the client/team, the project's dependency on this person.
+   Do not state a focus item as a bare task list — that is the single most
+   common gap across the source homework, called out on almost every
+   submission ("as всё это развивает роль?").
+6. **План действий** — split into two groups instead of fixed calendar
+   horizons (2 weeks / 1 month / 30/60/90 days), which create a false sense of
+   long-range forecast under Agile:
+   - **Ближайшие шаги** — tied to a specific date/sprint. Each item: action +
+     date or "by end of sprint" + success criterion.
+   - **Направления развития** — a goal we're moving toward with no date
+     commitment, plus how we'll know it's done.
+7. **Вклад в проект** — the rollup: pulls role, metrics, and plan into one
+   conclusion. Can be sparse/tentative for someone newly onboarded, but
+   should not stay empty indefinitely once evidence exists. Exactly one of
+   three statuses, no in-between:
+   - **Позитивный** — role, metrics, and plan all support a clearly positive
+     contribution.
+   - **Смешанный** — some signals positive, some not (e.g. real improvement
+     after a rocky start, but not enough track record yet to be fully
+     confident), or genuinely too early to call for someone newly onboarded.
+     This is a normal, stable status, not something to round up to
+     "Позитивный" just because there isn't a confident answer yet.
+   - **Негативный** — the picture is clearly bad: role/metrics show a
+     problem dragging the result down with no credible positive
+     counter-signal; point to `План действий` for what's being done.
+   This section is what gets read later when rolling individual assessments
+   up into `project_development_plan` and `project_risk` — write it with
+   that reuse in mind, not just as a summary for this document alone.
+
+`Источники` is deliberately not a section here. A bare list of 1:1 dates
+tells the reader nothing; that traceability belongs in `evidence_log`, not
+in a document meant to be read.
+
+`Поддержка менеджера` / `Красные флаги / эскалация` are deliberately not
+per-person sections. How M2 supports and escalates for key engineers is a
+project-wide policy, not something that varies document to document — do
+not reintroduce it here even if it seems relevant for a specific person.
 
 ## Source Priority
 
 1. Existing individual development plan.
-2. Project goals, business context, and what the project needs from the
+2. Individual metrics Sheet — what it has, and what it's missing.
+3. Project goals, business context, and what the project needs from the
    person.
-3. Individual metrics file.
 4. Person workbook rows and 1to1 analysis findings.
 5. Project development plan only for context.
 
 ## Normalization
 
-- State the goal/progress paragraph once; do not repeat it before every focus
-  item the way a spreadsheet row would require.
+- Do not duplicate metric values from `individual_metrics` in this document.
+  Link to the Sheet; explain what the Sheet can't explain about itself.
 - Tie each focus item to the project role the person needs to grow into:
   ownership, visibility, responsibility, authority, trust, client/team entry
-  point, or process/module ownership.
+  point, or process/module ownership. A focus item that only restates a task
+  ("collect X metric") without saying what it changes about the person's
+  standing on the project is incomplete.
 - If project expectations exceed the person's current level, state the
   project need and manager support explicitly instead of framing the gap only
   as personal underperformance.
@@ -92,6 +145,9 @@ sections are present.
 - If the source document is genuinely sparse or empty, keep the Doc with a
   title and a short note naming what evidence is still missing, rather than
   omitting the file entirely.
+- Do not force every action item into a fixed calendar bucket (2 weeks / 30
+  days / etc.). Split into date-bound near-term commitments and undated
+  directional goals instead — matches how Agile teams actually plan.
 
 ## Rule
 

@@ -19,6 +19,8 @@ For each active project, maintain or work toward:
 - project risk view
 - onboarding / project-entry plan for new people
 - status and sync path in the project strategy chat or equivalent channel
+- `m2_input` — M2's own context and judgment, collected before each
+  project-level rollup (see Project-Level Rollups below)
 
 ## Business Focus
 
@@ -81,6 +83,40 @@ At project start or staffing:
 - sync more frequently during the first 1-2 weeks
 - use real project tasks, boards, Jira, comments, bugs, and meetings to build context
 
+## Project-Level Rollups
+
+`project_development_plan` and `project_risk` get updated by rolling up
+every person's individual plan, individual metrics, and `Вклад в проект`
+conclusion — but that rollup should never run purely mechanically. Metrics
+and per-person plans don't carry the manager's own judgment (why a risk
+matters more or less than the numbers suggest, context that isn't in any
+metric, how to weigh one person's read of the project against another's).
+`m2_input` (see Templates\m2_input.md) is the explicit place for that
+judgment, and the rollup is a two-phase process built around it:
+
+1. **Preliminary analysis round.** Before combining anything, review every
+   person's individual plan and metrics on the project, and write down
+   specific, answerable questions — gaps in data, contradictions between
+   people's signals, risks visible in the metrics but with no clear owner,
+   what to do about someone whose Core metrics aren't collectible yet.
+   Append a new dated round to the project's `m2_input` Doc with these
+   questions; leave "Ответ и общие соображения M2" empty.
+2. **Wait for M2's answer.** Do not proceed to the rollup until the latest
+   round's answer section is filled in. An empty answer section means the
+   rollup for that round cannot happen yet — that's a stop condition, not
+   something to route around by falling back to metrics alone.
+3. **Rollup round.** Once answered, combine individual plans/metrics with
+   that round's answers as an explicit input — on par with the metrics
+   themselves, not a tie-breaker used only when metrics disagree — into the
+   updated `project_development_plan` and `project_risk`.
+
+`m2_input` is one living Doc per project, not a new file per cycle. Each
+round is a new dated section appended to the same Doc; do not delete or
+archive prior rounds — the visible history of questions and answers across
+cycles is itself useful context for the next round, and Google Docs version
+history is a backstop, not a substitute for keeping rounds visible in the
+document.
+
 ## Development Plans
 
 Project plans must answer:
@@ -131,6 +167,8 @@ Assess evidence strength for feedback and risk signals. Mark whether feedback is
 Treat hidden or unclear project topology as a risk signal: unknown streams, unknown DC/PM ownership, unclear vendor chain, missing client path, or incomplete staffing visibility can cause wrong escalations, duplicated communication, missed stakeholders, or loss of project scope.
 
 Separate individual performance risk from project/stake risk. A person may perform well while the project is still high risk because of vendor-chain issues, client dissatisfaction, role value doubts, weak processes, or contract horizon.
+
+The reverse also happens: sometimes an individual's own performance/position genuinely is the primary driver of a project risk (e.g. a client explicitly requests a more experienced replacement, reinforced by real performance history). When that's the case, say so directly and put it first in the risk narrative — do not default to splitting it into parallel, co-equal sub-risks (like "continuity risk" vs. "process maturity risk") just to keep individual and project risk visually separate. Secondary/background factors (process immaturity, documentation gaps) still belong in the writeup, but as subordinate to the actual primary cause, not sitting next to it as an alternative explanation.
 
 ## Communication and Visibility
 

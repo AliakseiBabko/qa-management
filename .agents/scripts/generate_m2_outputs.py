@@ -49,16 +49,12 @@ PROJECT_METRICS_HEADER = [
 INDIVIDUAL_METRICS_HEADER = [
     "Проект",
     "Сотрудник",
-    "Период",
+    "Дата",
     "Роль / stream",
     "Метрика",
-    "Показатель / score",
-    "Уровень внимания",
+    "Показатель",
+    "Пояснение",
     "Тренд",
-    "Статус данных",
-    "Evidence / источник",
-    "Следующее действие",
-    "Комментарии",
 ]
 
 PROJECT_PLAN_HEADER = [
@@ -327,21 +323,39 @@ def generate_metrics(
                     metric_rows.append(metric)
         elif extract_file.suffix == ".md":
             text = clean_markdown(extract_file.read_text(encoding="utf-8"))
-            for line in text.splitlines():
+            sections = extract_sections(text)
+            # Scope to the Scorecard section only, matching the XLSX branch's
+            # scorecard-boundary behavior. Without this, any "- label: value"
+            # bullet anywhere in the document gets treated as a metric,
+            # including data-gap notes and source citations that happen to
+            # contain a colon.
+            scorecard_text = section_contains(sections, "scorecard")
+            for line in scorecard_text.splitlines():
                 stripped = line.strip()
                 if not stripped.startswith("- ") or ":" not in stripped:
                     continue
                 name, rest = stripped[2:].split(":", 1)
+                rest = rest.strip()
+                next_action_match = re.search(r"Следующее действие\s*:\s*(.+)$", rest, flags=re.IGNORECASE)
+                next_action = ""
+                if next_action_match:
+                    next_action = next_action_match.group(1).strip().rstrip(".")
+                    rest = rest[: next_action_match.start()].strip(" .;")
+                evidence_match = re.search(r"Evidence\s*:\s*(.+)$", rest, flags=re.IGNORECASE)
+                evidence_text = ""
+                if evidence_match:
+                    evidence_text = evidence_match.group(1).strip().rstrip(".")
+                    rest = rest[: evidence_match.start()].strip(" .;")
                 metric_rows.append(
                     {
                         "metric": name.strip(),
-                        "indicator": compact(rest.strip(), 220),
+                        "indicator": compact(rest, 220),
                         "attention": "",
                         "trend": "",
                         "data_status": "Есть данные",
-                        "evidence": source_label(item),
+                        "evidence": compact(evidence_text, 220) or source_label(item),
                         "owner": "",
-                        "next_action": "",
+                        "next_action": compact(next_action, 220),
                         "comments": "",
                     }
                 )
@@ -380,12 +394,8 @@ def generate_metrics(
                         role_stream,
                         metric["metric"],
                         metric["indicator"],
-                        metric["attention"] or "Unknown",
-                        metric["trend"],
-                        metric["data_status"] or "Есть данные",
                         metric["evidence"],
-                        metric["next_action"],
-                        metric["comments"],
+                        metric["trend"],
                     ]
                 )
     return outputs
