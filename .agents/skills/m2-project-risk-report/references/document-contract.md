@@ -50,6 +50,14 @@ Use exactly the columns in `Templates\светофор_рисков_проект
 
 ## Inputs
 
+- `m2_input` — the latest round's answers. If the latest round's answer
+  section is empty, this is a rollup and you must stop and run the
+  preliminary-analysis round first (see `m2-role-rules.md`
+  Project-Level Rollups) rather than proceeding on metrics alone.
+- Individual `Вклад в проект` conclusions and the `Команда: ...` rollup rows
+  in `project_metrics` — a person flagged `Есть риск` is a candidate risk
+  signal, but confirm via `m2_input` whether it's project-level or stays
+  scoped to that person's own plan (see Risk Interpretation Notes).
 - QA 1to1 findings
 - project transcripts
 - delivery/process notes

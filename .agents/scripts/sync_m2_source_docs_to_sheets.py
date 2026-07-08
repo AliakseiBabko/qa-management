@@ -298,6 +298,25 @@ def merge_evidence(existing: list[list[str]], new_rows: list[list[str]]) -> list
     return merged
 
 
+def merge_individual_metrics(existing: list[list[str]], new_rows: list[list[str]], header: list[str]) -> list[list[str]]:
+    # individual_metrics is an append-only snapshot history, not a sheet that
+    # gets overwritten each sync: Тренд is only meaningful if prior periods
+    # are kept around to compare against. Dedup on (Проект, Сотрудник,
+    # Период, Метрика) so re-running for the same day updates that day's row
+    # instead of duplicating it, while a new day appends fresh rows.
+    body = existing[1:] if existing else []
+    seen = {(row[0], row[1], row[2], row[4]): idx for idx, row in enumerate(body) if len(row) > 4}
+    merged = list(body)
+    for row in new_rows:
+        key = (row[0], row[1], row[2], row[4])
+        if key in seen:
+            merged[seen[key]] = row
+        else:
+            seen[key] = len(merged)
+            merged.append(row)
+    return [header, *merged]
+
+
 def read_sheet_values(services: dict[str, Any], spreadsheet_id: str) -> list[list[str]]:
     metadata = services["sheets"].spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     title = metadata["sheets"][0]["properties"]["title"]
@@ -313,7 +332,7 @@ def read_sheet_values(services: dict[str, Any], spreadsheet_id: str) -> list[lis
 
 def ensure_project_local_dirs(project: str, person_names: set[str]) -> None:
     project_root = M2_ROOT / project
-    for folder in ["people", "status_reports", "source_docs", "archive"]:
+    for folder in ["people", "status_reports"]:
         (project_root / folder).mkdir(parents=True, exist_ok=True)
     for person in person_names:
         folder_name = resolve_existing_person_dir(project, person)
@@ -389,12 +408,14 @@ def main() -> int:
             person_folder = find_or_create_folder(drive, people_folder["id"], folder_name)
             key = (project, person)
 
-            metric_values = [individual_metrics_header, *individual_metrics.get(key, [])]
+            metrics_sheet = find_sheet_in_folder(drive, person_folder["id"], "individual_metrics")
+            existing_metrics = read_sheet_values(services, metrics_sheet["id"]) if metrics_sheet else [individual_metrics_header]
+            merged_metrics = merge_individual_metrics(existing_metrics, individual_metrics.get(key, []), individual_metrics_header)
             meta = upsert_sheet(
                 services,
                 person_folder["id"],
                 "individual_metrics",
-                metric_values,
+                merged_metrics,
             )
             results.append(f"{project}/{folder_name}: {meta['name']}")
 

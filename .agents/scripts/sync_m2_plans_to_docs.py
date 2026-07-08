@@ -9,8 +9,10 @@ tabular records, so they are stored as Google Docs instead of Google Sheets:
 - 20_M2_Project_Management/<Project>/people/<Person>/individual_development_plan
 
 Any pre-existing Sheet with the same title is archived (renamed and moved into
-the project's archive/ folder) rather than deleted, since it may still be
-useful history.
+90_Archive/20_M2_Project_Management/<Project>/) rather than deleted, since it
+may still be useful history. Archives live under the single workspace-wide
+90_Archive tree rather than inside each active project folder, so there is
+one place to look for retired artifacts instead of two.
 """
 
 from __future__ import annotations
@@ -120,15 +122,47 @@ def parse_blocks(markdown: str) -> list[dict[str, str]]:
     return blocks
 
 
+INLINE_TOKEN_RE = re.compile(r"\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)]+)\)")
+
+
+def render_inline(text: str) -> tuple[str, list[tuple[int, int, str]]]:
+    """Parse inline **bold** and [label](url) markup out of a block's text.
+
+    Returns (plain_text, styles) where styles is a list of
+    (start, end, kind) local offsets into plain_text; kind is "bold" or a
+    URL string (meaning a link should be applied to that range).
+    """
+    parts: list[str] = []
+    styles: list[tuple[int, int, str]] = []
+    pos = 0
+    length = 0
+    for m in INLINE_TOKEN_RE.finditer(text):
+        before = text[pos : m.start()]
+        parts.append(before)
+        length += len(before)
+        if m.group(1) is not None:
+            label, kind = m.group(1), "bold"
+        else:
+            label, kind = m.group(2), m.group(3)
+        parts.append(label)
+        styles.append((length, length + len(label), kind))
+        length += len(label)
+        pos = m.end()
+    parts.append(text[pos:])
+    return "".join(parts), styles
+
+
 def build_doc_requests(blocks: list[dict[str, str]]) -> tuple[str, list[dict[str, Any]]]:
     text_parts: list[str] = []
     heading1: list[tuple[int, int]] = []
     heading2: list[tuple[int, int]] = []
     bullets: list[tuple[int, int]] = []
     bold: list[tuple[int, int]] = []
+    links: list[tuple[int, int, str]] = []
     cursor = 1
     for block in blocks:
-        content = block["text"] + "\n"
+        display_text, inline_styles = render_inline(block["text"])
+        content = display_text + "\n"
         start = cursor
         end = cursor + len(content)
         if block["type"] == "title":
@@ -139,6 +173,11 @@ def build_doc_requests(blocks: list[dict[str, str]]) -> tuple[str, list[dict[str
             bullets.append((start, end))
         elif block["type"] == "metadata":
             bold.append((start, end))
+        for local_start, local_end, kind in inline_styles:
+            if kind == "bold":
+                bold.append((start + local_start, start + local_end))
+            else:
+                links.append((start + local_start, start + local_end, kind))
         text_parts.append(content)
         cursor = end
 
@@ -179,6 +218,16 @@ def build_doc_requests(blocks: list[dict[str, str]]) -> tuple[str, list[dict[str
                     "range": {"startIndex": start, "endIndex": end},
                     "textStyle": {"bold": True},
                     "fields": "bold",
+                }
+            }
+        )
+    for start, end, url in links:
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "textStyle": {"link": {"url": url}},
+                    "fields": "link",
                 }
             }
         )
@@ -233,6 +282,12 @@ def upsert_doc(
     return {"id": doc_id, "name": title}
 
 
+def archive_project_folder(drive: Any, root_folder_id: str, project: str) -> dict[str, Any]:
+    archive_90 = find_or_create_folder(drive, root_folder_id, "90_Archive")
+    archive_m2 = find_or_create_folder(drive, archive_90["id"], "20_M2_Project_Management")
+    return find_or_create_folder(drive, archive_m2["id"], project)
+
+
 def main() -> int:
     args = parse_args()
     extract_root = Path(args.extract_root)
@@ -255,7 +310,7 @@ def main() -> int:
         project = item["project"]
         markdown = markdown_for(extract_root, item)
         project_folder = find_or_create_folder(drive, m2_folder["id"], project)
-        archive_folder = find_or_create_folder(drive, project_folder["id"], "archive")
+        archive_folder = archive_project_folder(drive, ROOT_FOLDER_ID, project)
         meta = upsert_doc(
             services,
             project_folder["id"],
@@ -277,7 +332,7 @@ def main() -> int:
         folder_name = resolve_existing_person_dir(project, person)
 
         project_folder = find_or_create_folder(drive, m2_folder["id"], project)
-        archive_folder = find_or_create_folder(drive, project_folder["id"], "archive")
+        archive_folder = archive_project_folder(drive, ROOT_FOLDER_ID, project)
         people_folder = find_or_create_folder(drive, project_folder["id"], "people")
         person_folder = find_or_create_folder(drive, people_folder["id"], folder_name)
 
