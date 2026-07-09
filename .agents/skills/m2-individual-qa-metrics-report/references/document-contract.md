@@ -116,16 +116,14 @@ nothing more:
    помощи lead'а`. Do not put a raw source file path here; that
    traceability already lives in `evidence_log`. For
    `Соответствие ожиданиям клиента (грейд)` specifically, do not restate the
-   `Пропускная способность` number as the explanation — throughput is
-   volume, not seniority fit; use feedback and task-complexity/autonomy
-   evidence instead. For `Обратная связь клиента/команды`, name who the
+   `Перформанс` number as the explanation — it's a volume/velocity number,
+   not seniority fit; use feedback and task-complexity/autonomy evidence
+   instead. For `Обратная связь клиента/команды`, name who the
    feedback is actually from (client vs. team vs. self-report) — do not
-   default to "тимлид" on a project that has no team lead role. For
-   `Вклад в проект`, write the actual conclusion (what the facts show, why
-   this status) — never a pointer like "matches the conclusion in
-   individual_development_plan." This table has to read on its own; a
-   cross-reference instead of a conclusion fails that on this row just as
-   much as it would on any other.
+   default to "тимлид" on a project that has no team lead role.
+   `Вклад в проект` is not a row in this table — it lives in
+   `project_metrics` instead, since this Sheet is visible to the employee
+   it's about and that conclusion is M2's private judgment.
 8. `Тренд` — filled once there is at least one prior date to compare
    against; leave blank on the first-ever snapshot for a metric.
 

@@ -25,13 +25,41 @@ Treat Google Drive as the canonical business workspace when Google API access is
 Use the same folder names under the Google Drive root as the local mirror:
 
 - `00_Source_Docs`
-- `01_Recordings`
-- `02_Transcripts_Inbox`
-- `03_Transcripts_Processed`
 - `10_M1_People_Management`
 - `20_M2_Project_Management`
 - `80_Exports`
 - `90_Archive`
+
+No raw video/multimedia is stored in Drive — only transcripts and
+documents.
+
+`00_Source_Docs` is organized by type, not by project — a fresh chat
+export or meeting transcript often isn't yet clear which project it
+belongs to, so type is the more stable first split:
+
+- `00_Source_Docs\01_Meeting_Transcripts` — 1:1s, dailies, demos, KT
+  calls, shadowing calls, client/project syncs.
+- `00_Source_Docs\02_Chats_and_Emails` — exported/combined chat and email
+  history: people cases, HR/feedback threads, status messages,
+  escalations, client/team correspondence.
+- `00_Source_Docs\03_Source_Documents` — durable per-project source
+  documents and company-wide reference material: `<Project>\` folders,
+  the M2 homework corpus (`M2_role_vision`, `M2_personal_development_plan`,
+  `M2_project_development_plan`), assessment matrices, monthly report
+  examples.
+
+Once a raw file in `01_Meeting_Transcripts` or `02_Chats_and_Emails` has
+been read and its facts extracted into the relevant Sheets/Docs, move it
+into `03_Source_Documents\<Project>\` if it's durable project reference
+material, or to `90_Archive` if it's not needed for near-term reference —
+there is no separate "processed" holding tier; `evidence_log` is what
+records that a source was used and where.
+
+Root-level folders were created outside this app's Drive API scope (via
+Drive Desktop sync or manually), so the app cannot rename, move, or
+delete them — this table describes the target structure; the user applies
+the actual Drive changes manually. Do not assume Drive already matches
+this table without checking.
 
 When only the root folder ID is known, locate child folders by name through the Drive API. If a required child folder is missing, ask before creating it unless the user explicitly requested setup.
 
@@ -47,16 +75,31 @@ Standard project folder shape:
 - `project_risk` Google Sheet, with CSV fallback `project_risk.csv`
 - `project_development_plan` Google Doc, with Markdown fallback
 - `project_metrics` Google Sheet, with CSV fallback `project_metrics.csv`
+  — M2-only dashboard for the project (see `Templates\метрики_проекта_qa.md`
+  §2). Holds: `Горизонт совместной работы`, `Бизнес-риск продукта
+  клиента`, one `Вклад в проект: <Имя>` row per person (no aggregated
+  team row — every row stays visible individually at this level), and
+  `Качество QA-процесса` (M2's read of `qa_process_metrics`). Never share
+  this with the QA engineers whose data appears in it, even once
+  folder-level sharing exists for other artifacts.
+- `qa_process_metrics` Google Sheet, with CSV fallback
+  `qa_process_metrics.csv` — project-wide QA-process facts (Defect Escape
+  Rate, Automation Coverage, test-run counts, etc. — see
+  `Templates\метрики_проекта_qa.md` §3). Filled in by the project team, not
+  M2 — do not guess values into it; create empty skeleton rows with a real
+  `Пояснение` instruction instead. Append-only by calendar month.
 - `evidence_log` Google Sheet, with CSV fallback `evidence_log.csv`
 - `people\<Person>\individual_development_plan` Google Doc, with Markdown fallback
 - `people\<Person>\individual_metrics` Google Sheet, with CSV fallback
 - `people\<Person>\individual_metrics_internal` Google Sheet, with CSV
   fallback — M2-only, never shared with the employee (see
   `m2-individual-qa-metrics-report` document-contract, Internal Variant).
-- `m2_input\` — one living Google Doc holding M2's own dated rounds of
-  questions/answers ahead of each project-level rollup (see `m2-role-rules.md`
-  Project-Level Rollups and `Templates\m2_input.md`). One Doc per project,
-  not a file per cycle — rounds are dated sections appended to it.
+- `m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
+  own dated rounds of questions/answers ahead of each project-level
+  rollup (see `m2-role-rules.md` Project-Level Rollups and
+  `Templates\m2_input.md`). One Doc per project, not a file per cycle —
+  rounds are dated sections appended to it. (No longer holds a metrics
+  Sheet — that moved into `project_metrics`, see above.)
 - `status_reports` for saved project status Google Docs / Markdown fallback
 
 Do not create a project-local `source_docs` folder. `00_Source_Docs\<Project>`
@@ -77,8 +120,29 @@ This keeps one place to look for retired artifacts rather than two, and
 mirrors the live `20_M2_Project_Management\<Project>` shape so it stays easy
 to find.
 
-Keep `_project_registry` in `20_M2_Project_Management` as the active project
-index with project names, aliases, people, and source locations.
+Keep `_project_registry` in `20_M2_Project_Management` as a top-level,
+one-row-per-project "war room" dashboard — the airplane view across every
+project M2 owns, sourced from each project's `project_metrics` (see
+`Templates\метрики_проекта_qa.md` §4). Columns: `Проект`,
+`People`, `Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
+`Наименьший вклад в проект`, `Качество QA-процесса`.
+
+`Наименьший вклад в проект` is the one column that isn't a direct copy —
+`project_metrics` can have several `Вклад в проект: <Имя>` rows, but the
+registry collapses them to one column per project. **Never average them.**
+Averaging "Позитивный, Позитивный, Смешанный, Негативный" destroys exactly
+the signal this dashboard exists to surface. Take the worst status present
+(Негативный → Смешанный → Позитивный, worst first) and name whoever is at
+that level, e.g. `Смешанный (<Имя>)` — two people tied at the
+worst level both get named. If the whole team shares one status, just
+state it with no name attached (there's no one specific person to flag).
+
+Active projects only — when a project stops (temporarily or permanently),
+remove its row from the live registry rather than marking it inactive in
+place; archived projects don't belong in a dashboard meant for current
+attention. Columns are `Проект`, `People`, and the four dashboard metrics —
+no aliases, status flag, source-docs pointer, or folder-navigation link;
+those don't belong in a summary dashboard.
 
 Keep `_people_registry` in `20_M2_Project_Management` as a single workspace-wide
 Google Sheet (CSV fallback), covering people affiliated with both the company
@@ -124,7 +188,7 @@ requests.
 
 `evidence_log` traceability is not just for automated sync-script runs.
 Any update made conversationally — processing a transcript/chat dropped in
-`02_Transcripts_Inbox`, applying M2's own answers from an `m2_input` round,
+`00_Source_Docs\01_Meeting_Transcripts`/`02_Chats_and_Emails`, applying M2's own answers from an `m2_input` round,
 analyzing a source file on request (e.g. a grade/assessment matrix) — must
 also get an `evidence_log` row, with the same columns as an automated sync:
 `date, source, source_type, project, routed_to, notes`. When the source is

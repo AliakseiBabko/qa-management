@@ -86,13 +86,14 @@ At project start or staffing:
 ## Project-Level Rollups
 
 `project_development_plan` and `project_risk` get updated by rolling up
-every person's individual plan, individual metrics, and `Вклад в проект`
-conclusion — but that rollup should never run purely mechanically. Metrics
-and per-person plans don't carry the manager's own judgment (why a risk
-matters more or less than the numbers suggest, context that isn't in any
-metric, how to weigh one person's read of the project against another's).
-`m2_input` (see Templates\m2_input.md) is the explicit place for that
-judgment, and the rollup is a two-phase process built around it:
+every person's individual plan, individual metrics, and their `Вклад в
+проект: <Имя>` conclusion from `project_metrics` — but that rollup
+should never run purely mechanically. Metrics and per-person plans don't
+carry the manager's own judgment (why a risk matters more or less than the
+numbers suggest, context that isn't in any metric, how to weigh one
+person's read of the project against another's). `m2_input` (see
+Templates\m2_input.md) is the explicit place for that judgment, and the
+rollup is a two-phase process built around it:
 
 1. **Preliminary analysis round.** Before combining anything, review every
    person's individual plan and metrics on the project, and write down
@@ -116,6 +117,31 @@ archive prior rounds — the visible history of questions and answers across
 cycles is itself useful context for the next round, and Google Docs version
 history is a backstop, not a substitute for keeping rounds visible in the
 document.
+
+## Cascading Updates
+
+The chain is `individual_metrics`/`individual_development_plan` (per
+person) → `project_metrics` (per project, M2's full-picture dashboard) →
+`_project_registry` (across every project M2 owns, the "war room" view).
+When a new source (a chat, a transcript, a document dropped in
+`00_Source_Docs`, direct M2 input) changes something at the
+person level, update the whole chain in the same pass — not just the
+bottom layer:
+
+1. Update the person's `individual_metrics` row(s) and
+   `individual_development_plan` sections that the source actually
+   supports.
+2. Refresh the corresponding rows in that project's `project_metrics` —
+   the `Вклад в проект: <Имя>` conclusion (and the aggregated team row, if
+   the project has more than one person), and `Горизонт совместной
+   работы` / `Бизнес-риск продукта клиента` / `Качество QA-процесса` if
+   the source touched any of those.
+3. Refresh that project's row in `_project_registry` to match.
+
+Leaving `project_metrics` or `_project_registry` stale after an
+`individual_metrics` update defeats the point of the dashboard — it's
+supposed to be the one place to see the full picture, not one of several
+places that might be out of date.
 
 ## Development Plans
 
@@ -161,6 +187,16 @@ For each risk, state:
 - owner
 
 Do not list current problems as risks without stating what future harm they can cause.
+
+Do not conflate "at least one named risk is serious" with "the project's
+overall risk level is high." Individual risks can and should be classified
+by severity on their own (see `m2-project-risk-report` document-contract for
+the full definition) — but the project-wide level is a separate, stricter
+judgment about whether something concretely threatens the engagement's
+continuation or trust right now, not a maximum over the individual items.
+Nearly every active project has at least one serious individual risk;
+treating that as sufficient for a high overall level makes most projects
+read as high-risk and defeats the point of having the field.
 
 Assess evidence strength for feedback and risk signals. Mark whether feedback is direct client feedback, intermediary feedback, DC/QA Lead feedback, team feedback, or employee self-report. Multi-hop or indirect feedback can still be useful, but it lowers confidence and should be named in the evidence.
 

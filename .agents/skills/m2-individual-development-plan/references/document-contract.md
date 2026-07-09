@@ -84,24 +84,6 @@ dropping it.
      date or "by end of sprint" + success criterion.
    - **Направления развития** — a goal we're moving toward with no date
      commitment, plus how we'll know it's done.
-7. **Вклад в проект** — the rollup: pulls role, metrics, and plan into one
-   conclusion. Can be sparse/tentative for someone newly onboarded, but
-   should not stay empty indefinitely once evidence exists. Exactly one of
-   three statuses, no in-between:
-   - **Позитивный** — role, metrics, and plan all support a clearly positive
-     contribution.
-   - **Смешанный** — some signals positive, some not (e.g. real improvement
-     after a rocky start, but not enough track record yet to be fully
-     confident), or genuinely too early to call for someone newly onboarded.
-     This is a normal, stable status, not something to round up to
-     "Позитивный" just because there isn't a confident answer yet.
-   - **Негативный** — the picture is clearly bad: role/metrics show a
-     problem dragging the result down with no credible positive
-     counter-signal; point to `План действий` for what's being done.
-   This section is what gets read later when rolling individual assessments
-   up into `project_development_plan` and `project_risk` — write it with
-   that reuse in mind, not just as a summary for this document alone.
-
 `Источники` is deliberately not a section here. A bare list of 1:1 dates
 tells the reader nothing; that traceability belongs in `evidence_log`, not
 in a document meant to be read.
@@ -110,6 +92,18 @@ in a document meant to be read.
 per-person sections. How M2 supports and escalates for key engineers is a
 project-wide policy, not something that varies document to document — do
 not reintroduce it here even if it seems relevant for a specific person.
+
+`Вклад в проект` is deliberately **not** a section here — this document is
+visible to the employee it's about, and that conclusion is M2's own
+private judgment, not something meant to be shown to the person directly.
+It lives as a per-person row (`Вклад в проект: <Имя>`) in `project_metrics`
+(see
+`Templates\метрики_проекта_qa.md` §2.3) — same three statuses (Позитивный/
+Смешанный/Негативный), same reuse into `project_development_plan`/
+`project_risk` rollups, just not visible to the person it describes. Do
+not reintroduce this section here even if it seems convenient — write the
+plan's other sections (`Фокус развития`, `План действий`) so they're
+useful on their own without it.
 
 ## Source Priority
 

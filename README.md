@@ -23,14 +23,25 @@ The desktop mirror / filesystem fallback is:
 
 Current Drive layout:
 
-- `00_Source_Docs/`: durable source documents and reference materials
-- `01_Recordings/`: raw meeting recordings
-- `02_Transcripts_Inbox/`: raw transcript intake
-- `03_Transcripts_Processed/`: processed transcripts
+- `00_Source_Docs/`: everything that came in about a project or the
+  business, organized by type:
+  - `01_Meeting_Transcripts/`: raw meeting transcripts
+  - `02_Chats_and_Emails/`: raw chat/email exports
+  - `03_Source_Documents/`: durable per-project source documents and
+    company-wide reference material (project folders, homework corpus,
+    assessment matrices, monthly report examples)
 - `10_M1_People_Management/`: M1 person files and people risk snapshots
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
 - `80_Exports/`: export packages and external copies
 - `90_Archive/`: archived legacy folders and backups
+
+No raw video/multimedia is stored in Drive — only transcripts and
+documents. Some root-level folders were created outside this repo's
+Google API scope (via Drive Desktop sync or manually), so they can't be
+renamed/deleted through the API — Drive-side folder changes need to be
+applied manually. See
+`.agents/skills/qa-management-roles/references/google-workspace-rules.md`
+for the full folder-mapping and Sharing Safety notes.
 
 Final business outputs should prefer Google Sheets for tabular artifacts and Google Docs
 for narrative/status artifacts when Google API access is available. Local CSV/Markdown
@@ -38,11 +49,16 @@ files remain valid as fallback, staging, source-extraction, and export artifacts
 
 ## M2 Project Layout
 
-M2 is organized by project context. The active project registry lives in:
+M2 is organized by project context. Two workspace-wide Sheets sit directly
+under `20_M2_Project_Management`:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\_project_registry.csv`
-
-and as a Google Sheet in the same Drive folder.
+- `_project_registry` — one row per **active** project, the top-level "war
+  room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
+  продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
+  Stopped projects are removed from this registry, not marked inactive.
+- `_people_registry` — every person (the company and client-side) mentioned
+  across projects, with role/side/confirmation status. See
+  `google-workspace-rules.md` for the full column list.
 
 Each project folder follows this shape:
 
@@ -50,19 +66,41 @@ Each project folder follows this shape:
 20_M2_Project_Management/<Project>/
 ├─ project_risk.gsheet
 ├─ project_development_plan.gsheet
-├─ project_metrics.gsheet
+├─ project_metrics.gsheet       # M2-only dashboard, see below — never shared with the team
+├─ qa_process_metrics.gsheet    # engineer-filled, project-wide QA-process facts
 ├─ evidence_log.gsheet
+├─ m2_input/
+│  └─ m2_input.gdoc             # M2-only dated rounds of judgment/context
 ├─ people/<Person>/
-│  ├─ individual_development_plan.gsheet
-│  └─ individual_metrics.gsheet
-├─ status_reports/
-├─ source_docs/
-└─ archive/
+│  ├─ individual_development_plan.gdoc   # employee-visible
+│  ├─ individual_metrics.gsheet          # employee-visible
+│  └─ individual_metrics_internal.gsheet # M2-only, never shared with the employee
+└─ status_reports/
 ```
+
+There is no per-project `source_docs/` or `archive/` folder — reference
+`00_Source_Docs/03_Source_Documents/<Project>` directly, and retired artifacts go to the
+single workspace-wide `90_Archive/20_M2_Project_Management/<Project>/`
+tree instead of a local copy that would go stale.
+
+**Employee-visibility boundary**: `individual_development_plan` and
+`individual_metrics` are shared with/seen by the employee they're about.
+`project_metrics`, `qa_process_metrics`'s aggregation, `individual_metrics_internal`,
+and `m2_input` are M2-only and must never be shared with that boundary in
+mind — see `google-workspace-rules.md`, Sharing Safety.
+
+**Update chain**: `individual_metrics`/`individual_development_plan` (per
+person) → `project_metrics` (per project) → `_project_registry` (across
+all projects). A new source that changes something at the person level
+should update the whole chain in the same pass — see `m2-role-rules.md`,
+Cascading Updates. Metric definitions and which artifact each one belongs
+in: `Templates/метрики_qa_по_проекту.md` (individual) and
+`Templates/метрики_проекта_qa.md` (project/QA-process/dashboard).
 
 Broad KT/session sources should be split by project before updating final files.
 Use `evidence_log` as the append-only trace of which source changed which project
-files. Keep aggregate KT outputs in archive, not as canonical final documents.
+files — including conversational updates, not just automated syncs. Keep
+aggregate KT outputs in `90_Archive`, not as canonical final documents.
 
 ## Source extraction
 
@@ -117,7 +155,14 @@ python .agents\scripts\google_api_smoke_test.py --auth service-account --credent
 
 Add `--keep-files` if you want to inspect the created Sheet and Doc manually.
 
-## M2 batch generation
+## M2 batch generation (legacy first-pass tools)
+
+`generate_m2_outputs.py` and `reorganize_m2_project_workspace.py` below
+were the original bulk-migration tools for turning raw extracted source
+docs into the first version of each project's folder. They are not the
+day-to-day pipeline anymore — see "Current pipeline scripts" further down
+for what actually runs now. Treat both as historical/setup utilities, not
+something to rerun casually against live project folders.
 
 After extraction, generate first-pass M2 CSV outputs with:
 
@@ -145,6 +190,30 @@ python .agents\scripts\reorganize_m2_project_workspace.py
 This script creates project folders, project-local CSV fallbacks, Google Sheets,
 and an M2 project registry. Treat it as a migration/setup utility, not as a
 daily intake processor.
+
+## Current pipeline scripts
+
+These are what actually runs day to day, once a project's folder already exists:
+
+- `sync_m2_source_docs_to_sheets.py` — syncs source docs into
+  `project_risk`, `evidence_log`, and `individual_metrics` Sheets
+  (append-only merge, not overwrite).
+- `sync_m2_plans_to_docs.py` — syncs `project_development_plan` and
+  `individual_development_plan` as Google Docs (narrative documents, not
+  Sheets).
+- `format_all_sheets.py` — applies consistent formatting (wrap, alignment,
+  column widths targeting ≤5 lines) across every Sheet under
+  `20_M2_Project_Management`. Safe to rerun anytime after a schema change.
+- `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
+  extractor; check `80_Exports/source_extracts/*/manifest.csv` for an
+  existing extraction before re-running it on the same source file.
+- `rollup_individual_metrics_to_project.py` — **deprecated**, refuses to
+  run. Superseded by M2 writing per-person `Вклад в проект: <Имя>` rows
+  directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1).
+
+There is no automated observer/dispatcher watching inbox folders — every
+sync above runs because M2 asked for it in conversation. See
+`google-workspace-rules.md`, Pipeline Architecture.
 
 ## Status Reports
 

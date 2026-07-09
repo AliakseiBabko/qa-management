@@ -25,7 +25,6 @@ PROJECT_RISK_HEADER = [
     "Риск QA process",
     "Риск staffing / continuity",
     "Риск communication / client",
-    "Evidence / источники",
     "Комментарии",
     "План действий",
     "Owner",
@@ -544,12 +543,10 @@ def generate_project_risk(extract_root: Path, rows: list[dict[str, str]], snapsh
             }.get(row["document_role"], 9),
         )[:3]
         texts = []
-        evidence = []
         for item in selected:
             path = extract_root / item["extract_file"]
             if path.suffix == ".md":
                 texts.append(clean_markdown(path.read_text(encoding="utf-8")))
-                evidence.append(source_label(item))
         combined = "\n".join(texts)
         output.append(
             [
@@ -560,7 +557,6 @@ def generate_project_risk(extract_root: Path, rows: list[dict[str, str]], snapsh
                 sentences_with(combined, "qa", "test", "regression", "automation", "traceability", "документ"),
                 sentences_with(combined, "staff", "lead", "continuity", "отпуск", "увольн", "overlap", "ставк"),
                 sentences_with(combined, "client", "customer", "клиент", "communication", "коммуникац"),
-                "; ".join(evidence),
                 compact(sentences_with(combined, "риск", "risk", "blocker", "gap"), 700),
                 compact(sentences_with(combined, "action", "действ", "следующ", "минимум", "план"), 700),
                 "",

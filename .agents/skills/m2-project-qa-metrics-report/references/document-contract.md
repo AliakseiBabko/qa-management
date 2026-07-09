@@ -5,13 +5,29 @@ with local CSV fallback. Preserve the CSV template columns as the Sheet schema.
 
 ## Purpose
 
-Use this reference for the QA metrics document family.
+Use this reference for the QA metrics document family: `project_metrics`
+and `qa_process_metrics`. Both live at `20_M2_Project_Management\<Project>\`,
+alongside `project_risk`, but they are two separate Sheets with different
+owners and different audiences — never merge them into one file.
+
+- **`project_metrics`** — M2-only dashboard for the project, the single
+  place to see the whole picture of a project. M2 fills this in; never
+  share it with the QA engineers whose data appears in it.
+- **`qa_process_metrics`** — project-wide QA-process facts, filled in by
+  the project team from their own tools. M2 does not collect this data or
+  guess values into it.
 
 ## Templates
 
-- `<repo-root>\Templates\метрики_проекта_qa.csv`
-  For project-level QA metrics.
-- `<repo-root>\Templates\метрики_qa_по_проекту.csv`
+- `<repo-root>\Templates\метрики_проекта_qa.csv` — `project_metrics` Sheet
+  column schema.
+- `<repo-root>\Templates\qa_process_metrics.csv` — `qa_process_metrics`
+  Sheet column schema.
+- `<repo-root>\Templates\метрики_проекта_qa.md` — catalogue covering both
+  artifacts and how to choose among their candidate metrics. Derived from
+  `00_Source_Docs\M2_project_development_plan` and <Project>'s/<Project>'s
+  actual content.
+- `<repo-root>\Templates\метрики_qa_по_проекту.csv` / `.md`
   For individual QA metrics inside the project scope.
 
 ## Expected Output
@@ -22,31 +38,105 @@ Suggested target folder:
 
 `G:\My Drive\QA_Management\20_M2_Project_Management\<Project>`
 
-Suggested naming pattern:
-
-`метрики_проекта_qa_<Project>_YYYY-MM-DD.csv`
-
 ## Versioning
 
-- Do not overwrite an existing final project QA metrics document by default.
-- If the target project/date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
-- Update an existing project QA metrics document in place only when the user explicitly asks for revision.
+- Both `project_metrics` and `qa_process_metrics` are living Sheets,
+  updated in place — same as `individual_metrics` and `project_risk`. Do
+  not create dated `_vN` files for routine updates.
+- `qa_process_metrics` is append-only by calendar month (see its Schema
+  section below) — "updated in place" means updating the current month's
+  rows, not overwriting prior months.
+- Append source traceability to the project `evidence_log`.
 
-## Schema
+## Schema — `project_metrics`
 
-Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
+Columns: `Проект`, `Период`, `Метрика`, `Показатель`, `Пояснение`, `Owner`,
+`Тренд` — same 7-column shape as `individual_metrics`. `Период` always
+filled; `Показатель` is a clean fact/status, never a numeric-score-plus-word
+mix; `Owner` always filled; `Пояснение` is achievement+gap prose, never a
+raw file path (traceability lives in `evidence_log`).
 
-1. `Проект`
-2. `Период`
-3. `Метрика`
-4. `Показатель / score`
-5. `Уровень внимания`
-6. `Тренд`
-7. `Статус данных`
-8. `Evidence / источник`
-9. `Owner`
-10. `Следующее действие`
-11. `Комментарии`
+Row types, all living in this one Sheet:
+
+1. **`Горизонт совместной работы`** — one row. Expected end date of the
+   engagement/current phase; where meaningful change could happen
+   (contract end, vendor switch, tender). See catalogue §2.1.
+2. **`Бизнес-риск продукта клиента (оценка M2)`** — one row, Низкий/
+   Средний/Высокий. Risk that the client's own business fails to reach its
+   goals and dissolves — independent of our performance (that's
+   `project_risk`'s job). See catalogue §2.2.
+3. **`Вклад в проект: <Имя>`** — one row per QA on the project, Позитивный/
+   Смешанный/Негативный, showing the actual conclusion for that person.
+   No aggregated team row — every individual row stays visible at this
+   level; aggregation to one worst-case value only happens one level up,
+   in `_project_registry`. Moved here from `individual_development_plan`
+   because that Doc is visible to the employee it's about. See catalogue
+   §2.3.
+4. **`Качество QA-процесса`** — one row, Позитивный/Смешанный/Негативный.
+   M2's synthesized read of `qa_process_metrics`, not a copy of it. Empty
+   until `qa_process_metrics` has real data to read. See catalogue §2.4.
+
+There is no automated `Команда: ...` statistical-rollup row (a mechanical
+distribution of Core metrics across the team, e.g. "2/3 Соответствует") —
+`rollup_individual_metrics_to_project.py` is deprecated and refuses to
+run; `Вклад в проект: <Имя>` gives an actual judgment per person instead
+of a mechanical distribution, so do not add rollup-style rows here.
+
+Rows 1-2 and 4 are M2-only judgment. Revenue, client base, and churn are
+cited as evidence inside row 2's `Пояснение` when known, not tracked as
+separate rows. Rows 1-2 and 4 get a row on every project even when
+`Показатель` is empty — the row set stays identical across projects so a
+blank cell reads as "not available yet," not "M2 forgot this metric."
+`Вклад в проект: <Имя>` rows are the exception — only add a row once
+there's an actual conclusion to record for that person.
+
+Removed entirely, and why:
+- `Уровень внимания`, `Статус данных` — every row read a constant value,
+  carried no information.
+- `Следующее действие`, `Комментарии` — belong in
+  `project_development_plan`'s Ближайшие шаги/Направления развития.
+- Project-level risk-scorecard content (stability, delivery predictability,
+  process maturity, overall risk level) — that's `project_risk`'s job;
+  keeping it here duplicated it with a worse format.
+- `Cost of quality avoided` — not something M2 estimates from outside; it
+  depends on real `qa_process_metrics` data (Defect Escape Rate, Defect
+  Density, Mean Time to Fix), and becomes a narrative M2 builds from that
+  data for client conversations, not a row here.
+- "Продуктовые метрики использования" (Activation Rate/MAU/DAU/...) — too
+  granular for general business-context understanding; add point-in-time
+  only if a specific project's QA scope actually covers that flow.
+
+## Schema — `qa_process_metrics`
+
+Same 7 columns. Append-only by calendar month: dedup on (Проект, Метрика,
+Период); re-running for the same month updates that month's row, a new
+month adds new rows. `Тренд` starts as a simple month-over-month
+comparison once two months of history exist.
+
+When creating this Sheet, leave every `Показатель` empty but **write a
+real `Пояснение` for every row** — what the metric means, why it matters
+on this specific project, and where to actually find the data (Jira/CI
+dashboard/TestRail/other TMS, or an explicit "no tool yet" when that's the
+truth) — tailored to what's already known about the project's tooling
+from its source docs, not generic boilerplate. Without this, whoever the
+Sheet gets shared with has no way to know what's being asked of them.
+
+`Период` is always the last completed calendar month, stated as such
+(e.g. "июнь 2026"), not "date filled in" — same rule on every project so
+periods are comparable.
+
+If a metric can't be collected for 2+ months running, remove it from the
+Sheet entirely rather than leaving a chronically empty row — a single
+month's gap is normal, a repeated one means the metric doesn't fit this
+project's available tooling.
+
+`Owner` should be a named person, not a generic "QA team" — if the
+project has more than one QA, split rows across actual names by who has
+access/role fit; seeing your own name in a row is what actually gets it
+filled in.
+
+Full candidate metric list and per-metric collection instructions:
+`Templates\метрики_проекта_qa.md` §3.
 
 ## Source Priority
 
@@ -63,29 +153,22 @@ Use exactly the columns in `Templates\метрики_проекта_qa.csv`:
 - For extracted workbooks with many sheets or many rows, do not read all CSV files end to end. First inspect the JSON manifest, then search candidate CSV files for metric labels, dates, scorecard sections, owners, blockers, trend words, or project-specific keywords.
 - For extracted DOCX files, search headings and key phrases before reading long sections. Prefer sections that mention metrics, scorecard, plan progress, QA process, automation, manual testing, feedback, risks, blockers, owners, and review dates.
 - If no suitable extract exists, run `.agents/scripts/qa_source_extract.py` with the source root and an output root under `G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD`. Do not re-extract into a non-empty folder without `--overwrite` unless the user explicitly wants to refresh the extract.
-- Preserve extracted source paths in `Evidence / источник`, for example `80_Exports/source_extracts/2026-07-06/<Project>/xlsx/Метрики проекта/Метрики проекта__Метрики проекта.csv`.
+- Preserve extracted source paths in `evidence_log`, not in `Пояснение` — neither table has an evidence/path column.
 - If an extracted file is stale compared with the source document modified date, say so and decide whether the stale extract is sufficient or a refreshed extract is needed.
 
 ## Normalization
 
 - Keep one metric per row.
-- Use `Все хорошо`, `Пока нормально`, `Обратить внимание`, or `Unknown` for `Уровень внимания` when possible.
-- Use `Есть данные`, `Есть данные (частично)`, `Нет данных`, or `N/A` for `Статус данных` when possible.
-- Preserve exact dates and source names in `Evidence / источник`.
 - Each metric should answer a concrete management question and connect to project/business/QA value.
-- Prefer a compact project-specific metric set, usually 3-5 metrics, that works for both client/project stakeholders and internal M2 visibility. Do not duplicate another reporting stream unless the duplicate row answers a different management question.
-- When the main need is to show how the team is improving the project, use progress against the project development plan as a metric: planned improvement, current state, movement since last review, blocker, accepted result, and next step.
+- Prefer a compact project-specific metric set, usually 3-5 metrics per category, that works for internal M2 visibility (`project_metrics`) or team self-reporting (`qa_process_metrics`). Do not duplicate another reporting stream unless the duplicate row answers a different management question.
 - Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task sizes are not comparable, estimates are abstract, or there is no stable release cadence.
-- When standard delivery metrics are weak, prefer metrics that answer the real project question: QA value, escaped defects, defect severity, blocker discovery, regression stability, automation usefulness, process maturity, client/team trust, accepted QA improvements, or risk reduction.
-- If metrics are missing because the project is in active risk mitigation, onboarding, overload, or instability, set `Статус данных` to `Нет данных` or `Есть данные (частично)`, explain the reason, and put a concrete next collection/review action.
-- Do not treat short-term absence of metrics as failure by itself; treat prolonged absence of metrics or feedback on an active project as a visibility risk.
-- Connect project metrics to individual QA metrics where they materially affect the general project picture. Use individual signals to explain project capacity, coverage, speed, quality, visibility, risk, and role value.
-- Do not turn the project metrics report into a person-performance table. Aggregated project conclusions must separate personal contribution from project/system constraints such as stream differences, seniority, access, scope, deadlines, requirements quality, and process maturity.
-- If individual metrics are the main source for a project-level row, state the aggregation basis in `Комментарии` and mark `Статус данных` as `Есть данные (частично)` unless the coverage across people/streams is complete.
+- If a `qa_process_metrics` metric genuinely has no data yet, do not add a row for it unless it's part of the fixed skeleton being set up for the first time (see that Schema section above) — after setup, a metric absent 2+ months running should be dropped, not left blank indefinitely.
+- Connect `project_metrics` to individual QA metrics where they materially affect the general project picture — that's exactly what the `Вклад в проект: <Имя>` rows do.
+- Do not turn `project_metrics` into a person-performance table beyond the `Вклад в проект` rows it's explicitly designed to hold. Each person's conclusion must separate personal contribution from project/system constraints such as stream differences, seniority, access, scope, deadlines, requirements quality, and process maturity.
 
-## Candidate Metric Catalog
+## Candidate Metric Catalog (`qa_process_metrics`)
 
-Use this as a menu, not as a required checklist. Select metrics by project context, client pain, available evidence, and what decision the metric will support.
+Use this as a menu, not as a required checklist. Select metrics by project context, client pain, available evidence, and what decision the metric will support. Full definitions and "where to find it" guidance: `Templates\метрики_проекта_qa.md` §3.
 
 ### Project improvement / plan progress
 
@@ -142,4 +225,8 @@ Use individual metrics only when they explain project capacity, coverage, or rol
 
 ## Rule
 
-Do not mix project-level and individual-level metrics in one output file unless the user explicitly asks for a combined document and a combined template exists.
+Do not mix project-level and individual-level metrics in one output file
+unless the user explicitly asks for a combined document and a combined
+template exists. The `Вклад в проект: <Имя>` rows inside `project_metrics`
+are the sanctioned exception — they're M2's project-level conclusions
+derived from individual data, not raw individual-level rows.
