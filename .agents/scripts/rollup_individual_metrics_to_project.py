@@ -1,27 +1,19 @@
 #!/usr/bin/env python3
-"""Aggregate each project's team Core individual metrics into project_metrics.
+"""DEPRECATED — do not run this against project_metrics.
 
-Individual metrics use a shared Core set (same name, same calculation method
-for everyone) specifically so they can be rolled up into a team-level view.
-This script reads every person's individual_metrics Sheet under a project,
-takes each person's most recent snapshot, and writes/updates "Команда: ..."
-rows in that project's project_metrics Sheet.
-
-Qualitative Core metrics (3 defined levels) get a distribution across the
-team, e.g. "2/3 Соответствует, 1/3 Требует поддержки" — that's a real,
-honest aggregate. Quantitative Core metrics currently hold free-text values
-(e.g. "32 задачи в Done; 24 issue за спринт"), not clean numbers, so this
-script does not fabricate an average — it reports how many people have data
-and lists each person's value in Evidence, instead of computing a number
-that would misrepresent precision that isn't there.
-
-Existing non-rollup rows in project_metrics are left untouched; only rows
-whose Метрика starts with "Команда: " are replaced on each run.
+The "Команда: ..." statistical-distribution rollup (grade-fit/feedback/
+workload breakdown across the team) is redundant with the per-person
+`Вклад в проект: <Имя>` rows in project_metrics (see
+Templates\\метрики_проекта_qa.md §1.3) — one row per QA engineer showing an
+actual judgment (Позитивный/Смешанный/Негативный), not a mechanical
+distribution. `main()` below refuses to run; the aggregation logic is kept
+only for reference.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -43,12 +35,14 @@ ROLLUP_PREFIX = "Команда: "
 QUALITATIVE_LEVELS: dict[str, list[str]] = {
     "Обратная связь клиента/команды": ["Позитивная", "Нейтральная", "Негативная"],
     "Соответствие ожиданиям клиента (грейд)": ["Соответствует", "Требует поддержки", "Превышает"],
-    "Вклад в проект": ["Позитивный", "Смешанный", "Негативный"],
     "Нагрузка": ["Комфортная", "Повышенная", "Критическая"],
 }
+# "Вклад в проект" is deliberately excluded from Core rollup: it's M2's
+# private per-person conclusion, tracked directly in project_metrics, not
+# derived from individual_metrics (which the employee can see).
 
 QUANTITATIVE_CORE_METRICS = [
-    "Пропускная способность",
+    "Перформанс",
     "Баги на проде",
     "Bug leakage rate",
     "Regression/smoke coverage критичных сценариев",
@@ -60,14 +54,10 @@ PROJECT_METRICS_HEADER = [
     "Проект",
     "Период",
     "Метрика",
-    "Показатель / score",
-    "Уровень внимания",
-    "Тренд",
-    "Статус данных",
-    "Evidence / источник",
+    "Показатель",
+    "Пояснение",
     "Owner",
-    "Следующее действие",
-    "Комментарии",
+    "Тренд",
 ]
 
 
@@ -105,6 +95,7 @@ def latest_person_metrics(rows: list[list[str]]) -> dict[str, tuple[str, str]]:
 
 def build_rollup_rows(project: str, team_values: dict[str, list[tuple[str, str]]]) -> list[list[str]]:
     """team_values: {metric: [(person, показатель), ...]}"""
+    snapshot_date = dt.date.today().isoformat()
     rows: list[list[str]] = []
     for metric, entries in team_values.items():
         if not entries:
@@ -122,15 +113,11 @@ def build_rollup_rows(project: str, team_values: dict[str, list[tuple[str, str]]
         rows.append(
             [
                 project,
-                "",
+                snapshot_date,
                 f"{ROLLUP_PREFIX}{metric}",
                 indicator,
-                "Unknown",
-                "",
-                "Есть данные",
                 evidence,
                 "M2",
-                "",
                 "",
             ]
         )
@@ -144,7 +131,15 @@ def merge_rollup(existing: list[list[str]], rollup_rows: list[list[str]]) -> lis
 
 
 def main() -> int:
-    args = parse_args()
+    print(
+        "This script is deprecated — project_metrics uses per-person Вклад в "
+        "проект rows instead of Команда: ... rollup rows. Not running. See "
+        "the module docstring.",
+        file=sys.stderr,
+    )
+    return 1
+
+    args = parse_args()  # noqa: unreachable — kept for reference only
     creds = load_credentials(Path(args.credentials), Path(args.token))
     services = build_services(creds)
     drive = services["drive"]

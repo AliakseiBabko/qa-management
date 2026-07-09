@@ -13,10 +13,14 @@ Default language:
 - Preserve English terms, definitions, or transcript citations when they are part of the source or normal company vocabulary.
 - Keep final wording suitable for Russian business documents.
 
-Default transcript locations:
+Default transcript location:
 
-- raw intake: `G:\My Drive\QA_Management\02_Transcripts_Inbox`
-- processed transcripts: `G:\My Drive\QA_Management\03_Transcripts_Processed`
+- raw intake: `G:\My Drive\QA_Management\00_Source_Docs\01_Meeting_Transcripts`
+
+Once a transcript's facts are extracted, move it to
+`00_Source_Docs\03_Source_Documents\<Project>` (if still useful as durable
+reference) or `90_Archive` — there is no separate "processed" holding
+folder.
 
 ## Required Start
 

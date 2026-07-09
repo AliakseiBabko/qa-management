@@ -42,11 +42,18 @@ Use exactly the columns in `Templates\светофор_рисков_проект
 5. `Риск QA process`
 6. `Риск staffing / continuity`
 7. `Риск communication / client`
-8. `Evidence / источники`
-9. `Комментарии`
-10. `План действий`
-11. `Owner`
-12. `Следующий review`
+8. `Комментарии`
+9. `План действий`
+10. `Owner` — an actual accountable owner (a person or M2 itself), not left
+    blank. Every project's `Owner` cell was empty before 2026-07-08; treat a
+    blank `Owner` as an incomplete row, not an acceptable default.
+11. `Следующий review`
+
+`Evidence / источники` was removed from this schema: it only ever held raw
+source file paths, which is exactly the pattern already excluded from
+`individual_development_plan` for the same reason — a bare list of paths
+tells the reader nothing, and that traceability already lives in
+`evidence_log`. Do not reintroduce a raw-path evidence column here.
 
 ## Inputs
 
@@ -68,14 +75,41 @@ Use exactly the columns in `Templates\светофор_рисков_проект
 
 - Prefer direct project evidence over general impressions.
 - Keep people-performance concerns out of the project-risk file unless they create explicit project continuity, delivery, or client risk.
-- Put source names or dated meetings in `Evidence / источники`.
+- Put source names or dated meetings in `evidence_log`, not in this Sheet — `project_risk` has no evidence column (see Schema above).
 - Name the feedback path when it affects confidence: direct client, intermediary, DC/QA Lead, team, or employee self-report.
 - Treat hidden topology as evidence gap and risk signal for active projects: unknown streams, real team size, DC/PM ownership, vendor/intermediary chain, client path, tender/contract horizon, or security/location constraints.
 - Use only `Низкий`, `Средний`, or `Высокий` in risk level fields and final documents. Do not use `Low`, `Medium`, `High`, `Critical`, or `Unknown` as final risk values.
+- `Общий уровень риска` answers one specific question: does something concretely
+  threaten this engagement's continuation, trust, or a near-term hard
+  commitment *right now* — not "is there a serious problem somewhere in the
+  project." Almost every active project has at least one individual risk
+  item worth calling serious; if that alone were enough to set the overall
+  level, every project would read `Высокий` and the field would stop being
+  useful for telling projects apart. The homework corpus this contract is
+  derived from (`00_Source_Docs\M2_project_development_plan`) never
+  computes one project-wide score either — it lists named risks, each with
+  its own severity, and never collapses them into a single verdict. Follow
+  that same discipline: individual risk columns (`Риск delivery`, `Риск QA
+  process`, etc.) can and should say a specific thing is serious in its own
+  right; `Общий уровень риска` is a separate, stricter judgment about the
+  engagement as a whole.
 - Risk-level dictionary:
-  - `Низкий` = legacy `Low`: текущих проектных проблем не видно, и в ближайшей перспективе нет явных признаков ухудшения.
-  - `Средний` = legacy `Medium`: текущего острого кризиса нет, но есть фоновые факторы, которые без управления могут привести к проблемам в delivery, QA/process, staffing, клиентской коммуникации, бизнес-ценности или роли нашей команды.
-  - `Высокий` = legacy `High`: риск уже виден в фактах или устойчивых сигналах; нужны управленческие действия, mitigation, escalation или конкретный recovery plan.
+  - `Низкий`: no open item threatens continuation, trust, or a near-term
+    commitment. Remaining gaps are business-as-usual execution/improvement
+    items with clear ownership.
+  - `Средний`: real, unresolved risk factors exist (process/coverage/staffing
+    gaps, delivery pressure, an individual item rated seriously on its own)
+    that could escalate without continued management attention — but
+    nothing right now threatens the engagement itself, and there is no
+    explicit client dissatisfaction or contract/staffing crisis in motion.
+    This is the expected default for an actively-managed project with real
+    gaps and no acute crisis — most projects, most of the time, belong here.
+  - `Высокий`: something concretely and already threatens the engagement's
+    continuation, trust, or a near-term hard commitment — explicit client
+    dissatisfaction already voiced, a contract/renewal/tender decision
+    genuinely in question, an active client-driven replacement/staffing
+    crisis, or an equivalent already-materialized threat. Reserve this;
+    do not set it just because one dimension or one named risk is severe.
 - English aliases are for migration/interpretation only and must not appear as risk values in generated outputs.
 - Treat missing visibility as a risk signal for active projects. If a project is not at the very beginning and the current level cannot be detected because metrics, delivery status, QA-process evidence, or client/team feedback are unavailable, set the affected level to at least `Средний` and explain the evidence gap in comments.
 - For a genuinely new project with insufficient evidence, use `Средний` by default unless concrete facts support `Низкий` or `Высокий`.
