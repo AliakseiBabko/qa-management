@@ -143,6 +143,40 @@ Leaving `project_metrics` or `_project_registry` stale after an
 supposed to be the one place to see the full picture, not one of several
 places that might be out of date.
 
+## Registry Data-Gap Semantics
+
+`Наименьший вклад в проект` in `_project_registry` can hold two different
+kinds of signal, and they must not be written as if they were the same
+thing:
+
+- an actual worst-known judgment (Негативный/Смешанный/Позитивный) — a
+  real read of that person's contribution, backed by curated
+  `individual_metrics`.
+- `Неизвестно` — no judgment exists yet because the underlying
+  `individual_metrics` for that person is missing or uncurated. This is a
+  data gap, not a performance signal, and must never be treated as
+  equivalent to a Негативный finding.
+
+When a project has both — some people with a real judgment and others with
+no data — report the worst *known* judgment plus its name(s), and name the
+people with no data separately in the same cell rather than folding them
+into the worst-case label (for example: `Смешанный (Имя А) — данных нет по
+Имени Б и Имени В`). A row that is `Неизвестно` for every person on the
+project is itself worth surfacing as a staffing-data risk, not left to
+read as "nothing to report."
+
+## Owner Selection for Multi-Person qa_process_metrics
+
+`qa_process_metrics` needs one named `Owner` per row, not a generic QA
+team label (see `Templates/метрики_проекта_qa.md` §2). On a single-person
+project the owner is that person. On a multi-person project, pick whoever
+has the clearest ownership signal for QA-process facts specifically —
+release/automation/pipeline ownership evidence in their `individual_metrics`
+or mentions in `project_risk`, not seniority or tenure alone. If no one
+person has that kind of evidence, say so explicitly and name the metric
+as needing an owner to be assigned, rather than guessing or defaulting to
+whoever is listed first.
+
 ## Development Plans
 
 Project plans must answer:

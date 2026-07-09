@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from google_api_smoke_test import build_services, load_credentials
+from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
 from sync_m2_source_docs_to_sheets import drive_query
 
 CHAR_WIDTH_PX = 7.2
@@ -145,6 +145,7 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
 
 
 def main() -> int:
+    ensure_utf8_stdout()
     args = parse_args()
     creds = load_credentials(Path(args.credentials), Path(args.token))
     services = build_services(creds)
