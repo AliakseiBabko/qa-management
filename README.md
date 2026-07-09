@@ -157,12 +157,18 @@ Add `--keep-files` if you want to inspect the created Sheet and Doc manually.
 
 ## M2 batch generation (legacy first-pass tools)
 
-`generate_m2_outputs.py` and `reorganize_m2_project_workspace.py` below
+`generate_m2_outputs.py` (stays in `.agents\scripts\` — the current pipeline
+imports functions from it) and `.agents\scripts\legacy\reorganize_m2_project_workspace.py`
 were the original bulk-migration tools for turning raw extracted source
-docs into the first version of each project's folder. They are not the
-day-to-day pipeline anymore — see "Current pipeline scripts" further down
-for what actually runs now. Treat both as historical/setup utilities, not
-something to rerun casually against live project folders.
+docs into the first version of each project's folder. `.agents\scripts\legacy\process_remaining_intake.py`
+is a similar one-off with hardcoded dates/people/rows from a specific past
+intake batch. None of these are the day-to-day pipeline anymore — see
+"Current pipeline scripts" further down for what actually runs now. The two
+scripts under `.agents\scripts\legacy\` are one-off/historical by
+construction (hardcoded paths, dates, or batches) and are not meant to be
+rerun against current live project folders at all; `generate_m2_outputs.py`
+is safer to invoke standalone but still only produces rough first-pass
+output that needs the current templates applied on top.
 
 After extraction, generate first-pass M2 CSV outputs with:
 
@@ -184,20 +190,25 @@ individual QA metrics, project development plans, and individual development pla
 To reorganize generated or KT-derived M2 data into project folders, use:
 
 ```powershell
-python .agents\scripts\reorganize_m2_project_workspace.py
+python .agents\scripts\legacy\reorganize_m2_project_workspace.py
 ```
 
 This script creates project folders, project-local CSV fallbacks, Google Sheets,
-and an M2 project registry. Treat it as a migration/setup utility, not as a
-daily intake processor.
+and an M2 project registry. It is a one-off migration/setup utility from
+before the current per-project folder shape existed — do not rerun it.
 
 ## Current pipeline scripts
 
 These are what actually runs day to day, once a project's folder already exists:
 
-- `sync_m2_source_docs_to_sheets.py` — syncs source docs into
-  `project_risk`, `evidence_log`, and `individual_metrics` Sheets
-  (append-only merge, not overwrite).
+- `sync_m2_source_docs_to_sheets.py` — syncs source docs into `evidence_log`
+  and `individual_metrics` Sheets (real append-only merge, not overwrite).
+  `project_risk` and `project_metrics` are bootstrap-only: it creates a
+  rough first-pass Sheet from mechanical extraction if one doesn't exist
+  yet, but never touches either once a real one exists — both need M2's own
+  synthesis (single coherent row/column per project, not a mechanical
+  `label: value` pull from source docx), which this script structurally
+  cannot produce.
 - `sync_m2_plans_to_docs.py` — syncs `project_development_plan` and
   `individual_development_plan` as Google Docs (narrative documents, not
   Sheets).
@@ -214,9 +225,27 @@ These are what actually runs day to day, once a project's folder already exists:
 - `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
   extractor; check `80_Exports/source_extracts/*/manifest.csv` for an
   existing extraction before re-running it on the same source file.
+- `prepare_intake_review.py` — intake assistant: finds files in
+  `01_Meeting_Transcripts`/`02_Chats_and_Emails`/`03_Source_Documents` not
+  yet in `evidence_log`, reuses an existing extraction by sha256 instead of
+  re-extracting, classifies each by project (folder-based under
+  `03_Source_Documents`, filename-matched against `_project_registry`/
+  `_people_registry` under the inbox folders), appends `evidence_log` rows,
+  and writes a review bundle to `80_Exports/intake_review/YYYY-MM-DD.md`.
+  Genuinely ambiguous files are left `UNCLASSIFIED` rather than guessed —
+  route those manually. Stops there: does not touch `m2_input`,
+  `project_risk`, `project_development_plan`, `project_metrics`, or status
+  reports — read the bundle and start a normal preliminary-analysis round
+  for anything that matters. Use `--dry-run` to preview without writing.
+- `refresh_project_registry.py` — the one script safe to run mechanically
+  with no judgment step: copies each project's already-curated
+  `project_metrics` dashboard values into `_project_registry`
+  (worst-known-status for `Наименьший вклад в проект`, never averaged). Safe
+  to rerun anytime after a `project_metrics` update.
 - `rollup_individual_metrics_to_project.py` — **deprecated**, refuses to
   run. Superseded by M2 writing per-person `Вклад в проект: <Имя>` rows
-  directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1).
+  directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1)
+  and `refresh_project_registry.py` propagating those rows onward.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See

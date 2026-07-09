@@ -153,20 +153,28 @@ out of sync. Columns:
 - `Name (RU)`, `Name (EN)` — both, when the person has a known English-name
   form (useful since transcripts/chats mix scripts).
 - `Email` — when known.
-- `Aliases / STT variants` — nicknames and voice-transcription garbles (this
-  is what would catch a name like "Иран" being a mis-transcription).
-- `Side` — the company / Client / Vendor (third-party, e.g. another vendor
-  supplying staff on a project).
-- `Company` — which client/vendor, when Side isn't the company.
-- `Role` — M1 / M2 / HR / DC / QA / AQA / Team Lead / PM / Client
-  stakeholder / Candidate / etc.
+- `Side` — `the company`, or `Client` / `Client — <company>` when the specific
+  client-side or third-party vendor company is known (e.g. a client's own
+  staff vs. a separate vendor supplying people on the same project). One
+  column, not two — a person's affiliation and which company they're at is
+  a single fact, and splitting it produced redundant-looking rows like
+  `the company, the company` for every the company person.
+- `Role` — M1 / M2 / M3 / M4 / HR / DC / QA / AQA / Team Lead / PM / Client
+  stakeholder / Candidate / etc. Project-scoped detail (stream, specialty)
+  can go in the same cell, e.g. "AQA, stream SOLO".
+- `Internal rank` — the company-internal level (Junior/Middle/Senior), for
+  the company people only. This is distinct from a person's project-level
+  grade fit (`Соответствие ожиданиям клиента (грейд)` in
+  `individual_metrics`) — the two can differ, and neither substitutes for
+  the other. Leave blank when not known; do not infer it from project-level
+  grade.
 - `Project(s)` — comma-separated, or "all" for company-wide roles (HR, DC).
-- `Status` — active / former / candidate.
-- `Confirmed by M2` — Y/N. Distinguishes what M2 has actually verified from
-  what was inferred from transcript context — do not silently treat an
-  inferred role as fact just because it's already a row in this table;
-  check this column before relying on one.
 - `Notes` — anything uncertain, stated explicitly.
+
+`Aliases / STT variants`, `Status`, and `Confirmed by M2` were removed —
+this table exists to log people who come up in discussions or calls, not to
+track their lifecycle or verification state, and alias-matching in
+transcripts doesn't need a dedicated column to work.
 
 When processing a transcript/chat and a role is unclear or contradicts this
 registry, ask rather than guess — this registry exists specifically because
@@ -336,17 +344,35 @@ changed since the last extraction and should be re-extracted.
 ## Pipeline Architecture
 
 There is no automated observer/dispatcher watching inbox folders. Every sync
-this repo does — extraction (`qa_source_extract.py`), Sheet/Doc sync
-(`sync_m2_source_docs_to_sheets.py`, `sync_m2_plans_to_docs.py`), and the
-metrics rollup (`rollup_individual_metrics_to_project.py`) — runs because M2
-asked for it in conversation, not because a file landed in an inbox folder.
-Treat "drop a chat/email in an inbox folder and it gets processed" as the
-intent behind this pipeline, not as something already wired up.
+this repo does — extraction (`qa_source_extract.py`), intake review
+(`prepare_intake_review.py`), Sheet/Doc sync
+(`sync_m2_source_docs_to_sheets.py`, `sync_m2_plans_to_docs.py`), formatting
+(`format_all_sheets.py`), and the registry refresh
+(`refresh_project_registry.py`) — runs because M2 asked for it in
+conversation, not because a file landed in an inbox folder. Treat "drop a
+chat/email in an inbox folder and it gets processed" as the intent behind
+this pipeline, not as something already wired up.
+
+`prepare_intake_review.py` is the mechanical front half of that intent —
+classify what's new and log it — but it stops at exactly the same judgment
+boundary as everything else here: it does not decide what a new file means
+for a project, only that the file exists and (when classifiable) which
+project it probably belongs to. Reading the flagged files and deciding
+whether they change the picture enough to warrant an `m2_input` round is
+still a conversational step.
 
 The one piece that is safe to run mechanically without a human judgment step
-is the metrics rollup script — it aggregates already-recorded Core metrics
-with no interpretation involved. Everything else in the pipeline (deciding
-what's shareable vs. `m2_input`-only, drafting plan/risk language, weighing
-one person's read of a project against another's) is a judgment step, and
-should stay conversational until there's a long track record showing those
-judgment calls are stable and repeatable enough to encode.
+is `refresh_project_registry.py` — it copies each project's already-curated
+`project_metrics` dashboard rows (Горизонт/Бизнес-риск/Вклад в
+проект/Качество QA-процесса) into `_project_registry`, worst-case not
+averaged, with no interpretation of its own. `rollup_individual_metrics_to_project.py`
+is deprecated (see README, "Current pipeline scripts") — it computed a
+statistical `Команда: ...` distribution row that `project_metrics` no
+longer has any place for; `refresh_project_registry.py` is its replacement
+as "the mechanical step," not a rollup of `individual_metrics` at all.
+Everything upstream of `project_metrics` itself — deciding what's shareable
+vs. `m2_input`-only, drafting plan/risk language, weighing one person's read
+of a project against another's, and writing `project_metrics` in the first
+place — is a judgment step, and should stay conversational until there's a
+long track record showing those judgment calls are stable and repeatable
+enough to encode.

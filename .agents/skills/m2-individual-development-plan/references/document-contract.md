@@ -63,9 +63,12 @@ unavailable): `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.md`
 ## Section Skeleton
 
 Write the Doc as headed prose, in this order (full skeleton in the template
-file above). Omit a section if there is no evidence for it rather than
-inventing content, but say so as an open question instead of silently
-dropping it.
+file above). Every section is always present, for every person, regardless
+of how much source material exists — never omit a section because there's
+no evidence for it (see `m2-role-rules.md`, Template Consistency). If a
+section has nothing to say yet, write that plainly ("Неизвестно — <what's
+missing and what would close the gap>") instead of inventing content or
+dropping the section.
 
 1. **Title** — `<Person> — план развития (<Project>)`, followed by a short
    metadata line (Stream/role, Обновлено, Review cycle, Следующий review).

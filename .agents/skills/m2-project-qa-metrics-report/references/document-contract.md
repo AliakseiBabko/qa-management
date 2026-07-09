@@ -47,6 +47,11 @@ Suggested target folder:
   than the current 4-row-type dashboard built via `scaffold_project_dashboard.py`
   and real M2 judgment) is a raw source dump, not a compliant sheet — never
   treat it as already following this schema.
+  `sync_m2_source_docs_to_sheets.py` uses this same extraction path for
+  `project_metrics` — it only creates the sheet when one doesn't exist yet
+  (a rough bootstrap) and never overwrites an existing one, specifically so
+  rerunning it can't silently replace a real dashboard with extracted
+  fragments again.
 - Both `project_metrics` and `qa_process_metrics` are living Sheets,
   updated in place — same as `individual_metrics` and `project_risk`. Do
   not create dated `_vN` files for routine updates.
@@ -167,9 +172,15 @@ Full candidate metric list and per-metric collection instructions:
 
 - Keep one metric per row.
 - Each metric should answer a concrete management question and connect to project/business/QA value.
-- Prefer a compact project-specific metric set, usually 3-5 metrics per category, that works for internal M2 visibility (`project_metrics`) or team self-reporting (`qa_process_metrics`). Do not duplicate another reporting stream unless the duplicate row answers a different management question.
+- Every candidate metric from the catalog is a row in `qa_process_metrics`
+  for every project, always — do not select a "compact" subset and drop
+  the rest (see `m2-role-rules.md`, Template Consistency). A metric that
+  isn't currently a priority for this project, or has no data yet, still
+  gets a row: leave `Показатель` blank and say why in `Пояснение`
+  (including "not a priority for this project because ..." as a valid
+  reason). Do not duplicate another reporting stream's row unless the
+  duplicate answers a different management question.
 - Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task sizes are not comparable, estimates are abstract, or there is no stable release cadence.
-- If a `qa_process_metrics` metric genuinely has no data yet, do not add a row for it unless it's part of the fixed skeleton being set up for the first time (see that Schema section above) — after setup, a metric absent 2+ months running should be dropped, not left blank indefinitely.
 - Connect `project_metrics` to individual QA metrics where they materially affect the general project picture — that's exactly what the `Вклад в проект: <Имя>` rows do.
 - Do not turn `project_metrics` into a person-performance table beyond the `Вклад в проект` rows it's explicitly designed to hold. Each person's conclusion must separate personal contribution from project/system constraints such as stream differences, seniority, access, scope, deadlines, requirements quality, and process maturity.
 
