@@ -146,7 +146,7 @@ def scaffold_m2_input(services: dict, project_folder_id: str, project: str, peri
     if find_file_in_folder(drive, m2in["id"], "m2_input", DOC_MIME_TYPE):
         return "m2_input: already exists, skipped"
     markdown = "\n".join([
-        f"# {project} - входные данные M2",
+        f"## {project} - входные данные M2",
         f"## Раунд: {period}",
         "### Вопросы от предварительного анализа",
         "### Ответ и общие соображения M2",

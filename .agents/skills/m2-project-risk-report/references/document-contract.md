@@ -25,6 +25,18 @@ Suggested naming pattern:
 
 ## Versioning
 
+- `generate_m2_outputs.py` (see README, "legacy first-pass tools") is not
+  template-aware: it mechanically pulls `label: value` bullets out of each
+  source document's own Scorecard section into whatever columns happen to
+  line up, without synthesizing a single project-level voice per column —
+  this is where rows like a `Риск staffing / continuity` cell literally
+  reading `Owner: X. Owner: Y. Owner: Z.` come from. Its `project_risk`
+  output is a raw source dump, not a compliant row — never treat it as
+  already following this schema. When applying this schema to a project for
+  the first time (or fixing a row that reads like disconnected fragments
+  instead of one coherent risk assessment per column), back up the old row
+  as `project_risk_predecessor_<date>` and write a real synthesized row from
+  the evidence, the same way <Project>'s and <Project>'s were done.
 - Use the living project-local `project_risk` file for current state, and append
   source traceability to the project `evidence_log`.
 - Do not overwrite an existing formal dated project-risk snapshot by default.

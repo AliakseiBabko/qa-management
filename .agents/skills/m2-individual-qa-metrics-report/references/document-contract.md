@@ -89,6 +89,15 @@ Suggested naming pattern:
   copy (e.g. `individual_metrics_predecessor_<date>`) rather than deleting
   it or moving it to the archive — it stays as in-place historical
   reference until there's a reason to archive it properly.
+- `generate_m2_outputs.py` (see README, "legacy first-pass tools") is not
+  template-aware: it mechanically copies whatever "Scorecard" metric labels
+  happen to exist in a person's own source docx/xlsx — which is exactly
+  where excluded metrics like `Delivery ownership`, `Технический рост`,
+  `Проактивность` come from when a predecessor's homework used them. Its
+  `individual_metrics` output is a raw source dump, not a compliant sheet —
+  never treat it as already following this schema. Re-derive each row from
+  the Core catalog and real evidence when applying this schema to a person
+  for the first time; do not rename its columns and call it done.
 
 ## Scope
 

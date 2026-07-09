@@ -42,10 +42,18 @@ unavailable): `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.md`
 
 - Update the living `individual_development_plan` Doc in place. Google Docs
   version history already preserves prior revisions, so do not create a new
-  dated file for routine updates.
+  dated file for routine updates. "In place" means the same file/URL, not
+  preserving whatever section structure the Doc currently happens to have.
 - Append source traceability to the project `evidence_log` Sheet.
 - Create a separate dated snapshot only for a formal reporting event or when
   the user explicitly asks for one.
+- If an existing Doc predates this template — most commonly because it was
+  carried over near-verbatim from the person's own source docx during first
+  intake, using that document's own headers (e.g. "Цель на ближайшие 90
+  дней" / "Источники" / "Поддержка от менеджера" as separate top-level
+  sections) instead of the Section Skeleton below — migrate it to the
+  current structure the next time it's substantively touched. Don't just
+  append new facts under the old headers.
 
 ## Scope
 
