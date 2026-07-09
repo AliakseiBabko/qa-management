@@ -28,7 +28,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from google_api_smoke_test import build_services, load_credentials, move_file_to_folder
+from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials, move_file_to_folder
 from generate_m2_outputs import (
     clean_markdown,
     generate_metrics,
@@ -340,6 +340,7 @@ def ensure_project_local_dirs(project: str, person_names: set[str]) -> None:
 
 
 def main() -> int:
+    ensure_utf8_stdout()
     args = parse_args()
     extract_root = Path(args.extract_root)
     if not (extract_root / "manifest.csv").exists():

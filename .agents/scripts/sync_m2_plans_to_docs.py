@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from google_api_smoke_test import build_services, load_credentials, move_file_to_folder
+from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials, move_file_to_folder
 from generate_m2_outputs import read_manifest
 from sync_m2_source_docs_to_sheets import (
     ROOT_FOLDER_ID,
@@ -289,6 +289,7 @@ def archive_project_folder(drive: Any, root_folder_id: str, project: str) -> dic
 
 
 def main() -> int:
+    ensure_utf8_stdout()
     args = parse_args()
     extract_root = Path(args.extract_root)
     if not (extract_root / "manifest.csv").exists():

@@ -25,6 +25,19 @@ SCOPES = [
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
 
+def ensure_utf8_stdout() -> None:
+    """Rewrap stdout/stderr as UTF-8 so Cyrillic prints don't crash under the
+    Windows console's default cp1252 encoding. Safe to call unconditionally;
+    a no-op once already wrapped or on platforms where it isn't needed."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name)
+        if getattr(stream, "encoding", "").lower().replace("-", "") != "utf8":
+            try:
+                setattr(sys, stream_name, __import__("io").TextIOWrapper(stream.buffer, encoding="utf-8"))
+            except (AttributeError, ValueError):
+                pass
+
+
 def import_google_libs() -> tuple[Any, Any, Any, Any]:
     try:
         from google.auth.transport.requests import Request

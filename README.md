@@ -201,6 +201,13 @@ These are what actually runs day to day, once a project's folder already exists:
 - `sync_m2_plans_to_docs.py` — syncs `project_development_plan` and
   `individual_development_plan` as Google Docs (narrative documents, not
   Sheets).
+- `scaffold_project_dashboard.py` — creates the missing M2-only artifacts
+  for a project (`qa_process_metrics`, `individual_metrics_internal` per
+  person, `m2_input`, and a placeholder `project_metrics` only if one
+  doesn't exist yet). Structure only, no fabricated judgment — the actual
+  `project_metrics` rows and `m2_input` rounds still need M2's real read
+  of the project. Safe to rerun; every artifact is created only if
+  missing, and an existing `project_metrics` is always left untouched.
 - `format_all_sheets.py` — applies consistent formatting (wrap, alignment,
   column widths targeting ≤5 lines) across every Sheet under
   `20_M2_Project_Management`. Safe to rerun anytime after a schema change.
