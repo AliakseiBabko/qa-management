@@ -40,6 +40,13 @@ Suggested target folder:
 
 ## Versioning
 
+- `generate_m2_outputs.py` (see README, "legacy first-pass tools") predates
+  this dashboard schema and is not template-aware — it mechanically pulls
+  `label: value` bullets from each source document's own Scorecard section.
+  Any `project_metrics` content that traces back to that script (rather
+  than the current 4-row-type dashboard built via `scaffold_project_dashboard.py`
+  and real M2 judgment) is a raw source dump, not a compliant sheet — never
+  treat it as already following this schema.
 - Both `project_metrics` and `qa_process_metrics` are living Sheets,
   updated in place — same as `individual_metrics` and `project_risk`. Do
   not create dated `_vN` files for routine updates.

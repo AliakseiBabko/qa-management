@@ -143,6 +143,33 @@ Leaving `project_metrics` or `_project_registry` stale after an
 supposed to be the one place to see the full picture, not one of several
 places that might be out of date.
 
+## Вклад в проект Calibration
+
+Don't default to Смешанный as a safe middle answer when the evidence is
+actually clear. Three things commonly get mistaken for mixed personal
+contribution and should not pull the status down on their own:
+
+- **A data-completeness gap** — reporting/export not wired up yet (metrics
+  not pulled from Allure/CI/Jira, no per-tenant split, etc.). This is
+  missing evidence, not negative evidence. If the evidence that does exist
+  is positive, the status is Позитивный with the gap noted as a follow-up
+  action, not Смешанный.
+- **A staffing/capacity risk** — overload, competing priorities, a
+  sustainability concern. This belongs in `project_risk` or as a flagged
+  risk item, not folded into the contribution judgment; someone can be a
+  strong contributor and still be at risk of burnout.
+- **A project/process-maturity gap** — no formal DoR/DoD, no TMS decision,
+  no CI pipeline. These are usually project/PM-level decisions, not one
+  person's shortfall (see Risk Rules above on separating individual
+  performance risk from project/stake risk).
+
+Only mark Смешанный or Негативный when the negative signal is actually
+about that person specifically — inconsistent delivery, disengagement,
+declining trend, feedback problems tied to their own work. When in doubt,
+write out the positive evidence and the caveat separately in `Пояснение`
+and let the reader see both, rather than compressing them into a single
+hedged label.
+
 ## Registry Data-Gap Semantics
 
 `Наименьший вклад в проект` in `_project_registry` can hold two different

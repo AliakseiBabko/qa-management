@@ -34,10 +34,20 @@ unavailable): `план_развития_проекта_<Project>_YYYY-MM-DD.md`
 
 - Update the living `project_development_plan` Doc in place. Google Docs
   version history already preserves prior revisions, so do not create a new
-  dated file for routine updates.
+  dated file for routine updates. "In place" means the same file/URL, not
+  preserving whatever section structure the Doc currently happens to have —
+  see the parallel note in `m2-individual-development-plan`'s
+  document-contract for why this matters.
 - Append source traceability to the project `evidence_log` Sheet.
 - Create a separate dated snapshot only for a formal reporting event (e.g. a
   monthly business review) or when the user explicitly asks for one.
+- `generate_m2_outputs.py` (see README, "legacy first-pass tools") produces
+  this Doc's first-pass content via generic markdown extraction from the
+  source docx, not this template — it has, in practice, come out readable
+  because Docs preserve source prose better than the Sheet extraction path
+  does, but verify a given project's Doc actually matches the Section
+  Skeleton below before assuming it's compliant just because it looks like
+  prose.
 
 ## Section Skeleton
 
