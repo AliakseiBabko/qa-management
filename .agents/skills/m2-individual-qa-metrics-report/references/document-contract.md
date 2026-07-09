@@ -24,20 +24,21 @@ qualitative 3-level definition).
 
 ## Choosing metrics from the catalog
 
-- Collect every Core metric from the catalog wherever it's at all possible.
-  The Core set uses the same name and the same calculation method on every
-  project and every person — that's what makes people and projects
-  comparable. Don't substitute a similar-but-different local metric for a
-  Core one without a real reason; if a Core metric genuinely can't be
-  collected on this project, skip it rather than replace it with something
-  that looks similar but isn't computed the same way.
+- Every Core metric from the catalog is always a row for every person, on
+  every project, whether or not there's data for it yet — this is what
+  makes people and projects comparable, and what makes a blank cell mean
+  something rather than looking like an oversight (see `m2-role-rules.md`,
+  Template Consistency). Don't substitute a similar-but-different local
+  metric for a Core one without a real reason. If a Core metric genuinely
+  can't be collected right now, the row still exists: leave `Показатель`
+  blank and put the specific reason in `Пояснение` (e.g. "нет тега
+  production/pre-release в трекере") — never omit the row itself because
+  data is missing.
 - Additional (non-Core) metrics: pick from the catalog whatever the project
-  actually has data for. Do not invent a unique metric per person.
-- If a whole category has nothing collectible on this project, skip the
-  category entirely rather than inventing a number to fill it. Do not add a
-  row for a metric that has no data source — if it can't be collected, it
-  doesn't belong in this table at all, regardless of how relevant it might
-  seem.
+  actually has data for. Unlike Core metrics, these are not a fixed set
+  that must always appear — do not invent a unique metric per person, and
+  do not add a blank-with-reason row for a non-Core metric the project
+  simply doesn't use.
 - Prefer what's already in the tracker/CI without extra manual bookkeeping —
   a metric that needs manual counting every time will not get maintained.
 - For quantitative metrics, always state the formula/source in `Пояснение` —

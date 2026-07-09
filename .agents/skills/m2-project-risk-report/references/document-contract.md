@@ -37,6 +37,10 @@ Suggested naming pattern:
   instead of one coherent risk assessment per column), back up the old row
   as `project_risk_predecessor_<date>` and write a real synthesized row from
   the evidence, the same way <Project>'s and <Project>'s were done.
+  `sync_m2_source_docs_to_sheets.py` uses this same extraction path — it
+  only creates `project_risk` when one doesn't exist yet (a rough
+  bootstrap) and never overwrites an existing one, specifically so rerunning
+  it can't silently replace a real synthesized row with fragments again.
 - Use the living project-local `project_risk` file for current state, and append
   source traceability to the project `evidence_log`.
 - Do not overwrite an existing formal dated project-risk snapshot by default.

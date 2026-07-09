@@ -380,23 +380,36 @@ def main() -> int:
         ensure_project_local_dirs(project, project_people.get(project, set()))
         project_folder = find_or_create_folder(drive, m2_folder["id"], project)
 
+        # project_metrics and project_risk both require real M2 synthesis now (a
+        # single coherent judgment per row/column), not the mechanical
+        # label:value bullet extraction generate_metrics()/generate_project_risk()
+        # do. upsert_sheet() clears and overwrites the whole sheet, so once a real
+        # curated version exists, never touch it here — only bootstrap a brand-new
+        # project that doesn't have one yet, and even then this is a rough first
+        # pass to build on, not a finished document.
         if project in project_metrics:
-            meta = upsert_sheet(
-                services,
-                project_folder["id"],
-                "project_metrics",
-                [project_metrics_header, *project_metrics[project]],
-            )
-            results.append(f"{project}: {meta['name']}")
+            if find_sheet_in_folder(drive, project_folder["id"], "project_metrics"):
+                results.append(f"{project}: project_metrics already exists, left untouched (needs M2 synthesis, not auto-sync)")
+            else:
+                meta = upsert_sheet(
+                    services,
+                    project_folder["id"],
+                    "project_metrics",
+                    [project_metrics_header, *project_metrics[project]],
+                )
+                results.append(f"{project}: {meta['name']} (rough first pass — still needs M2 synthesis)")
 
         if project in project_risks:
-            meta = upsert_sheet(
-                services,
-                project_folder["id"],
-                "project_risk",
-                [project_risk_header, *project_risks[project]],
-            )
-            results.append(f"{project}: {meta['name']}")
+            if find_sheet_in_folder(drive, project_folder["id"], "project_risk"):
+                results.append(f"{project}: project_risk already exists, left untouched (needs M2 synthesis, not auto-sync)")
+            else:
+                meta = upsert_sheet(
+                    services,
+                    project_folder["id"],
+                    "project_risk",
+                    [project_risk_header, *project_risks[project]],
+                )
+                results.append(f"{project}: {meta['name']} (rough first pass — still needs M2 synthesis)")
 
         evidence_sheet = find_sheet_in_folder(drive, project_folder["id"], "evidence_log")
         existing_evidence = read_sheet_values(services, evidence_sheet["id"]) if evidence_sheet else [evidence_header]

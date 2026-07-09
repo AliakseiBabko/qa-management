@@ -67,6 +67,59 @@ Do not mechanically compare people unless their context is comparable. Different
 
 Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task size is not comparable, estimates are abstract, or there is no stable release cadence. In that case, choose metrics that explain the real management question: QA value, risk reduction, client trust, blocker discovery, escaped defects, process maturity, automation usefulness, or project visibility.
 
+## Template Consistency
+
+`individual_metrics`, `individual_development_plan`, `project_metrics`,
+`qa_process_metrics`, `project_development_plan`, `project_risk`, and every
+other document with a defined section/row skeleton use the **same
+structure every time**, regardless of how much data exists for a given
+person or project. This is what makes people and projects comparable and
+what makes a blank field mean something (a real, checkable gap) instead of
+looking like an oversight.
+
+Concretely:
+
+- Never omit a Core metric row, a template section, or a schema column by
+  judgment because "there's no data for it" or "it doesn't look
+  collectible on this project." Include it. Leave the value cell blank and
+  say why in the row's own explanation field (`Пояснение` for
+  `individual_metrics`/`qa_process_metrics`, the section's own text for a
+  Doc). "Нет данных — <short reason, and what would close the gap>" is a
+  complete, correct entry. An empty explanation next to a blank value is
+  not — the reason is what makes the blank legible instead of looking like
+  a bug.
+- This applies exactly the same whether a person has rich source material
+  or almost none. A person with an empty predecessor document still gets
+  every section of `individual_development_plan` and every Core metric row
+  of `individual_metrics` — each one blank, each one with its own reason
+  stated, not a single placeholder line replacing the whole document.
+- The one exception is metrics the catalog explicitly excludes as
+  unmeasurable (see `m2-individual-qa-metrics-report`/
+  `m2-project-qa-metrics-report` document-contracts) — those never become
+  rows at all, missing data or not. That's a different rule (the metric
+  itself is invalid) from a Core metric that's simply not collected yet on
+  this project or for this person.
+- If revisiting a document and a metric/section was left out entirely
+  rather than included-blank-with-reason, that's a defect to fix the next
+  time the document is touched, not a valid alternate style.
+- A document-contract's Section Skeleton is the source of truth, not
+  whatever an existing Doc/Sheet already contains — contracts get written
+  or tightened after documents already exist, and a document predating a
+  contract update is not evidence the contract doesn't apply to it. Before
+  editing any `individual_metrics`/`individual_development_plan`/
+  `project_metrics`/`qa_process_metrics`/`project_development_plan`/
+  `project_risk` instance, check it against the current skeleton in its
+  document-contract rather than assuming its existing structure is already
+  correct just because nothing flagged it yet.
+- When a document for one project/person is found to violate its
+  template, check every other project's or person's instance of that same
+  document type before considering the fix done. A structural defect this
+  systemic (wrong section shape, wrong metric set, mechanically-extracted
+  content) almost never affects only the one instance that happened to get
+  reviewed — it traces back to how the whole set was first generated, so
+  the other instances are likely broken the same way even though nobody
+  has looked at them yet.
+
 If metrics cannot be collected during active risk mitigation, overload, onboarding, or project instability, document why, set a review date, and treat prolonged absence of metrics as an M2 management risk.
 
 ## Project Entry and Onboarding
