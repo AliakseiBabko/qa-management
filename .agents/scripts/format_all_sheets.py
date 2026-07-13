@@ -16,11 +16,37 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+from googleapiclient.errors import HttpError
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
 from sync_m2_source_docs_to_sheets import drive_query
+
+MAX_RETRIES = 5
+
+
+def call_with_retry(request: Callable[[], Any]) -> Any:
+    """Run a googleapiclient request's .execute() with backoff on 429 (rate limit).
+
+    The Sheets API read-request quota (60/min/user, see google-workspace-rules.md
+    API Safety) is easy to exceed here since every sheet costs 2 read calls
+    (spreadsheets().get + values().get) and this script iterates every Sheet in
+    the workspace in one run. A 429 is a rate limit, not a real failure - back
+    off and retry rather than giving up on that sheet.
+    """
+    delay = 5.0
+    for attempt in range(MAX_RETRIES):
+        try:
+            return request()
+        except HttpError as exc:
+            if exc.resp.status == 429 and attempt < MAX_RETRIES - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise
 
 CHAR_WIDTH_PX = 7.2
 CELL_PADDING_PX = 14
@@ -64,7 +90,7 @@ def column_width(values: list[str]) -> int:
 
 
 def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
-    meta = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    meta = call_with_retry(lambda: sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute())
     requests: list[dict[str, Any]] = []
     log_parts = []
 
@@ -74,13 +100,12 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
         col_count = tab["properties"]["gridProperties"].get("columnCount", 26)
         title = tab["properties"]["title"]
 
-        values = (
-            sheets_service.spreadsheets()
+        values = call_with_retry(
+            lambda: sheets_service.spreadsheets()
             .values()
             .get(spreadsheetId=spreadsheet_id, range=f"'{title}'!A1:{chr(64 + min(col_count, 26))}{min(row_count, 500)}")
             .execute()
-            .get("values", [])
-        )
+        ).get("values", [])
         if not values:
             continue
 
@@ -139,7 +164,11 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
         log_parts.append(f"{title}: {len(non_empty_cols)} cols, total_width={sum(widths.values())}px")
 
     if requests:
-        sheets_service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
+        call_with_retry(
+            lambda: sheets_service.spreadsheets()
+            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+            .execute()
+        )
         return f"{name}: formatted ({'; '.join(log_parts)})"
     return f"{name}: skipped (no non-empty columns)"
 
