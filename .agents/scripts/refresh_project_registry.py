@@ -2,10 +2,16 @@
 
 This is the mechanical step referenced in google-workspace-rules.md,
 Pipeline Architecture: it copies dashboard values across with no
-interpretation of its own — it does not compute Вклад в проект, Горизонт,
-Бизнес-риск, or Качество QA-процесса, only aggregates what `project_metrics`
-already says. Writing those values in `project_metrics` in the first place
-is still a judgment step done in conversation.
+interpretation of its own — it does not compute Статус, Вклад в проект,
+Горизонт, Бизнес-риск, or Качество QA-процесса, only aggregates what
+`project_metrics` already says. Writing those values in `project_metrics`
+in the first place is still a judgment step done in conversation.
+
+Статус (Активен/На паузе, see Templates/метрики_проекта_qa.md §1.0) is
+manual-only in project_metrics - this script never sets or clears it, it
+just copies whatever's there. Reactivation happens by M2 editing
+project_metrics directly; the next run of this script picks that up like
+any other mirrored field.
 
 Aggregation for "Наименьший вклад в проект" is worst-known-status, not an
 average (see m2-role-rules.md, Registry Data-Gap Semantics): among named
@@ -27,6 +33,7 @@ from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder,
 REGISTRY_HEADER = [
     "Проект",
     "People",
+    "Статус",
     "Горизонт совместной работы",
     "Бизнес-риск продукта клиента",
     "Наименьший вклад в проект",
@@ -44,11 +51,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def dashboard_value(rows: list[list[str]], metric: str) -> str:
+def dashboard_value(rows: list[list[str]], metric: str, default: str = "") -> str:
     for row in rows:
         if len(row) > 2 and row[2] == metric:
-            return row[3] if len(row) > 3 else ""
-    return ""
+            value = row[3] if len(row) > 3 else ""
+            return value or default
+    return default
 
 
 def contribution_summary(rows: list[list[str]]) -> tuple[str, list[str]]:
@@ -107,15 +115,16 @@ def main() -> int:
             print(f"{project}: no project_metrics yet, skipped")
             continue
         pm_rows = read_sheet_values(services, pm_sheet["id"])
+        status = dashboard_value(pm_rows, "Статус проекта", default="Активен")
         horizon = dashboard_value(pm_rows, "Горизонт совместной работы")
         biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента")
         qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
         contribution, people = contribution_summary(pm_rows)
-        rows.append([project, ", ".join(people), horizon, biz_risk, contribution, qa_quality])
-        print(f"{project}: refreshed ({len(people)} people)")
+        rows.append([project, ", ".join(people), status, horizon, biz_risk, contribution, qa_quality])
+        print(f"{project}: refreshed ({len(people)} people, status={status})")
 
     services["sheets"].spreadsheets().values().clear(
-        spreadsheetId=registry_sheet["id"], range="A1:F200"
+        spreadsheetId=registry_sheet["id"], range="A1:G200"
     ).execute()
     services["sheets"].spreadsheets().values().update(
         spreadsheetId=registry_sheet["id"], range="A1", valueInputOption="RAW", body={"values": rows}

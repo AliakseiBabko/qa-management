@@ -15,6 +15,7 @@ call these instead of rewriting the index math.
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +37,15 @@ def get_services(
 
 def _insert_blocks(docs_service: Any, doc_id: str, insert_at: int, blocks: list[tuple[str, str]]) -> None:
     """Shared insert logic: build insertText + paragraph-style requests for
-    a (kind, text) block list starting at a given index, and apply them."""
+    a (kind, text) block list starting at a given index, and apply them.
+
+    Inserted text inherits the paragraph style of whatever's AT the
+    insertion point (e.g. an empty "Ответ и общие соображения M2" HEADING_2
+    paragraph) until explicitly overridden. Every block's range is
+    therefore explicitly (re)set to NORMAL_TEXT first, then HEADING_2 is
+    applied on top for heading2-kind blocks - never rely on inheritance
+    defaulting to normal text (it doesn't when the insertion point happens
+    to be a heading, which is exactly the append_to_pending_round case)."""
     text_parts: list[str] = []
     heading2: list[tuple[int, int]] = []
     bullets: list[tuple[int, int]] = []
@@ -51,8 +60,18 @@ def _insert_blocks(docs_service: Any, doc_id: str, insert_at: int, blocks: list[
             bullets.append((start, end))
         text_parts.append(content)
         cursor = end
+    inserted_end = cursor
 
-    requests: list[dict[str, Any]] = [{"insertText": {"location": {"index": insert_at}, "text": "".join(text_parts)}}]
+    requests: list[dict[str, Any]] = [
+        {"insertText": {"location": {"index": insert_at}, "text": "".join(text_parts)}},
+        {
+            "updateParagraphStyle": {
+                "range": {"startIndex": insert_at, "endIndex": inserted_end},
+                "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                "fields": "namedStyleType",
+            }
+        },
+    ]
     for start, end in heading2:
         requests.append({
             "updateParagraphStyle": {
@@ -120,6 +139,71 @@ def append_to_pending_round(docs_service: Any, doc_id: str, blocks: list[tuple[s
             "extend. Use append_doc_round to open a new round instead."
         )
     _insert_blocks(docs_service, doc_id, answer_start, blocks)
+
+
+def add_questions(
+    docs_service: Any,
+    doc_id: str,
+    blocks: list[tuple[str, str]],
+    round_date: str | None = None,
+) -> dict[str, Any]:
+    """Add new question/context content to an m2_input Doc - the entry point
+    to use instead of picking between append_doc_round and
+    append_to_pending_round yourself (that choice was made wrong once; see
+    <Project> m2_input history/evidence_log 2026-07-13).
+
+    Auto-routes on the doc's current state (via get_last_round_status):
+    - a round is pending -> appended as an addendum before the answer
+      heading (append_to_pending_round), so the round stays correctly
+      pending.
+    - no round is pending (answered, or the doc has no round yet) -> a
+      fresh round is opened with today's date (or round_date if given),
+      wrapping `blocks` in the full heading scaffold, via append_doc_round.
+
+    blocks is just the question/context content itself - (kind, text)
+    pairs, kind one of "heading2" (for a labeled sub-section within the
+    round), "bullet", "normal". Do not include the "Раунд:"/"Вопросы от
+    предварительного анализа"/answer headings yourself; they're added
+    automatically when a new round needs to be opened.
+
+    Returns the status dict (see get_last_round_status) after the write.
+    """
+    status = get_last_round_status(docs_service, doc_id)
+    if status["pending"]:
+        append_to_pending_round(docs_service, doc_id, blocks)
+    else:
+        date = round_date or dt.date.today().isoformat()
+        scaffold: list[tuple[str, str]] = [
+            ("heading2", f"Раунд: {date}"),
+            ("heading2", "Вопросы от предварительного анализа"),
+            *blocks,
+            ("heading2", ANSWER_HEADING),
+            ("normal", ""),
+        ]
+        append_doc_round(docs_service, doc_id, scaffold)
+    return get_last_round_status(docs_service, doc_id)
+
+
+def add_answer(docs_service: Any, doc_id: str, blocks: list[tuple[str, str]]) -> dict[str, Any]:
+    """Write answer content into the CURRENT pending round of an m2_input
+    Doc. Requires a round to actually be pending - raises ValueError
+    otherwise, since answering a round that's already answered (or doesn't
+    exist) is not a valid action; open one with add_questions first.
+
+    blocks is the answer content - (kind, text) pairs. Inserted at the
+    Doc's end, which lands right after the empty answer heading, filling it
+    in and making the round read as answered afterward.
+
+    Returns the status dict (see get_last_round_status) after the write.
+    """
+    status = get_last_round_status(docs_service, doc_id)
+    if not status["pending"]:
+        raise ValueError(
+            f"No pending round in doc {doc_id} to answer (status={status}). "
+            "Use add_questions to open a new round first."
+        )
+    append_doc_round(docs_service, doc_id, blocks)
+    return get_last_round_status(docs_service, doc_id)
 
 
 def get_last_round_status(docs_service: Any, doc_id: str) -> dict[str, Any]:

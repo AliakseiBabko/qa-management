@@ -37,11 +37,19 @@ intake skills:
 
 ## Workflow — Person Cards
 
-1. Apply the Person Card Intake field mapping from `google-workspace-rules.md`
-   exactly — don't re-derive it per card.
-2. Check `_people_registry` for an existing row for this person first. If
-   found and a field conflicts, treat the card as the stronger source (see
-   that section) and fix every document that repeated the old fact.
+1. Save the card to a file and run
+   `.agents\scripts\apply_person_card.py --file <path>` first — it parses
+   the fields, computes Role/Internal rank/Notes per the Person Card Intake
+   mapping, and looks up any existing `_people_registry` row by email, so
+   you're not re-deriving the mapping by hand each time. Pass `--file`, not
+   stdin — a Windows bash heredoc was found to silently drop the Cyrillic
+   half of the name.
+2. It only auto-writes a genuinely **new** row (`--apply`); for an existing
+   person it prints the existing row and the computed fields side by side
+   but does not write — Name/Project(s) changes, and any contradiction
+   against that person's `individual_metrics`/`individual_development_plan`
+   (e.g. the AQA-vs-manual-track pattern in `m2-role-rules.md`'s Вклад в
+   проект Calibration), still need your read before applying.
 3. Log the addition/correction to whichever project's `evidence_log` is
    most contextually relevant (the project the card arrived alongside), with
    `source_type` = `m2_conversation`.
@@ -58,11 +66,13 @@ intake skills:
 3. If the note reveals a real visibility/access gap (M2 or M3 missing from
    a project's own strategy chat, no M3 present at all, unclear who can
    grant access), treat it as a topology risk per `m2-role-rules.md` — add
-   it as an addendum to that project's **pending** `m2_input` round via
-   `pipeline_common.append_to_pending_round()` (check
-   `get_last_round_status()` first; if the round is already answered, open
-   a new one with `append_doc_round()` instead). Frame it as a question for
-   M2 to decide on escalation, not a foregone conclusion.
+   it to that project's `m2_input` with `pipeline_common.add_questions()`
+   (it auto-routes to extending a pending round or opening a fresh one, so
+   you don't need to check `get_last_round_status()` or pick between the
+   lower-level `append_doc_round`/`append_to_pending_round` yourself).
+   Frame it as a question for M2 to decide on escalation, not a foregone
+   conclusion. If the note instead directly *answers* a question already
+   sitting in a pending round, use `add_answer()` instead.
 4. If the note simply resolves a naming/mapping ambiguity (e.g. confirming
    two chat names are the same project) with no risk implication, a plain
    `evidence_log` entry is enough — no `m2_input` round needed.
@@ -84,7 +94,8 @@ intake skills:
 - Do not add every person mentioned in passing to `_people_registry` — same
   scoping rule as `m2-strategy-chat-analysis`: only people whose role
   matters for QA-management topology.
-- Never use `pipeline_common.append_doc_round()` to add to an
-  already-pending round — it appends at the Doc's end, which lands after
-  the empty answer heading and breaks `get_last_round_status()`'s pending
-  detection. Use `append_to_pending_round()` for that case.
+- Use `pipeline_common.add_questions()`/`add_answer()` for all `m2_input`
+  writes, never the lower-level `append_doc_round()`/
+  `append_to_pending_round()` directly — picking between those two by hand
+  produced a real bug once (see README.md's `pipeline_common.py` entry and
+  the <Project> evidence_log, 2026-07-13).

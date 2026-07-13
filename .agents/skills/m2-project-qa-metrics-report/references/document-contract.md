@@ -70,6 +70,17 @@ raw file path (traceability lives in `evidence_log`).
 
 Row types, all living in this one Sheet:
 
+0. **`Статус проекта`** — one row, `Активен` or `На паузе`. Manual-only:
+   no script sets or clears `На паузе`, and there is no scheduled review
+   that would — reactivation happens only when M2 explicitly changes it,
+   which then flows through `refresh_project_registry.py`'s normal mirror
+   on its next run. While `На паузе`: `project_risk`'s `Общий уровень
+   риска` stays frozen at its last real value rather than being remapped
+   onto the pause (a pause isn't a point on that scale); `qa_process_metrics`
+   stops taking new monthly periods (see its Schema section below); and the
+   project stays in `_project_registry` (a pause is not the "project
+   stopped" case that rule is about). Every project gets this row, default
+   `Активен`. See catalogue §1.0.
 1. **`Горизонт совместной работы`** — one row. Expected end date of the
    engagement/current phase; where meaningful change could happen
    (contract end, vendor switch, tender). See catalogue §2.1.
@@ -124,6 +135,13 @@ Same 7 columns. Append-only by calendar month: dedup on (Проект, Метр�
 Период); re-running for the same month updates that month's row, a new
 month adds new rows. `Тренд` starts as a simple month-over-month
 comparison once two months of history exist.
+
+If `project_metrics`'s `Статус проекта` row is `На паузе`, freeze this
+Sheet entirely — don't add a new `Период`, don't chase the team for data
+covering paused months. Resume once `Статус проекта` goes back to
+`Активен`. This is different from the 2+ month uncollectable-metric rule
+below (that's about one metric not fitting the project; this is about the
+whole process being on hold).
 
 When creating this Sheet, leave every `Показатель` empty but **write a
 real `Пояснение` for every row** — what the metric means, why it matters
