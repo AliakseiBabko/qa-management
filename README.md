@@ -201,6 +201,30 @@ before the current per-project folder shape existed — do not rerun it.
 
 These are what actually runs day to day, once a project's folder already exists:
 
+- `show_project_state.py` — read-only dump of a project's canonical
+  documents (`--project <Name>`) and/or the two workspace-wide registries
+  (`--registries`). Creates nothing, even for a typo'd/missing project name
+  (reports it as missing rather than creating a stray folder, unlike the
+  sync scripts' `find_or_create_folder`). Run this first, before manually
+  reading Sheets/Docs one at a time, whenever a conversational update needs
+  to see current state. `--summary` (alone, or with `--project`) skips the
+  full dump and prints a one-liner per project instead — People count, risk
+  level + snapshot date, evidence_log's most recent entry date — cheap
+  triage before deciding a full dump is even warranted (e.g. a strategy
+  chat that reads as mostly non-QA staffing/contract content).
+- `pipeline_common.py` — not a script to run; shared helpers other scripts
+  should import instead of re-inlining them: `get_services()`
+  (`load_credentials` + `build_services`); `get_last_round_status()` (reads
+  an m2_input Doc and reports the latest round's date and whether its
+  "Ответ и общие соображения M2" section is still empty — used by
+  `show_project_state.py --summary` to flag a pending round without opening
+  the Doc); `append_doc_round()` to open a brand-new dated round at the end
+  of the Doc; and `append_to_pending_round()` to add an addendum to a round
+  that's still pending, inserted *before* the empty answer heading rather
+  than after it. Using `append_doc_round()` for the latter case will make
+  `get_last_round_status()` wrongly read the round as answered — this
+  actually happened once (<Project>, 2026-07-13, see its evidence_log) before
+  the dedicated function was added.
 - `sync_m2_source_docs_to_sheets.py` — syncs source docs into `evidence_log`
   and `individual_metrics` Sheets (real append-only merge, not overwrite).
   `project_risk` and `project_metrics` are bootstrap-only: it creates a
@@ -237,6 +261,17 @@ These are what actually runs day to day, once a project's folder already exists:
   `project_risk`, `project_development_plan`, `project_metrics`, or status
   reports — read the bundle and start a normal preliminary-analysis round
   for anything that matters. Use `--dry-run` to preview without writing.
+- `detect_strategy_chats.py` — the same kind of mechanical front half, but
+  specifically for `<Project>_strategy*.txt` files (project-level M2
+  strategy chats, see `m2-strategy-chat-analysis`): classifies by filename
+  prefix, parses Google Chat's copy-paste message-header format to resolve
+  the file's date range (a heuristic against file mtime — Google Chat
+  headers carry no year and use relative weekday-only timestamps for
+  recent messages), appends one `evidence_log` row per new file, and writes
+  `80_Exports/intake_review/strategy_chats_YYYY-MM-DD.md`. Dedups by exact
+  filename, not content — a new batch of messages must land in a new file,
+  never appended into an already-logged one. Also stops at fact
+  extraction; `--dry-run` previews without writing.
 - `refresh_project_registry.py` — the one script safe to run mechanically
   with no judgment step: copies each project's already-curated
   `project_metrics` dashboard values into `_project_registry`

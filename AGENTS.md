@@ -21,6 +21,34 @@ The desktop mirror / filesystem fallback is:
 
 `G:\My Drive\QA_Management`
 
+## Start Here (Before Manual Drive/Sheets/Docs Calls)
+
+Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
+
+1. Check whether Google API access is already set up: `.local/google/credentials.json`
+   and `.local/google/token.json` (see `README.md`, Google API Smoke Test). If both
+   exist, the API pipeline is usable — don't assume CSV/Markdown fallback without
+   checking first.
+2. Read `README.md`'s **Current pipeline scripts** section before hand-rolling a new
+   script. Most tasks map to an existing one:
+   - Need to see a project's or the registries' current state? —
+     `.agents\scripts\show_project_state.py --project <Name>` /
+     `--registries`. Read-only, safe to run anytime, creates nothing. Add
+     `--summary` for a cheap one-liner per project (People count, risk
+     level, last evidence_log date) to triage before pulling a full dump.
+   - Need to find new/unprocessed source files? —
+     `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
+     documents) or `.agents\scripts\detect_strategy_chats.py`
+     (`_strategy` chats specifically).
+   - Writing a new one-off inspection/update script anyway? Reuse
+     `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
+     re-inlining `load_credentials`/`build_services` boilerplate.
+3. Only fall back to raw filesystem exploration (`find`/`Glob`) under
+   `G:\My Drive\QA_Management` for genuinely new source files that haven't been
+   classified yet — not for inspecting already-canonical project documents, which
+   are Google Sheets/Docs and can't be read as plain files anyway (they'll error
+   with "Invalid request code" if you try).
+
 ## Skill Location
 
 Local skills live under:
@@ -34,6 +62,8 @@ Current canonical skills:
 | Skill | Role | Outcome | Canonical source |
 |-------|------|---------|------------------|
 | `qa-1to1-analysis` | Common | Shared structured analysis from a QA 1to1 transcript for both M1 and M2, including topic classification, evidence extraction, and people/project signal separation | `.agents/skills/qa-1to1-analysis/SKILL.md` |
+| `m2-strategy-chat-analysis` | M2 | Analysis of a project-level "_strategy" chat export (running, multi-month, multi-stakeholder planning/status channel for one project) into project-scoped facts, routed via the normal M2 cascading-update/rollup chain | `.agents/skills/m2-strategy-chat-analysis/SKILL.md` |
+| `m2-admin-note-intake` | M2 | Short pasted-inline (not file-based) conversation snippets about chat access/membership, chat/project naming ambiguity, and structured person-info cards | `.agents/skills/m2-admin-note-intake/SKILL.md` |
 | `qa-management-roles` | Common | Shared M1/M2/M3/M4 role boundaries and role rules, including M1 people-management goals and M2 project-management/business-value rules | `.agents/skills/qa-management-roles/SKILL.md` |
 | `m1-people-1to1-file` | M1 | Individual person Google Sheet in `10_M1_People_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
 | `m1-people-risk-report` | M1 | Dated people risk traffic-light Google Sheet, with CSV fallback, based on `Templates/светофор_рисков.csv` from this repo | `.agents/skills/m1-people-risk-report/SKILL.md` |

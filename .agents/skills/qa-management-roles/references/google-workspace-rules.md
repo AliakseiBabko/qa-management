@@ -41,7 +41,21 @@ belongs to, so type is the more stable first split:
   calls, shadowing calls, client/project syncs.
 - `00_Source_Docs\02_Chats_and_Emails` — exported/combined chat and email
   history: people cases, HR/feedback threads, status messages,
-  escalations, client/team correspondence.
+  escalations, client/team correspondence. A filename ending `_strategy`
+  (e.g. `<Project>_strategy.txt`) is a project-level M2 strategy chat — a
+  running, multi-month, multi-stakeholder planning/status channel for one
+  project, distinct from a person-specific case chat or 1:1. See
+  `m2-strategy-chat-analysis` for how these are processed. New messages for
+  a project already on record go into a **new** file (e.g.
+  `<Project>_strategy_2026-07-20.txt`), never appended into the existing
+  one — `detect_strategy_chats.py` dedups by filename, so editing an
+  already-logged file in place makes the new content invisible to it.
+  Unlike a one-off case chat or transcript, a `_strategy` file is not moved
+  to `03_Source_Documents` or `90_Archive` after processing: it's part of
+  an ongoing per-project series (more files keep landing in the same
+  place), and the API generally can't move a file dropped in manually
+  anyway (see API Safety below) — `evidence_log` is what records that it
+  was processed, same as for any other source.
 - `00_Source_Docs\03_Source_Documents` — durable per-project source
   documents and company-wide reference material: `<Project>\` folders,
   the M2 homework corpus (`M2_role_vision`, `M2_personal_development_plan`,
@@ -168,13 +182,69 @@ out of sync. Columns:
   `individual_metrics`) — the two can differ, and neither substitutes for
   the other. Leave blank when not known; do not infer it from project-level
   grade.
-- `Project(s)` — comma-separated, or "all" for company-wide roles (HR, DC).
-- `Notes` — anything uncertain, stated explicitly.
+- `Project(s)` — where the person is staffed/employed, comma-separated, or
+  "all" for company-wide roles (HR, DC). **Not** every project where they
+  show up performing an M1/M2/DC duty for someone else's team — a person's
+  main staffed project and a cross-project management hat they wear for
+  other people are two different facts and must not be merged into one
+  column. E.g. an AQA staffed on <Project> who also acts as M2 for a QA on
+  <Project> keeps `Project(s)` = `<Project>`; the <Project> M2 duty goes in
+  `Notes`, naming the project(s) it covers. Multiple people commonly wear
+  more than one hat (staffed role + M1/M2/DC duty elsewhere) — capture both,
+  but don't let one overwrite or dilute the other.
+- `Notes` — anything uncertain, stated explicitly, including any
+  cross-project management duty per the `Project(s)` rule above.
 
 `Aliases / STT variants`, `Status`, and `Confirmed by M2` were removed —
 this table exists to log people who come up in discussions or calls, not to
 track their lifecycle or verification state, and alias-matching in
 transcripts doesn't need a dedicated column to work.
+
+### Person Card Intake
+
+M2 sometimes hands over a person directly as a structured card rather than
+via a transcript/chat, e.g.:
+
+```
+<Name (EN)>, <Имя (RU)>, <email>
+Job Title - Data Engineer
+M-level - P
+Prof.Level - Senior
+Mentor - No
+DC - Yes
+```
+
+Map every field explicitly rather than re-deriving the mapping each time:
+
+- Name (RU) / Name (EN) — from the given Russian/English (or transliterated)
+  names directly.
+- Email — as given.
+- Side — `the company` if the email domain is `@example.com`; otherwise ask
+  rather than guess.
+- Role — `Job Title`, with `DC` prefixed if `DC - Yes` (e.g. `DC; Data
+  Engineer`). Do not add `DC` to Role if the card says `DC - No`, even if
+  the person is discussed alongside DC-shaped duties elsewhere. Separately,
+  if `M-level` is a recognized the company management level (`M1`/`M2`/`M3`/
+  `M4`), combine it into Role alongside Job Title too (e.g. `M3; DC
+  Manager`), matching how existing M3 AQA rows are already written (`M3
+  AQA`). If `M-level` is not one of those (e.g. `P`), its meaning isn't
+  confirmed — leave Role alone and put it in Notes verbatim instead (see
+  below); don't guess it belongs in Role.
+- Internal rank — `Prof.Level` directly (Junior/Middle/Senior). This field
+  already matches the `Internal rank` column's own scale.
+- Project(s) — leave blank unless the card or its context states an actual
+  staffed project; never infer it from which chat/project the card happened
+  to arrive alongside (see the `Project(s)` rule above).
+- Notes — `M-level` verbatim (only when it wasn't already folded into Role
+  per above), flagged as unconfirmed in meaning; `Mentor` status in plain
+  language; and a citation of the source (which chat/note the card came
+  from).
+
+If a card conflicts with an existing registry row for the same person (a
+different Role, Side, or rank), treat it as a correction — the card is
+direct, first-party information from M2, stronger evidence than an inferred
+role from a transcript — but still fix every document that repeated the old
+fact (see the Template Consistency note in `m2-role-rules.md`).
 
 When processing a transcript/chat and a role is unclear or contradicts this
 registry, ask rather than guess — this registry exists specifically because
@@ -281,6 +351,17 @@ literal evidence citations.
   can look like a duplicate-folder problem when the match is actually
   correctly nested somewhere else entirely (e.g. already filed under
   `90_Archive`).
+- The Sheets API read-request quota is 60/min per user/project. Any script
+  that iterates every Sheet in the workspace (`format_all_sheets.py`) costs
+  at least 2 read calls per sheet (`spreadsheets().get` +
+  `values().get`) and will exceed that quota well before finishing once the
+  workspace has more than ~30 sheets — this is expected at current workspace
+  size, not a sign something is broken. A 429 here is a rate limit, not a
+  real failure: back off and retry (see `call_with_retry` in
+  `format_all_sheets.py`) rather than treating the run as failed. If a
+  one-off script or manual API call hits the same 429 without retry logic,
+  just rerun it — formatting/read-only scripts are safe to rerun and pick up
+  whatever didn't complete.
 
 ## Sharing Safety
 
