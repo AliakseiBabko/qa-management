@@ -211,20 +211,44 @@ These are what actually runs day to day, once a project's folder already exists:
   full dump and prints a one-liner per project instead — People count, risk
   level + snapshot date, evidence_log's most recent entry date — cheap
   triage before deciding a full dump is even warranted (e.g. a strategy
-  chat that reads as mostly non-QA staffing/contract content).
+  chat that reads as mostly non-QA staffing/contract content). In the full
+  dump, `evidence_log` defaults to the last 10 rows (`--evidence-tail N` to
+  change, `0` for the full log) — it's an append-only audit trail that only
+  grows, and most conversational updates only need what happened recently.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
   (`load_credentials` + `build_services`); `get_last_round_status()` (reads
   an m2_input Doc and reports the latest round's date and whether its
   "Ответ и общие соображения M2" section is still empty — used by
   `show_project_state.py --summary` to flag a pending round without opening
-  the Doc); `append_doc_round()` to open a brand-new dated round at the end
-  of the Doc; and `append_to_pending_round()` to add an addendum to a round
-  that's still pending, inserted *before* the empty answer heading rather
-  than after it. Using `append_doc_round()` for the latter case will make
-  `get_last_round_status()` wrongly read the round as answered — this
-  actually happened once (<Project>, 2026-07-13, see its evidence_log) before
-  the dedicated function was added.
+  the Doc); and the two intent-based entry points for writing to m2_input —
+  `add_questions()` (auto-routes to opening a fresh round or extending the
+  current pending one, whichever the doc calls for) and `add_answer()`
+  (writes into the current pending round, raises if none is pending). Use
+  these two, not the lower-level `append_doc_round()`/
+  `append_to_pending_round()` they're built on — picking between those two
+  manually produced a real bug once (<Project>, 2026-07-13, see its
+  evidence_log): appending answer content with the wrong one landed it
+  before the empty answer heading and made `get_last_round_status()`
+  wrongly read the round as still pending.
+- `apply_person_card.py` — parses a person card (the Job Title/M-level/
+  Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
+  Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`
+  by email, and prints the computed Role/Internal rank/Notes plus a diff
+  against any existing row. Dry-run by default; `--apply` adds a genuinely
+  new row (an existing row's Name/Project(s) still need human judgment per
+  the Project(s) rule, so those are never auto-written). Pass the card via
+  `--file <path>`, not stdin/a heredoc — a Windows bash heredoc was found to
+  silently drop the Cyrillic half of the name while building this script.
+  For an existing person, also greps their currently-listed Project(s)'
+  `individual_metrics`/`individual_development_plan` for a track/level
+  mismatch against the card (see `m2-role-rules.md`, Вклад в проект
+  Calibration) and prints a heads-up, not a resolution. Known gap: it only
+  checks *current* Project(s) — someone recently moved off a project (e.g.
+  <Name>, <Project> → <Project2>) leaves their mismatch evidence
+  behind in the old project's docs, invisible to this scan; a clean result
+  isn't proof there's no mismatch for someone who's changed projects
+  recently.
 - `sync_m2_source_docs_to_sheets.py` — syncs source docs into `evidence_log`
   and `individual_metrics` Sheets (real append-only merge, not overwrite).
   `project_risk` and `project_metrics` are bootstrap-only: it creates a

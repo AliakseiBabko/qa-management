@@ -137,9 +137,16 @@ to find.
 Keep `_project_registry` in `20_M2_Project_Management` as a top-level,
 one-row-per-project "war room" dashboard — the airplane view across every
 project M2 owns, sourced from each project's `project_metrics` (see
-`Templates\метрики_проекта_qa.md` §4). Columns: `Проект`,
-`People`, `Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
+`Templates\метрики_проекта_qa.md` §4). Columns: `Проект`, `People`,
+`Статус`, `Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
 `Наименьший вклад в проект`, `Качество QA-процесса`.
+
+`Статус` (`Активен` / `На паузе`) mirrors `project_metrics`'s `Статус
+проекта` row (`Templates\метрики_проекта_qa.md` §1.0) — manual-only, no
+script sets or clears it, no scheduled cadence flips it back; it changes
+only when M2 edits `project_metrics` directly, and the next
+`refresh_project_registry.py` run just picks up that value like any other
+mirrored field.
 
 `Наименьший вклад в проект` is the one column that isn't a direct copy —
 `project_metrics` can have several `Вклад в проект: <Имя>` rows, but the
@@ -151,12 +158,16 @@ that level, e.g. `Смешанный (<Имя>)` — two people tied at the
 worst level both get named. If the whole team shares one status, just
 state it with no name attached (there's no one specific person to flag).
 
-Active projects only — when a project stops (temporarily or permanently),
-remove its row from the live registry rather than marking it inactive in
-place; archived projects don't belong in a dashboard meant for current
-attention. Columns are `Проект`, `People`, and the four dashboard metrics —
-no aliases, status flag, source-docs pointer, or folder-navigation link;
-those don't belong in a summary dashboard.
+Active projects only — when a project is **officially stopped or
+cancelled**, remove its row from the live registry rather than marking it
+inactive in place; archived projects don't belong in a dashboard meant for
+current attention. A **client-driven pause that hasn't been officially
+ended** (e.g. a client-requested hold with an explicit "not a
+cancellation") is not this case — it stays in the registry with `Статус` =
+`На паузе` until M2 confirms it's actually stopped or reactivates it (real
+example: <Project>, 2026-07-13). Columns are `Проект`, `People`,
+`Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
+or folder-navigation link; those don't belong in a summary dashboard.
 
 Keep `_people_registry` in `20_M2_Project_Management` as a single workspace-wide
 Google Sheet (CSV fallback), covering people affiliated with both the company
@@ -245,6 +256,13 @@ different Role, Side, or rank), treat it as a correction — the card is
 direct, first-party information from M2, stronger evidence than an inferred
 role from a transcript — but still fix every document that repeated the old
 fact (see the Template Consistency note in `m2-role-rules.md`).
+
+If a card's `Job Title` (e.g. AQA Engineer) conflicts with how that person's
+actual on-project work reads in `individual_metrics`/`individual_development_plan`
+(e.g. a fully manual scope), don't treat it as a contradiction to resolve
+by picking a side — see `m2-role-rules.md`'s Вклад в проект Calibration,
+client-driven scope-vs-track mismatch, which is very likely the actual
+explanation.
 
 When processing a transcript/chat and a role is unclear or contradicts this
 registry, ask rather than guess — this registry exists specifically because

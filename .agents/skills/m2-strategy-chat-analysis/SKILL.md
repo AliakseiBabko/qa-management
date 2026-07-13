@@ -85,15 +85,16 @@ editing an already-logged file in place makes new content invisible to it.
      conclusions goes through an `m2_input` preliminary-analysis round
      first (new dated section, questions only, answer left blank) — a
      strategy chat is a source, not a substitute for M2's own judgment
-     round. Check `pipeline_common.get_last_round_status()` first, since a
-     project can only usefully take one open round at a time. If it's not
-     pending, open a new one with `pipeline_common.append_doc_round()`. If
-     it IS already pending, use `append_to_pending_round()` — **not**
-     `append_doc_round()` — to add to it; `append_doc_round()` always
-     inserts at the very end of the Doc, which lands after the empty
-     "Ответ и общие соображения M2" heading and makes
-     `get_last_round_status()` wrongly read the round as answered (this
-     happened once on <Project>'s m2_input, 2026-07-13 — see its evidence_log).
+     round. Use `pipeline_common.add_questions()` to add the question(s) —
+     it auto-routes to opening a fresh round or extending the current
+     pending one, whichever the doc's current state calls for; you don't
+     need to check `get_last_round_status()` or choose between
+     `append_doc_round`/`append_to_pending_round` yourself (an earlier,
+     lower-level version of this API made that choice wrong once — see
+     <Project>'s m2_input history/evidence_log, 2026-07-13 — `add_questions`
+     exists specifically so that mistake isn't repeated). If M2 answers a
+     round directly in conversation, write it with `add_answer()`, which
+     requires a round to actually be pending.
 5. Update the `evidence_log` row `detect_strategy_chats.py` already created
    for this file (same `date`/`source` — don't append a duplicate): replace
    `routed_to` ("pending M2 review") with every document actually touched,

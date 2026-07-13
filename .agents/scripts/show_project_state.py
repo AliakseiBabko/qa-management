@@ -51,6 +51,14 @@ def parse_args() -> argparse.Namespace:
         help="Print a one-liner per project (People count, risk level, last evidence_log date) instead of "
         "a full dump. Combine with --project to summarize just that one.",
     )
+    parser.add_argument(
+        "--evidence-tail",
+        type=int,
+        default=10,
+        help="Show only the last N evidence_log rows in the full dump (default 10; header row doesn't "
+        "count). evidence_log grows without bound by design (append-only audit trail) and reading it in "
+        "full every time gets expensive as a project accumulates history. Pass 0 for the full log.",
+    )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
     return parser.parse_args()
@@ -65,14 +73,22 @@ def find_folder(drive: Any, parent_id: str, name: str) -> dict[str, Any] | None:
     return matches[0] if matches else None
 
 
-def dump_sheet(services: dict[str, Any], folder_id: str, title: str) -> None:
+def dump_sheet(services: dict[str, Any], folder_id: str, title: str, tail: int = 0) -> None:
     sheet = find_sheet_in_folder(services["drive"], folder_id, title)
     if not sheet:
         print(f"--- {title}: not found ---")
         return
     rows = read_sheet_values(services, sheet["id"])
-    print(f"--- {title} ({sheet['id']}) ---")
-    for row in rows:
+    header, body = (rows[0], rows[1:]) if rows else ([], [])
+    omitted = 0
+    if tail and len(body) > tail:
+        omitted = len(body) - tail
+        body = body[-tail:]
+    suffix = f" (showing last {tail} of {tail + omitted} rows; pass --evidence-tail 0 for all)" if omitted else ""
+    print(f"--- {title} ({sheet['id']}){suffix} ---")
+    if header:
+        print(header)
+    for row in body:
         print(row)
     print()
 
@@ -103,7 +119,7 @@ def dump_doc(services: dict[str, Any], folder_id: str, title: str) -> None:
     print()
 
 
-def dump_project(services: dict[str, Any], m2_root_id: str, project: str) -> None:
+def dump_project(services: dict[str, Any], m2_root_id: str, project: str, evidence_tail: int = 0) -> None:
     project_folder = find_folder(services["drive"], m2_root_id, project)
     if not project_folder:
         print(f"No such project folder: {project}")
@@ -114,7 +130,7 @@ def dump_project(services: dict[str, Any], m2_root_id: str, project: str) -> Non
     print(f"===== {project}: project_risk =====")
     dump_sheet(services, project_folder["id"], "project_risk")
     print(f"===== {project}: evidence_log =====")
-    dump_sheet(services, project_folder["id"], "evidence_log")
+    dump_sheet(services, project_folder["id"], "evidence_log", tail=evidence_tail)
     print(f"===== {project}: qa_process_metrics =====")
     dump_sheet(services, project_folder["id"], "qa_process_metrics")
     print(f"===== {project}: project_development_plan =====")
@@ -218,7 +234,7 @@ def main() -> int:
         dump_sheet(services, m2_root["id"], "_project_registry")
 
     if args.project:
-        dump_project(services, m2_root["id"], args.project)
+        dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
 
     return 0
 

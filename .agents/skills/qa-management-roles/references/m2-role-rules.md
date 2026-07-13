@@ -199,7 +199,7 @@ places that might be out of date.
 ## Вклад в проект Calibration
 
 Don't default to Смешанный as a safe middle answer when the evidence is
-actually clear. Three things commonly get mistaken for mixed personal
+actually clear. Four things commonly get mistaken for mixed personal
 contribution and should not pull the status down on their own:
 
 - **A data-completeness gap** — reporting/export not wired up yet (metrics
@@ -215,6 +215,38 @@ contribution and should not pull the status down on their own:
   no CI pipeline. These are usually project/PM-level decisions, not one
   person's shortfall (see Risk Rules above on separating individual
   performance risk from project/stake risk).
+- **A client-driven scope-vs-track mismatch** — someone staffed for an
+  anticipated scope (most commonly: an AQA engineer staffed expecting an
+  automation scope from the client) who ends up executing a different
+  scope by necessity because that scope never materialized. Clients often
+  promise automation work that depends on their own timeline/priorities;
+  staffing an AQA against that expectation is a calculated bet, and if it
+  doesn't pay off, the person's actual on-project work (frequently manual)
+  is not a personal shortfall, a track misassignment, or evidence they're
+  underperforming against their real role. This belongs in `project_risk`
+  as a staffing risk (with a periodic review point for whether the scope
+  still might materialize), not folded into their contribution judgment —
+  grade-fit should be assessed against the scope they're actually assigned,
+  not the scope that was hoped for. Real example: <Имя> / <Project>,
+  2026-07-13 — staffed as AQA Engineer (confirmed via HRM), executing
+  fully manual/negative-testing scope because the client's promised automation
+  scope hasn't materialized from the client side.
+- **An assessed-level-vs-confirmed-level mismatch** — a sibling of the above,
+  but about seniority rather than track: `individual_metrics`/
+  `individual_development_plan` prose assessing someone against a Middle or
+  Senior bar (autonomy, ownership of process decisions, leading without
+  supervision) when their actual confirmed `Prof.Level` (via HRM/person
+  card) is lower. This produces the same failure shape as the track
+  mismatch — a "gap" that's really the project expecting more seniority
+  than was ever staffed, not the person falling short of their own real
+  level. When a person card reveals this, don't silently lower the bar
+  yourself — flag it as a question (does the project genuinely need that
+  level of ownership from this seat, and if so is that a staffing gap to
+  fix, not a performance gap to coach) rather than assuming either side is
+  right. Real examples, both 2026-07-13: <Имя> / <Project> (assessed
+  against a Middle bar, confirmed Prof.Level Junior) and <Имя> /
+  <Project> (assessed against Senior-level QA Lead autonomy,
+  confirmed Prof.Level Middle).
 
 Only mark Смешанный or Негативный when the negative signal is actually
 about that person specifically — inconsistent delivery, disengagement,
