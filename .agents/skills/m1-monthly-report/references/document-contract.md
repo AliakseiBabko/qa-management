@@ -96,6 +96,10 @@ The current source workbook contains one sheet per month. Each sheet has:
 - Ask for manager name when absent.
 - Ask for reporting month when absent or ambiguous.
 - Ask for direct evidence/links/counts needed for a `Да` KPI row.
+- For `Работа с ОКР`, ask for the team's OKR Docs
+  (`m1-individual-development-plan`) or an explicit summary of what OKR
+  activity happened that month if the Docs aren't accessible — do not mark
+  `Да` from a general impression that "OKR is generally kept up to date."
 - Ask for team size and project FTE counts when bonus rows depend on counts.
 - Ask about security violations, unplanned resignations, and timesheet status if the report requires final bonus calculation and no source exists.
 - Leave cells blank instead of guessing.

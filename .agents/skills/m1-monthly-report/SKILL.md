@@ -23,6 +23,7 @@ Default source example:
    - existing M1 monthly report workbook or extracted CSV
    - M1 1to1 files
    - people risk snapshot
+   - team members' current-cycle OKR Docs (`m1-individual-development-plan`) — evidence for the `Работа с ОКР` obligation row
    - HR/RM notes
    - assessment, PR, interview, onboarding, security, FTE, timesheet, team-size, and project-start evidence
 6. Ask questions only for fields required to complete the requested report and not present in the evidence.
@@ -39,6 +40,13 @@ Default source example:
 6. Use `Нет` only when the source explicitly says it did not happen, or the user confirms it.
 7. Leave `Completed (Да/Нет)` blank when the status is unknown.
 8. Preserve the 2D CSV layout from `Templates\m1_monthly_report.csv`; do not convert it into a normalized table.
+9. For the `Работа с ОКР` row, use `Да` only when there is direct evidence
+   that OKR work actually happened in the reporting month for the team —
+   a new-cycle OKR Doc was drafted/approved, an existing one was closed out
+   with results, or Key Result statuses were updated (per the ≥2-week
+   cadence in `m1-individual-development-plan`'s process rules). A team
+   member simply having an OKR Doc from a prior month with no activity in
+   the reporting month is not evidence for that month.
 
 ## Guardrails
 
