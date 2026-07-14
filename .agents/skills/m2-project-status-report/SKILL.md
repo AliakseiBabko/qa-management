@@ -1,13 +1,21 @@
 ---
 name: m2-project-status-report
-description: Create a short chat-ready M2 project status report for a requested period, including regular weekly/status updates saved as Google Docs when API access is available, and on-demand status summaries. Use when the user asks for current status, last-week status, project status update, or a text ready to copy into a chat based on available QA/project evidence.
+description: Create a short chat-ready M2 project status report for a requested period - posted into the project's own strategy chat (the most common real destination), saved as a Google Doc under status_reports, or returned on-demand in conversation. Use when the user asks for current status, last-week status, project status update, or a text ready to copy into a chat based on available QA/project evidence.
 ---
 
 # M2 Project Status Report
 
 Use this skill for one output family only:
 
-- short project status report text; saved regular reports use Google Docs when API access is available
+- short project status report text, matched to how real weekly reports on
+  these projects actually get delivered (see Destination below) - not a
+  long analytical document
+
+This skill and `m2-strategy-chat-analysis` are two directions of the same
+loop: a status written here often gets posted into the project's own
+`_strategy` chat, and a later batch of that same chat is exactly what
+`m2-strategy-chat-analysis` reads back in. Writing a clear, evidence-backed
+status now is also writing next month's raw material for that skill.
 
 ## Required Start
 
@@ -19,8 +27,9 @@ Use this skill for one output family only:
    - on-demand report
    - requested project, or all projects if explicitly requested
    - absolute start/end dates for relative periods such as "last week"
-4. If the project is not specified and cannot be inferred from context, ask for the project unless the user clearly wants a multi-project status.
-5. Review available evidence for the requested period first, then use older artifacts only for context.
+5. If the project is not specified and cannot be inferred from context, ask for the project unless the user clearly wants a multi-project status.
+6. Run `.agents\scripts\show_project_state.py --project <Project> --summary` (or a full dump if you need more) to see current People count — a project with more than one QA needs the per-person/per-stream breakdown (see Chat Text Shape); a single-QA project doesn't.
+7. Review available evidence for the requested period first, then use older artifacts only for context.
 
 ## Source Order
 
@@ -36,15 +45,36 @@ For DOCX/XLSX sources, prefer existing extracted files under `G:\My Drive\QA_Man
 ## Workflow
 
 1. Build a short evidence-backed status for the requested period.
-2. Focus on what changed, what matters now, and what happens next.
-3. Include metrics or risk levels only when they add useful management signal.
-4. Separate current facts from plans, risks, and missing evidence.
-5. Keep the report concise enough to paste into a chat without editing.
-6. If the report is regular, save it using the contract naming rules.
+2. Decide the shape: flat (single QA) or per-person/per-stream (more than
+   one) — see Chat Text Shape. Don't force a breakdown that the evidence
+   doesn't support (e.g. one QA doing two unrelated task types isn't two
+   streams).
+3. Focus on what changed, what matters now, and what happens next.
+4. Include metrics or risk levels only when they add useful management signal.
+5. Separate current facts from plans, risks, and missing evidence.
+6. Keep the report concise enough to paste into a chat without editing.
+7. Decide the destination (see Destination) and deliver there.
+
+## Destination
+
+Real weekly reports on these projects (<Name> on <Project>/<Project>,
+<Name> on <Project>, <Name> on <Project>) are
+posted directly into the project's own strategy chat — that's the default
+for a regular report, not a saved Doc. Ask if genuinely unclear, but default
+to:
+
+- **Regular weekly/status update** → chat-ready text for the project's
+  strategy chat (paste-ready, per Chat Text Shape). Only also save it as a
+  Doc under `status_reports` if the user asks for a kept copy, or if the
+  project has no active strategy-chat channel to post into.
+- **On-demand / ad hoc status** ("what's the status right now") → returned
+  in conversation, per the existing default. Save only if asked.
+- **Explicitly requested as a saved/archival report** → Google Doc under
+  `status_reports`, per `document-contract.md`'s naming/versioning rules.
 
 ## Chat Text Shape
 
-Default structure:
+Default structure (single QA / flat project):
 
 ```text
 <Project> status, <period>
@@ -59,7 +89,26 @@ Next steps:
 - ...
 ```
 
-Optional sections when evidence supports them:
+Per-person/per-stream structure (more than one QA on the project — see
+`show_project_state.py --summary`'s People count): lead with a short
+project-wide line if there's genuine cross-cutting news, then one block per
+person/stream, then a shared closing section for anything that doesn't
+belong to one person (contract, staffing, cross-project comms):
+
+```text
+<Project> status, <period>
+
+<Person/stream 1>:
+- done/changed, risks, next step - whatever's evidence-backed for them
+
+<Person/stream 2>:
+- ...
+
+Прочее (contract/staffing/cross-cutting):
+- ...
+```
+
+Optional sections when evidence supports them, in either shape:
 
 - Metrics / quality
 - Feedback / communication
@@ -72,3 +121,4 @@ Optional sections when evidence supports them:
 - Do not expose sensitive internal details unless needed for the management action.
 - Do not duplicate full risk, metrics, or development-plan reports. Summarize only what is useful for status.
 - If available evidence for the requested period is weak, say that directly and state which sources were missing.
+- Do not default to a saved Doc for a regular report without checking whether the project has an active strategy chat to post into instead — that's the more common real destination.

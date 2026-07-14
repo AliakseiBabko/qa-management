@@ -1,6 +1,6 @@
 """Scaffold the M2-only dashboard artifacts for one project: qa_process_metrics,
-individual_metrics_internal (per person), m2_input, and (only if entirely
-missing) a placeholder project_metrics.
+individual_metrics_internal (per person), m2_input, action_items, and (only if
+entirely missing) a placeholder project_metrics.
 
 This creates structure, not judgment. project_metrics rows and m2_input
 rounds need M2's actual read of the project to be worth anything (see
@@ -38,6 +38,7 @@ from sync_m2_plans_to_docs import (
 
 QA_HEADER = ["Проект", "Период", "Метрика", "Показатель", "Пояснение", "Owner", "Тренд"]
 INTERNAL_HEADER = ["Проект", "Сотрудник", "Дата", "Сторона", "Метрика", "Показатель", "Пояснение", "Тренд"]
+ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 
 QA_METRICS_TEMPLATE = [
     ("Defect Escape Rate / Bug leakage rate",
@@ -139,6 +140,14 @@ def scaffold_project_metrics(services: dict, project_folder_id: str, project: st
     return "project_metrics: created (placeholder rows only, needs real M2 judgment)"
 
 
+def scaffold_action_items(services: dict, project_folder_id: str, project: str) -> str:
+    drive = services["drive"]
+    if find_sheet_in_folder(drive, project_folder_id, "action_items"):
+        return "action_items: already exists, skipped"
+    create_sheet(services, "action_items", project_folder_id, [ACTION_ITEMS_HEADER])
+    return "action_items: created (empty, ready for M2 to log events/deadlines/follow-ups)"
+
+
 def scaffold_m2_input(services: dict, project_folder_id: str, project: str, period: str) -> str:
     drive = services["drive"]
     docs = services["docs"]
@@ -203,6 +212,7 @@ def main() -> int:
     for person in people:
         print(" ", scaffold_individual_metrics_internal(services, people_folder["id"], args.project, person))
     print(" ", scaffold_m2_input(services, project_folder["id"], args.project, period))
+    print(" ", scaffold_action_items(services, project_folder["id"], args.project))
     return 0
 
 

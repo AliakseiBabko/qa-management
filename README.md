@@ -59,6 +59,11 @@ under `20_M2_Project_Management`:
 - `_people_registry` — every person (the company and client-side) mentioned
   across projects, with role/side/confirmation status. See
   `google-workspace-rules.md` for the full column list.
+- `_timeline` — generated rollup of every project's open `action_items`
+  rows, sorted by date; the one place to see what's due today/tomorrow/this
+  week across all projects. Never edited directly — refresh it with
+  `refresh_timeline_registry.py` after changing a project's `action_items`.
+  See `.agents/skills/m2-timeline`.
 
 Each project folder follows this shape:
 
@@ -71,6 +76,7 @@ Each project folder follows this shape:
 ├─ evidence_log.gsheet
 ├─ m2_input/
 │  └─ m2_input.gdoc             # M2-only dated rounds of judgment/context
+├─ action_items.gsheet          # living list of dated events/deadlines/follow-ups
 ├─ people/<Person>/
 │  ├─ individual_development_plan.gdoc   # employee-visible
 │  ├─ individual_metrics.gsheet          # employee-visible
@@ -301,6 +307,22 @@ These are what actually runs day to day, once a project's folder already exists:
   `project_metrics` dashboard values into `_project_registry`
   (worst-known-status for `Наименьший вклад в проект`, never averaged). Safe
   to rerun anytime after a `project_metrics` update.
+- `refresh_timeline_registry.py` — same mechanical spirit as
+  `refresh_project_registry.py`, but for events instead of health: pulls
+  every project's `action_items` rows still `Статус = Открыто` into the
+  workspace-wide `_timeline` Sheet, sorted by due date, creating `_timeline`
+  if it doesn't exist yet. Safe to rerun anytime after an `action_items`
+  edit; see `.agents/skills/m2-timeline`.
+- `scan_open_questions.py` — same kind of mechanical front half as
+  `prepare_intake_review.py`/`detect_strategy_chats.py`, but scanning
+  `m2_input`/`project_risk`/`project_metrics` instead of raw source files:
+  surfaces pending rounds, unactioned risk plans, and `Неизвестно` metric
+  rows as candidate `action_items` rows, one bundle across all projects.
+  Dedups by a `scan:<kind>:<key>` tag in `Источник` so a rerun only shows
+  what's new. Stops at surfacing — turning a candidate into a real dated,
+  owned action (e.g. deciding a metric gap needs a scheduled 1:1) is still
+  a judgment step; read-only (print + bundle file) by default, `--write`
+  appends the raw candidates directly into `action_items`.
 - `rollup_individual_metrics_to_project.py` — **deprecated**, refuses to
   run. Superseded by M2 writing per-person `Вклад в проект: <Имя>` rows
   directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1)
@@ -322,6 +344,31 @@ when Google API access is available. Local Markdown fallback path:
 `G:\My Drive\QA_Management\20_M2_Project_Management\status_reports`
 
 Use project name and report date in the filename.
+
+## Timeline / Action Items
+
+Per-project events, deadlines, and follow-ups (meetings, status-report
+commitments, clarifications owed) plus a cross-project "what's due when"
+view are handled by:
+
+- `.agents/skills/m2-timeline`
+
+Each project keeps a living `action_items` Google Sheet (CSV fallback
+`action_items.csv`, template `Templates/action_items.csv`). Run
+`refresh_timeline_registry.py` after editing one to update the
+workspace-wide `_timeline` rollup. `show_project_state.py --summary` also
+flags overdue/due-soon items per project without opening either Sheet.
+
+`scan_open_questions.py` finds candidate action items already implied by
+other documents — a pending `m2_input` round, a `project_risk` action plan,
+a `Неизвестно` row in `project_metrics` — across every project in one pass,
+so open questions don't have to be tracked by memory. It's read-only by
+default (prints + writes a bundle to
+`80_Exports/open_questions_review/YYYY-MM-DD.md`); `--write` appends
+candidates straight into `action_items`. Its wording/date/owner are
+mechanical placeholders — see `m2-timeline` SKILL.md for how to turn a raw
+candidate (e.g. an unclear benchmark status) into a real scheduled action
+(e.g. a 1:1 to clarify it) before logging it for real.
 
 ## Monthly Reports
 

@@ -206,6 +206,46 @@ def add_answer(docs_service: Any, doc_id: str, blocks: list[tuple[str, str]]) ->
     return get_last_round_status(docs_service, doc_id)
 
 
+QUESTIONS_HEADING = "Вопросы от предварительного анализа"
+
+
+def get_pending_round_questions(docs_service: Any, doc_id: str) -> str:
+    """Return the question text of the CURRENT pending round (everything
+    between the last 'Вопросы от предварительного анализа' heading and the
+    last 'Ответ и общие соображения M2' heading), or "" if no round is
+    pending or the doc has no round yet.
+
+    Used by scan_open_questions.py to surface what's still waiting on an M2
+    answer without requiring a full doc dump - a pending round with no
+    answer is itself an open item.
+    """
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    paragraphs: list[tuple[str, str]] = []
+    for element in doc["body"]["content"]:
+        if "paragraph" not in element:
+            continue
+        style = element["paragraph"].get("paragraphStyle", {}).get("namedStyleType", "NORMAL_TEXT")
+        text = "".join(run.get("textRun", {}).get("content", "") for run in element["paragraph"]["elements"])
+        paragraphs.append((style, text))
+
+    questions_idx = answer_idx = None
+    for i, (style, text) in enumerate(paragraphs):
+        if style != "HEADING_2":
+            continue
+        stripped = text.strip()
+        if stripped == QUESTIONS_HEADING:
+            questions_idx = i
+        elif stripped == ANSWER_HEADING:
+            answer_idx = i
+
+    if questions_idx is None or answer_idx is None or answer_idx <= questions_idx:
+        return ""
+    after_answer = "".join(text for _, text in paragraphs[answer_idx + 1 :]).strip()
+    if after_answer:
+        return ""  # round already answered, nothing pending
+    return "".join(text for _, text in paragraphs[questions_idx + 1 : answer_idx]).strip()
+
+
 def get_last_round_status(docs_service: Any, doc_id: str) -> dict[str, Any]:
     """Read an m2_input Doc and report the most recent round's date and
     whether it's still waiting on an answer (the text after the last
