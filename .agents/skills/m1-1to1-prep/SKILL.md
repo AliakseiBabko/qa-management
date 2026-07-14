@@ -18,6 +18,8 @@ happened yet.
 1. Identify the person.
 2. Read `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m1-role-rules.md`.
+4. Read the person's current-cycle OKR Doc if one exists (see
+   `m1-individual-development-plan`).
 
 ## Scope
 
@@ -43,15 +45,23 @@ person's experience of it, not the project's fix.
 3. This person's 1to1 Sheet (`m1-people-1to1-file`) — the most recent row's
    `Assign`/`Action plan`. Check whether it was closed; if not, that is a
    follow-up question, not a fresh topic.
-4. Any `qa-1to1-analysis` findings from a transcript newer than the last
+4. This person's current-cycle OKR Doc (`m1-individual-development-plan`) —
+   any Key Result whose deadline has passed with no recorded status/result
+   is a direct follow-up question. Keep it people-scoped: ask about
+   progress/blockers on the OKR overall, and dig into the Soft skills and
+   Департамент objectives specifically since those are M1's own territory;
+   for a project-tied Техническое развитие KR, a light "on track / blocked"
+   check is enough — a deep technical review belongs to the person and, if
+   project-caused, to `m2-1to1-prep`, not here.
+5. Any `qa-1to1-analysis` findings from a transcript newer than the last
    risk-sheet update, if one exists and hasn't been folded in yet.
 
 ## Workflow
 
 1. Pull candidate questions from each source above, in order.
 2. Drop anything already resolved by a more recent source.
-3. Group into short sections (suggested: Открытые риски, Последующие шаги —
-   only include a section with real content).
+3. Group into short sections (suggested: Открытые риски, Открытые OKR,
+   Последующие шаги — only include a section with real content).
 4. Cap at what actually fits in a 1to1 — 4-6 questions is normal for a
    people-focused conversation; leave room for the person to talk, don't
    script the whole meeting.
@@ -69,3 +79,9 @@ person's experience of it, not the project's fix.
 - If the person has no risk-sheet row yet, say so plainly rather than
   inventing generic onboarding questions not grounded in their actual
   history.
+- Do not write into the OKR Doc from this skill — status/result updates
+  that come out of the actual 1to1 get applied via
+  `m1-individual-development-plan`, not from what was planned to be asked.
+- If the person has no current-cycle OKR Doc, say so plainly rather than
+  treating it as nothing to ask about — a missing OKR past its due date is
+  itself worth a question.
