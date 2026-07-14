@@ -3,21 +3,24 @@ canonical documents - the thing every conversational M2 update needs to look
 at first, before touching anything.
 
 Prints, for --project <Name>:
-- project_metrics, project_risk, evidence_log, qa_process_metrics (Sheets)
+- project_metrics, project_risk, evidence_log, qa_process_metrics,
+  action_items (Sheets)
 - project_development_plan, m2_input (Docs)
 - for every person under people/<Person>/: individual_metrics,
   individual_metrics_internal (Sheets), individual_development_plan (Doc)
 
 Prints, for --registries:
-- _people_registry, _project_registry (Sheets)
+- _people_registry, _project_registry, _timeline (Sheets)
 
 --summary (alone, or with --project) skips the full dump and prints a cheap
 one-liner per project instead: People count (from _project_registry),
 current risk level + snapshot date (from project_risk's latest row),
-evidence_log's most recent entry date, and whether the project's m2_input
-has a round still waiting on an answer. Meant for triage before pulling a
-full project's documents - e.g. deciding whether a strategy chat that reads
-as mostly non-QA content is worth a full dump at all.
+evidence_log's most recent entry date, whether the project's m2_input
+has a round still waiting on an answer, and open action_items counts (overdue
+vs due within 7 days, from today's date) so nothing gets missed without
+opening the full timeline. Meant for triage before pulling a full project's
+documents - e.g. deciding whether a strategy chat that reads as mostly
+non-QA content is worth a full dump at all.
 
 This makes no writes and creates nothing - unlike find_or_create_folder (used
 by the sync scripts), a missing project/folder here is reported as missing,
@@ -28,6 +31,7 @@ behind.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import sys
 from pathlib import Path
 from typing import Any
@@ -133,6 +137,8 @@ def dump_project(services: dict[str, Any], m2_root_id: str, project: str, eviden
     dump_sheet(services, project_folder["id"], "evidence_log", tail=evidence_tail)
     print(f"===== {project}: qa_process_metrics =====")
     dump_sheet(services, project_folder["id"], "qa_process_metrics")
+    print(f"===== {project}: action_items =====")
+    dump_sheet(services, project_folder["id"], "action_items")
     print(f"===== {project}: project_development_plan =====")
     dump_doc(services, project_folder["id"], "project_development_plan")
 
@@ -200,9 +206,26 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
             elif status["pending"] is False:
                 m2_input_note = f", m2_input: раунд {status['round_date']} отвечен"
 
+    action_items_note = ""
+    action_items_sheet = find_sheet_in_folder(services["drive"], project_folder["id"], "action_items")
+    if action_items_sheet:
+        rows = read_sheet_values(services, action_items_sheet["id"])
+        today = dt.date.today().isoformat()
+        overdue = due_soon = 0
+        for row in rows[1:]:
+            if len(row) <= 4 or row[4].strip() != "Открыто":
+                continue
+            due = row[1] if len(row) > 1 else ""
+            if due and due < today:
+                overdue += 1
+            elif due and due <= (dt.date.today() + dt.timedelta(days=7)).isoformat():
+                due_soon += 1
+        if overdue or due_soon:
+            action_items_note = f", action_items: {overdue} просрочено, {due_soon} в ближайшие 7 дн."
+
     return (
         f"{project}: {qa_count} чел. (People), риск={risk_level} (на {risk_date or 'н/д'}), "
-        f"evidence_log обновлён {last_touched}{m2_input_note}"
+        f"evidence_log обновлён {last_touched}{m2_input_note}{action_items_note}"
     )
 
 
@@ -232,6 +255,8 @@ def main() -> int:
         dump_sheet(services, m2_root["id"], "_people_registry")
         print("===== _project_registry =====")
         dump_sheet(services, m2_root["id"], "_project_registry")
+        print("===== _timeline =====")
+        dump_sheet(services, m2_root["id"], "_timeline")
 
     if args.project:
         dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)

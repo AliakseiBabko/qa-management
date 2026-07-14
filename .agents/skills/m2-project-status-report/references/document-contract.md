@@ -1,8 +1,12 @@
 # Document Contract
 
-Primary saved regular-report output is a Google Doc in
-`20_M2_Project_Management\<Project>\status_reports`, with local Markdown
-fallback. On-demand reports are returned in chat by default.
+Primary output for a **regular** report is chat-ready text for the
+project's own strategy chat — that's where real weekly reports on these
+projects actually get posted (see SKILL.md, Destination). A saved Google
+Doc in `20_M2_Project_Management\<Project>\status_reports` (local Markdown
+fallback) is for when the user explicitly wants a kept/archival copy, not
+the default path for a routine update. On-demand reports are returned in
+chat by default.
 
 ## Purpose
 
@@ -40,7 +44,13 @@ For multi-project reports:
 - Resolve relative periods to absolute dates using the current date.
 - "Last week" means the previous Monday-Sunday calendar week unless the user gives a different convention.
 - "Current status" means status as of the current date, based on the requested period plus the latest available relevant evidence.
-- State the exact period in the output title, for example `2026-06-29 - 2026-07-05`.
+- State the period in the title, but match the convention to what the
+  report actually is — real reporters use both, don't force one:
+  - a period summary (a week/sprint of accumulated work) → a date range,
+    e.g. `2026-06-29 - 2026-07-05` or `Статус <Project> за 29.06-05.07`.
+  - a point-in-time snapshot (status as of today/this sync) → a single
+    date, e.g. `Статус <Project> на 05.07.2026` or
+    `Weekly Status Report (05/07/2026)`.
 
 ## Source Rules
 
@@ -62,6 +72,14 @@ Include only sections supported by evidence:
 4. `Feedback / communication`
 5. `Next steps`
 6. `Help needed`
+
+For a project with more than one QA, structure the report per-person/
+per-stream instead of one flat set of these sections (see SKILL.md, Chat
+Text Shape) — real multi-person reports (<Name> on <Project>
+across Payments/Credit Card/Mobile; <Name> on <Project>
+across BA/UI-UX/Engineering/QA) break down by stream before anything
+cross-cutting. A flat report across several unrelated people's work reads
+as muddled and buries who owns what.
 
 Keep each section short:
 
