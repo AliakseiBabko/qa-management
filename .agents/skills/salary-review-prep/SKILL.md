@@ -41,8 +41,10 @@ prepare theirs, and when M1/M2 is preparing their own (alongside
    does not track commercial hours anywhere.
 5. For "AI-компетенции," check whether an AI assessment for the current
    grade is on record. If unknown, ask. Never certify AI competency
-   yourself — that's <Name> (QA track) or <Name> (AQA
-   track)'s call, per `salary-review-rules.md`.
+   yourself — that's the current AI lead's call (QA or AQA track — look
+   up who currently holds `AI Lead (QA)`/`AI Lead (AQA)` in
+   `_people_registry` rather than assuming a name), per
+   `salary-review-rules.md`.
 6. Run the blocker pre-check (dynamics, AI competency, bench status,
    feedback, department engagement) honestly against real evidence — the
    point is to surface a real blocker before the PR, not to produce a

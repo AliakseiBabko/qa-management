@@ -47,7 +47,7 @@ DOC_MIME = "application/vnd.google-apps.document"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <Project>")
+    parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <ProjectName>")
     parser.add_argument("--registries", action="store_true", help="Also/instead dump _people_registry and _project_registry")
     parser.add_argument(
         "--summary",

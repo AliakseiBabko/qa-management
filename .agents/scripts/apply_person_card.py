@@ -18,7 +18,7 @@ existing row, writes nothing). Pass --apply to actually update the Sheet.
 Usage: write the card to a UTF-8 file and pass --file <path>. Prefer this
 over piping through stdin/a shell heredoc - on this Windows setup, a bash
 heredoc silently drops the Cyrillic half of the name (confirmed while
-building this script: --file preserved "<Имя> Сергей" correctly, a
+building this script: --file preserved a Cyrillic full name correctly, a
 heredoc with the identical text came back with an empty name_cyrillic and
 no error). stdin is still accepted as a fallback, but verify the
 name_cyrillic field in the printed output actually came through non-empty
@@ -140,21 +140,20 @@ def scan_track_level_mismatch(
 ) -> list[str]:
     """Heads-up only, not a resolution: grep a person's individual_metrics/
     individual_development_plan (across their confirmed Project(s)) for
-    seniority/track language that doesn't match the card, the way Olga
-    <Name>/<Name>/<Name>'s mismatches were each found by
-    hand this session (see m2-role-rules.md, Вклад в проект Calibration).
-    Does not fetch anything if projects is empty - there's nowhere to look.
+    seniority/track language that doesn't match the card, the way several
+    real track/level mismatches were each found by hand before this script
+    existed (see m2-role-rules.md, Вклад в проект Calibration). Does not
+    fetch anything if projects is empty - there's nowhere to look.
 
     Known limitation (confirmed while building this): only scans the
     Project(s) currently listed on the registry row. A person moved off a
     project (Project(s) updated to reflect that) leaves their mismatch
     evidence behind in the old project's docs, invisible to this scan -
-    this is exactly what happened testing against <Name>, whose
-    real QA-Lead-vs-Middle mismatch lives in <Project> but who is
-    now listed under <Project2>; the scan came back clean, which was wrong for his
-    actual history. Don't treat a clean scan as proof there's no mismatch
-    for someone who's changed projects recently - check their prior
-    project(s) by hand if that applies.
+    confirmed by testing against a real case where a mismatch lived on a
+    project the person had since moved off; the scan came back clean,
+    which was wrong for their actual history. Don't treat a clean scan as
+    proof there's no mismatch for someone who's changed projects recently
+    - check their prior project(s) by hand if that applies.
     """
     drive = services["drive"]
     wanted_tokens = set(re.findall(r"[A-Za-zА-Яа-яЁё]+", f"{name_ru} {name_en}".casefold()))

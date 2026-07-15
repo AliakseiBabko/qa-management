@@ -1,7 +1,7 @@
 # Salary Review Rules
 
-Source: internal Confluence articles "Пересмотр зарплаты (Salary Revision)"
-and "Вилки пересмотров зарплат" (<Name>). Salary review happens
+Source: internal corporate Confluence articles "Пересмотр зарплаты (Salary
+Revision)" and "Вилки пересмотров зарплат". Salary review happens
 *inside* a Performance Review (see
 `performance-review-rules.md`) but has its own eligibility gates and a
 distinct self-feedback flow — kept as a separate reference rather than
@@ -33,9 +33,14 @@ A revision is a holistic read of:
 
 ### AI Competency Verification
 
-- Verification is done by the named AI leads: **<Name>** (QA
-  track) and **<Name>** (AQA track) — not self-certified, not
-  inferred from OKR "ИИ" objectives alone.
+- Verification is done by the current AI leads (QA track and AQA track
+  separately) — not self-certified, not inferred from OKR "ИИ" objectives
+  alone. Look up who currently holds each AI-lead role in
+  `_people_registry` (`Role` = `AI Lead (QA)` / `AI Lead (AQA)`) rather
+  than naming a specific person here — this repository holds skill logic
+  and templates only; who's who is company data that lives in
+  `_people_registry` on the corporate Google Drive, not in this public
+  repo.
 - The AI assessment is taken once per grade, usually alongside (or shortly
   after) the main technical assessment for that grade.
 - **Case 1 — sitting a grade assessment (e.g. going for Middle):** AI-team

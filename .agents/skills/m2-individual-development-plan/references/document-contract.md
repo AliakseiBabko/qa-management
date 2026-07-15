@@ -145,8 +145,8 @@ useful on their own without it.
   documentation, access/security limits, unstable deadlines, or unclear
   ownership, put the manager support/escalation in the plan.
 - Reviewer feedback belongs in native Google Docs comments tied to the
-  relevant paragraph (mirroring how the original homework was reviewed
-  documents in Word), not as an extra column or appended text block.
+  relevant paragraph (mirroring how the original homework documents were
+  reviewed in Word), not as an extra column or appended text block.
 - If the source document is genuinely sparse or empty, keep the Doc with a
   title and a short note naming what evidence is still missing, rather than
   omitting the file entirely.

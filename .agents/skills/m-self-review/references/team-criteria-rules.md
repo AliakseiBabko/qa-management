@@ -1,7 +1,7 @@
 # Критерии оценки команды — Scoring Rules
 
-Source: internal Confluence article "Критерии оценки команд" (Evgeny
-<Name>). This is the Jira "Критерии оценки команды" task required for
+Source: internal corporate Confluence article "Критерии оценки команд".
+This is the Jira "Критерии оценки команды" task required for
 M1/M2/M3's own Performance Review (see
 `../../qa-management-roles/references/performance-review-rules.md`) — the
 lead being reviewed collects and computes it for their own team, except

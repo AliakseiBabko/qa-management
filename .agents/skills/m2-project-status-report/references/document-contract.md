@@ -72,13 +72,22 @@ Include only sections supported by evidence:
 4. `Feedback / communication`
 5. `Next steps`
 6. `Help needed`
+7. `Расширение / Upsell` — an actual diagnostic signal (see
+   `presale-upsell-rules.md`, Diagnostic Markers) or a real conversation/
+   pitch already in motion (POC proposed, pilot period discussed, a
+   specific service from the menu raised). Include the status of any
+   active pitch (raised informally / POC proposed / pilot in progress /
+   client decision pending). Omit the section entirely rather than
+   filling it with generic upsell language when there's no real signal
+   this period.
 
 For a project with more than one QA, structure the report per-person/
 per-stream instead of one flat set of these sections (see SKILL.md, Chat
-Text Shape) — real multi-person reports (<Name> on <Project>
-across Payments/Credit Card/Mobile; <Name> on <Project>
-across BA/UI-UX/Engineering/QA) break down by stream before anything
-cross-cutting. A flat report across several unrelated people's work reads
+Text Shape) — real multi-person reports on this team (e.g. one person
+across Payments/Credit Card/Mobile streams on one project; another across
+BA/UI-UX/Engineering/QA streams on a different project) break down by
+stream before anything cross-cutting. A flat report across several
+unrelated people's work reads
 as muddled and buries who owns what.
 
 Keep each section short:
@@ -97,6 +106,8 @@ A project status report should show:
 - plan progress
 - stakeholder/client communication
 - staffing or continuity issues when they affect project delivery
+- expansion/upsell opportunity, when a real one exists (see
+  `presale-upsell-rules.md`)
 - next management action
 
 ## Missing Evidence

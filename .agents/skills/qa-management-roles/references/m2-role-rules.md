@@ -8,6 +8,16 @@ M2 owns project management. Typical scope is 3-5 projects and 5-10 people.
 
 Increase value, predictability, staffing quality, and business impact of QA work on client projects. M2 must understand what the client business needs, how the project succeeds, how QA contributes, and how the role of our people can grow on the project.
 
+M2 also owns growing the company's footprint on each project: identifying
+where additional QA/AQA services would genuinely help (more manual QA,
+test automation, specialized testing) and advocating for them with the
+client/project side. See
+`qa-management-roles/references/presale-upsell-rules.md` for diagnostic
+markers, automation-readiness criteria, the upsell problem/benefit
+framework, and the productized service menu this draws from. This is not
+a side activity — it is reported as its own section in
+`m2-project-status-report` and `m2-project-development-plan`.
+
 ## Minimum Project Artifacts
 
 For each active project, maintain or work toward:
@@ -49,7 +59,7 @@ Use a small balanced metric set. Cover different perspectives:
 
 - quality metrics: defects, escaped defects, severity, regression, automation stability
 - project/product metrics: releases, delivered features, missed scope, blocker age, documentation/readiness, project goal progress
-- business metrics: revenue, paid users, conversion, retention, market/region coverage, cost reduction, support cost, client satisfaction, expansion opportunities
+- business metrics: revenue, paid users, conversion, retention, market/region coverage, cost reduction, support cost, client satisfaction, expansion opportunities (see `presale-upsell-rules.md` for what a real expansion opportunity looks like — an evidenced diagnostic signal, not a generic aspiration)
 - development metrics: throughput, cycle time, feature quality, rework, story points when available
 - our-work metrics: QA performance, visibility, accepted suggestions, project role growth, client/team trust
 
@@ -228,10 +238,10 @@ contribution and should not pull the status down on their own:
   as a staffing risk (with a periodic review point for whether the scope
   still might materialize), not folded into their contribution judgment —
   grade-fit should be assessed against the scope they're actually assigned,
-  not the scope that was hoped for. Real example: <Имя> / <Project>,
-  2026-07-13 — staffed as AQA Engineer (confirmed via HRM), executing
-  fully manual/negative-testing scope because the client's promised automation
-  scope hasn't materialized from the client side.
+  not the scope that was hoped for. Real example pattern seen on this
+  team: someone staffed as AQA Engineer (confirmed via HRM) ends up
+  executing fully manual/negative-testing scope because the client's
+  promised automation scope hasn't materialized.
 - **An assessed-level-vs-confirmed-level mismatch** — a sibling of the above,
   but about seniority rather than track: `individual_metrics`/
   `individual_development_plan` prose assessing someone against a Middle or
@@ -244,10 +254,9 @@ contribution and should not pull the status down on their own:
   yourself — flag it as a question (does the project genuinely need that
   level of ownership from this seat, and if so is that a staffing gap to
   fix, not a performance gap to coach) rather than assuming either side is
-  right. Real examples, both 2026-07-13: <Имя> / <Project> (assessed
-  against a Middle bar, confirmed Prof.Level Junior) and <Имя> /
-  <Project> (assessed against Senior-level QA Lead autonomy,
-  confirmed Prof.Level Middle).
+  right. Real example pattern seen on this team: someone assessed against
+  a Middle bar with a confirmed Prof.Level of Junior, or assessed against
+  Senior-level QA Lead autonomy with a confirmed Prof.Level of Middle.
 
 Only mark Смешанный or Негативный when the negative signal is actually
 about that person specifically — inconsistent delivery, disengagement,
@@ -390,3 +399,6 @@ For movement toward M2/DC:
 - Ignoring M2/M3/strategy-chat synchronization.
 - Ignoring onboarding and project-start preparation.
 - Ignoring the employee's own plan, motivation, and commitment.
+- Reciting the presale-upsell service menu or generic industry benefit
+  numbers as filler in a status/plan without a real diagnostic signal or
+  conversation behind it (see `presale-upsell-rules.md`, Rule).

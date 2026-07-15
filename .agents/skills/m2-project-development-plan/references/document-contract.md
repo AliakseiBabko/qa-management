@@ -71,13 +71,21 @@ instead of inventing content or dropping the section.
 4. **Ценность нашей работы для бизнеса** — the value specifically attributable
    to QA/our team, not to the working product as a whole. Each point should
    answer: what would be worse without this work?
-5. **Успешность проекта за отчётный период** — judged against the client's
+5. **Возможности расширения (Upsell)** — a real expansion opportunity
+   (more QA/AQA headcount, additional automation, specialized testing),
+   built from an actual diagnostic signal or conversation, per
+   `qa-management-roles/references/presale-upsell-rules.md`. If no signal
+   exists this period, say so plainly ("Нет сигналов к расширению в этот
+   период — <what would change that>") rather than omitting the section
+   or padding it with generic service-menu language (see Normalization
+   below and `presale-upsell-rules.md`'s own Rule).
+6. **Успешность проекта за отчётный период** — judged against the client's
    business criteria (goals, revenue, retention, deadlines met), not against
    "we shipped a release."
-6. **Текущее состояние** — current state, broken out by stream/initiative/
+7. **Текущее состояние** — current state, broken out by stream/initiative/
    workstream when the project has more than one, each as its own short
    paragraph or bullet, not repeated verbatim across later sections.
-7. **План** — split into two groups instead of fixed 30/60/90-day horizons,
+8. **План** — split into two groups instead of fixed 30/60/90-day horizons,
    which create a false sense of long-range forecast under Agile, where
    sprints reshuffle priorities every 1-2 weeks:
    - **Ближайшие шаги** — tied to a specific date/sprint. Each item: action +
@@ -88,7 +96,7 @@ instead of inventing content or dropping the section.
      commitment. Each item: direction + Owner (if any) + how we'll know it's
      done, e.g. "Complete the Puppeteer-to-Playwright migration. Owner: X.
      Критерий: Puppeteer no longer used in the project."
-8. **Метрики** — one heading, not four. Split into categories as bold-labelled
+9. **Метрики** — one heading, not four. Split into categories as bold-labelled
    sub-bullets within this single section (`**Метрики бизнеса:** ...`), not as
    separate headings per category — a heading per category is visual noise
    when the whole section is really one list of 4-8 items. Categories:
@@ -97,15 +105,15 @@ instead of inventing content or dropping the section.
    development metrics (when relevant), and quality metrics (defect leakage,
    escape rate, stability). This four-way split is the head of QA's own
    framework, spelled out explicitly in review comments on the homework.
-9. **Риски проекта** — same rule: one heading, categories as bold-labelled
-   sub-bullets, not separate headings. Split by perspective, not just "QA
-   risk": business risk, project/product risk, development risk, QA/process
-   risk (matches `../qa-management-roles/references/m2-role-rules.md` Risk
-   Rules).
-10. **Открытые вопросы** — missing information and questions that need a
+10. **Риски проекта** — same rule: one heading, categories as bold-labelled
+    sub-bullets, not separate headings. Split by perspective, not just "QA
+    risk": business risk, project/product risk, development risk, QA/process
+    risk (matches `../qa-management-roles/references/m2-role-rules.md` Risk
+    Rules).
+11. **Открытые вопросы** — missing information and questions that need a
     stakeholder's answer, if any. Name it for what it actually is (things we
     don't know or can't confirm yet), not "decisions."
-11. **Источники** — optional. Do not list raw evidence paths (`raw/...`,
+12. **Источники** — optional. Do not list raw evidence paths (`raw/...`,
     `wiki/...`) — they are unreadable and add nothing for someone reading the
     plan; full traceability already lives in `evidence_log`. If a source
     pointer is worth including, write one short human-readable sentence (e.g.
@@ -126,6 +134,10 @@ instead of inventing content or dropping the section.
 6. Workbook status/context rows.
 7. Individual plans only when they reveal a project-level capability or
    continuity gap.
+8. `presale-upsell-rules.md`'s diagnostic markers, cross-checked against
+   this project's actual metrics/risk/status evidence — for the
+   Возможности расширения (Upsell) section only. This reference supplies
+   the criteria and framing, not the evidence itself.
 
 ## Normalization
 
@@ -156,8 +168,12 @@ instead of inventing content or dropping the section.
   that proves QA business value through metrics, accepted improvements,
   defect/risk prevention, or client/team feedback.
 - Reviewer feedback belongs in native Google Docs comments tied to the
-  relevant paragraph (mirroring how the original homework was reviewed
-  documents in Word), not as an extra column or appended text block.
+  relevant paragraph (mirroring how the original homework documents were
+  reviewed in Word), not as an extra column or appended text block.
+- An expansion/upsell item must name the specific diagnostic signal or
+  conversation it's built from (e.g. "regression bugs up this sprint, no
+  automation coverage — raised as a POC candidate at Thursday's retro"),
+  not a generic "there may be room to grow this account" statement.
 
 ## Rule
 

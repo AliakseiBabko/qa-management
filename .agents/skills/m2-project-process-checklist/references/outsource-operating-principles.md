@@ -1,7 +1,7 @@
 # Outsource Operating Principles
 
-Source: internal Confluence articles "Роль М2 на аутсорс проекте" and
-"Особенности работы на аутсорс проектах" (<Name>). Both are
+Source: internal corporate Confluence articles "Роль М2 на аутсорс
+проекте" and "Особенности работы на аутсорс проектах". Both are
 needed to interpret a checklist gap correctly: a missing item is not
 automatically a defect on an outsource project — the operating context
 (fixed timelines, fixed scope, fast onboarding, pragmatic delivery focus)

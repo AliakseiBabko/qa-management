@@ -1,7 +1,7 @@
 # Performance Review Rules
 
-Source: internal Confluence article "Performance Review (New)" (Maryna
-<Name>). Kept here as the shared cadence/process reference — OKR
+Source: internal corporate Confluence article "Performance Review (New)".
+Kept here as the shared cadence/process reference — OKR
 cadence (`m1-individual-development-plan`'s `okr-process-rules.md`) and
 `m1-timeline`'s PR-date tracking both depend on the cadence rules here, so
 this lives in `qa-management-roles` rather than being duplicated per skill.
