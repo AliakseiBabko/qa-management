@@ -18,7 +18,8 @@ and seeing what's due today/tomorrow/this week in one place.
 ## Expected Output
 
 One `_m1_timeline` Sheet directly under `10_M1_People_Management`, next to
-`<Person> 1to1` Sheets and dated `светофор_рисков_*` snapshots.
+the living `Светофор рисков` Sheet — `<Person>\1to1` Sheets live one level
+down, inside each person's own subfolder.
 
 Suggested target folder:
 
