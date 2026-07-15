@@ -60,7 +60,7 @@ team member gets their own folder:
 │  ├─ OKR к Perfomance review <DD.MM.YY>.gdoc   # one per PR cycle; also M1's version of a "personal development plan"
 │  ├─ salary_review_self_feedback_<DD.MM.YY>.gdoc  # when applicable
 │  └─ 1to1_prep_<YYYY-MM-DD>.gdoc               # only if the user asks to save a prep
-├─ светофор_рисков_YYYY-MM-DD.gsheet   # workspace-wide, covers the whole team at once
+├─ Светофор рисков.gsheet              # living, workspace-wide, covers the whole team at once
 ├─ m1_monthly_report_<Manager>_YYYY-MM.gsheet  # M1's own KPI report, not per-person
 ├─ _m1_timeline.gsheet                 # living rollup of upcoming/overdue events
 └─ _self_review/<M1 name>/             # M1's own PR self-prep, as the employee being reviewed

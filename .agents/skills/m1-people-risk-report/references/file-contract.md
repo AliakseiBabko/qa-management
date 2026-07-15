@@ -1,21 +1,23 @@
 # File Contract
 
-Primary Google Workspace output is a dated people-risk traffic-light Google Sheet
-in `10_M1_People_Management`, with local CSV fallback. Use the template below
-as the schema contract. When Google API access is available, apply the same
-versioning rule to the Google Sheet title and validate the header row before
-writing.
+Primary Google Workspace output is a single **living** people-risk
+traffic-light Google Sheet in `10_M1_People_Management`, with local CSV
+fallback. Use the template below as the schema contract. When Google API
+access is available, read and validate the header row before writing.
 
 ## Template
 
 `<repo-root>\Templates\светофор_рисков.csv`
 
-## Output Pattern
+## Output
 
-`G:\My Drive\QA_Management\10_M1_People_Management\светофор_рисков_YYYY-MM-DD.csv`
+`10_M1_People_Management\Светофор рисков` Google Sheet — one canonical,
+living Sheet, no date in the title.
+
+Local CSV fallback: `G:\My Drive\QA_Management\10_M1_People_Management\Светофор рисков.csv`
 
 This stays at the `10_M1_People_Management` root — it's a workspace-wide,
-cross-person snapshot, not per-person content, so it does not move into
+cross-person document, not per-person content, so it does not move into
 any `<Person>\` subfolder (see `google-workspace-rules.md`, M1
 Person-Based Layout).
 
@@ -26,12 +28,36 @@ Person-Based Layout).
 - structured findings from `qa-1to1-analysis`
 - explicit manager notes
 
+## Schema
+
+- `Сотрудник`
+- `Дата обновления` — ISO `YYYY-MM-DD`, the date this row's content last
+  actually changed. Carries the freshness signal that used to live in the
+  filename before this became a living document.
+- `Риск с нашей стороны (мы недовольны)`
+- `Риск со стороны сотрудника (он недоволен)`
+- `Комментарии`
+- `План действий`
+
 ## Rule
 
-Never edit the template directly. Create or update a dated snapshot.
+Never edit the template file itself (`Templates\светофор_рисков.csv`) —
+copy it once to create the living Sheet if one doesn't exist yet, then
+update that Sheet in place from then on.
 
 ## Versioning
 
-- Do not overwrite an existing dated final snapshot by default.
-- If the target `YYYY-MM-DD` file already exists, create the next versioned file with a `_vN` suffix, for example `_v2` or `_v3`.
-- Update an existing dated snapshot in place only when the user explicitly asks for revision.
+- Living canonical file: edit rows in place as a person's risk status
+  changes, same discipline as M2's `project_risk`/`project_metrics` — not
+  the dated-snapshot pattern (`_vN` suffix, never-overwrite) used
+  elsewhere in this repo for genuinely point-in-time artifacts.
+- Do not create a new dated Sheet/CSV per review. If the user explicitly
+  wants a point-in-time archival export (e.g. for a formal reporting
+  event), create one as a clearly-labeled one-off — that's the exception,
+  not the default working pattern.
+- A stray pre-Google-API-access CSV left over from before this Sheet
+  existed (e.g. an old dated `светофор_рисков_YYYY-MM-DD.csv`) is not a
+  version of this Sheet to reconcile with — it's leftover local-fallback
+  staging from before Drive access was set up. Confirm with the user
+  before archiving/deleting it rather than assuming it holds data this
+  Sheet is missing.

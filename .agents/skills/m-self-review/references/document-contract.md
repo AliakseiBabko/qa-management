@@ -59,9 +59,10 @@ folder only if the user explicitly asks.
 ## Versioning
 
 - `критерии_оценки_команды` is a dated snapshot, one per PR cycle — do not
-  update a prior cycle's Sheet in place. This matches how
-  `светофор_рисков` snapshots work, and differs from `_m1_timeline`/OKR
-  Docs, which are living/updated-in-place.
+  update a prior cycle's Sheet in place. This is unlike `Светофор рисков`/
+  `_m1_timeline`/OKR Docs, all of which are living/updated-in-place; this
+  Sheet is dated because it's a point-in-time PR submission, not an
+  ongoing tracker.
 - If a same-title Sheet already exists for that date (a rerun same day),
   ask before overwriting rather than silently replacing it.
 

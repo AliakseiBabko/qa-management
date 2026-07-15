@@ -108,8 +108,9 @@ What stays at the `10_M1_People_Management` root, not inside any
 `<Person>\` subfolder, because it's workspace-wide or about M1 themselves
 rather than about one team member:
 
-- `светофор_рисков_YYYY-MM-DD` — dated people-risk traffic-light snapshot
-  covering the whole team at once (see `m1-people-risk-report`).
+- `Светофор рисков` — living people-risk traffic-light Sheet covering the
+  whole team at once, updated in place (no date in the title; see
+  `m1-people-risk-report`).
 - `m1_monthly_report_<Manager>_YYYY-MM` — M1's own monthly KPI/bonus
   report, not a per-person artifact (see `m1-monthly-report`).
 - `_m1_timeline` — living workspace-wide Sheet of upcoming/overdue events
