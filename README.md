@@ -383,9 +383,10 @@ These are what actually runs day to day, once a project's folder already exists:
   recomputes the expected next-PR window for every person in
   `_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
   record, writes the result to `_m1_pr_calendar` (sorted soonest-opening
-  first), no dry-run needed since it's pure recomputation, not a judgment
-  call. Safe to rerun anytime after a `_people_registry` update; see
-  `.agents/skills/m1-timeline`.
+  first) and applies the workspace's standard formatting to it every run
+  (see `format_all_sheets.py`), no dry-run needed since it's pure
+  recomputation, not a judgment call. Safe to rerun anytime after a
+  `_people_registry` update; see `.agents/skills/m1-timeline`.
 - `scan_open_questions.py` — same kind of mechanical front half as
   `prepare_intake_review.py`/`detect_strategy_chats.py`, but scanning
   `m2_input`/`project_risk`/`project_metrics` instead of raw source files:
@@ -471,7 +472,9 @@ the same `_people_registry` data — one row per person with a computable
 window, sorted soonest-first, `Статус` one of `Не скоро`/`В окне`/
 `Просрочено`/`Нет данных`. Fully regenerated every run, like
 `refresh_project_registry.py` on the M2 side — never hand-edited, so it
-can't drift from `_people_registry` as a second source of truth.
+can't drift from `_people_registry` as a second source of truth. Also
+reformatted (wrap/align/column widths) on every run, so it never needs a
+separate manual formatting pass.
 
 ## Self-Review (M1/M2)
 

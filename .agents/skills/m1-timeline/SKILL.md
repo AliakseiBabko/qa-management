@@ -58,7 +58,7 @@ Review, don't blindly log:
 
 ### Answering "who's due for a PR, and when" (PR-only view)
 
-1. Run `refresh_m1_pr_calendar.py` after any `_people_registry` update (a new `Дата последнего PR`, a new hire) — it fully regenerates `_m1_pr_calendar` from that data, sorted by soonest-opening window first. No dry-run/candidate-review step, unlike `scan_m1_events.py` — there's no judgment involved, just recomputation, same as `refresh_project_registry.py` on the M2 side.
+1. Run `refresh_m1_pr_calendar.py` after any `_people_registry` update (a new `Дата последнего PR`, a new hire) — it fully regenerates `_m1_pr_calendar` from that data, sorted by soonest-opening window first, and applies the workspace's standard formatting (wrap/align/column widths, see `format_all_sheets.py`) to it every time, so it never needs a separate manual formatting pass. No dry-run/candidate-review step, unlike `scan_m1_events.py` — there's no judgment involved, just recomputation, same as `refresh_project_registry.py` on the M2 side.
 2. Read `_m1_pr_calendar` directly for a clean PR-only list (`Статус`: `Не скоро` / `В окне` / `Просрочено` / `Нет данных`) instead of filtering `_m1_timeline`'s mixed event types by hand.
 3. Never hand-edit `_m1_pr_calendar` — it's fully overwritten on every refresh. If a row looks wrong, the fix is in `_people_registry` (correct `Дата последнего PR`/`Дата трудоустройства`), then rerun the refresh — not editing the calendar row directly.
 

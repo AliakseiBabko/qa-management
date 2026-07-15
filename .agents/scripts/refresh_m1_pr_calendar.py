@@ -10,6 +10,12 @@ that; this Sheet is fully regenerated from it every run, so it can never
 drift out of sync the way a second hand-maintained sheet could (see
 performance-review-rules.md, "Deriving the Expected Next PR Window").
 
+Also applies the workspace's standard formatting (wrap, left/top align,
+column widths - see format_all_sheets.py) after every write, the same way
+scaffold_project_dashboard.py-created Sheets are expected to eventually be
+formatted. A fully-rewritten Sheet has no reason to ever sit unformatted
+between runs.
+
 Safe to rerun anytime after a `_people_registry` update. Unlike
 scan_m1_events.py, there is no --write/dry-run split here - there's no
 candidate to review, just a recomputation, so it always writes.
@@ -23,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
+from format_all_sheets import format_sheet
 from google_api_smoke_test import ensure_utf8_stdout
 from pipeline_common import get_services
 from scan_m1_events import (
@@ -111,10 +118,12 @@ def main() -> int:
 
     rows.sort(key=lambda r: r[3] or "9999-99-99")  # soonest-opening window first; no-window rows sort last
 
-    upsert_sheet(services, m1_root["id"], "_m1_pr_calendar", [CALENDAR_HEADER] + rows)
+    sheet = upsert_sheet(services, m1_root["id"], "_m1_pr_calendar", [CALENDAR_HEADER] + rows)
     print(f"_m1_pr_calendar: {len(rows)} people written.")
     for r in rows:
         print(f"  [{r[5]}] {r[0]}: window {r[3]}–{r[4]} ({r[1]})")
+
+    print(format_sheet(services["sheets"], sheet["id"], "_m1_pr_calendar"))
     return 0
 
 
