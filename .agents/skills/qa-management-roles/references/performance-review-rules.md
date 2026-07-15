@@ -32,22 +32,35 @@ Exception: the Intern→Junior transition PR happens on individual timing
 (whenever formal criteria are met), not on the standard 3-month/6-month
 formula — do not auto-compute this one; ask/confirm instead.
 
-## Deriving Expected Next PR Date (for `m1-timeline`)
+## Deriving the Expected Next PR Window (for `m1-timeline`, `_m1_pr_calendar`)
 
-Given `Дата трудоустройства` and `Дата последнего PR` from `_people_registry`:
+The next PR is not a single predicted date — it's a **window**: opens no
+earlier than 6 months after the last PR, and shouldn't slip past 7 months
+without a stated reason. Given `Дата трудоустройства` and `Дата последнего
+PR` from `_people_registry`:
 
-1. If `Дата последнего PR` is set: expected next PR = that date + 6 months.
-2. Else if `Дата трудоустройства` is set: expected next PR = hire date + 3
+1. If `Дата последнего PR` is set: window opens at that date + 6 months.
+2. Else if `Дата трудоустройства` is set: window opens at hire date + 3
    months (the probation-closing PR hasn't happened yet).
 3. Else: cannot compute — surface as a data gap (ask for hire date) rather
    than guessing or silently omitting the person from tracking.
+4. The window **closes** exactly 1 month after it opens (6mo → 7mo from
+   the anchor date). Before the window opens: not due yet. Inside the
+   window: due. Past the window close: overdue, absent a stated exception
+   (an explicit reason logged for the specific person, not a silent
+   slip — see `_m1_pr_calendar`'s `Комментарий` column).
 
-Cross-check the computed date against the person's current OKR Doc title
+Cross-check the computed window against the person's current OKR Doc title
 (`OKR к Perfomance review DD.MM.YY`, see `m1-individual-development-plan`)
-when one exists — they should match, since the OKR period is defined to
-end exactly at the next PR. A mismatch (more than ~2 weeks apart) means
-one of the two sources is stale and needs reconciling, not that one is
-automatically right.
+when one exists — the Doc's date should fall inside the computed window,
+since the OKR period is defined to end at the next PR. A Doc date outside
+the window means one of the two sources is stale and needs reconciling,
+not that one is automatically right.
+
+`refresh_m1_pr_calendar.py` generates a dedicated `_m1_pr_calendar` Sheet
+(see `m1-timeline`'s document-contract) from this same `_people_registry`
+data — a PR-only view, mechanically regenerated, never hand-edited, so it
+never becomes a second source of truth for `Дата последнего PR`.
 
 ## Mandatory Participants
 

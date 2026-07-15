@@ -15,13 +15,17 @@ content (that's still a judgment/drafting step - see m1-timeline SKILL.md,
   is surfaced as its own "missing OKR" candidate.
 - PR cadence cross-check: `_people_registry` (under 20_M2_Project_Management,
   see google-workspace-rules.md) holds `Дата трудоустройства` and `Дата
-  последнего PR` per person. This script computes the expected next PR date
-  from those two fields per the real cadence rules in
-  qa-management-roles/references/performance-review-rules.md (last PR + 6
-  months, or hire date + 3 months if no PR has happened yet) and cross-checks
-  it against the OKR Doc title date. A mismatch, or a missing OKR Doc when a
-  registry-computed date exists, is surfaced with the registry-computed date
+  последнего PR` per person. This script computes the expected next PR
+  WINDOW from those two fields per the real cadence rules in
+  qa-management-roles/references/performance-review-rules.md (opens at last
+  PR + 6 months, or hire date + 3 months if no PR has happened yet; closes
+  one month after it opens - not earlier than open, overdue past close
+  absent a stated exception) and cross-checks the OKR Doc title date against
+  that window. A date outside the window, or a missing OKR Doc when a
+  registry-computed window exists, is surfaced with the window's open date
   used as the due date - so tracking survives even before an OKR Doc exists.
+  See also `refresh_m1_pr_calendar.py`, which generates a dedicated
+  `_m1_pr_calendar` Sheet from the same registry data for a PR-only view.
 - Monthly report presence: `m1_monthly_report_<Manager>_YYYY-MM` Sheets
   directly under 10_M1_People_Management are inventoried by manager; if the
   most recently completed calendar month has no report for a manager who
@@ -77,6 +81,7 @@ REGISTRY_HIRE_DATE_COL = 8
 REGISTRY_LAST_PR_COL = 9
 PR_CADENCE_MONTHS = 6
 PROBATION_MONTHS = 3
+PR_WINDOW_TOLERANCE_MONTHS = 1  # window closes this many months after it opens (6mo -> 7mo)
 
 
 def parse_iso_date(value: str) -> dt.date | None:
@@ -97,15 +102,25 @@ def add_months(date: dt.date, months: int) -> dt.date:
     return dt.date(year, month, day)
 
 
-def expected_next_pr(hire_date: dt.date | None, last_pr_date: dt.date | None) -> tuple[dt.date | None, str]:
+def expected_pr_window(
+    hire_date: dt.date | None, last_pr_date: dt.date | None
+) -> tuple[dt.date | None, dt.date | None, str]:
     """Per performance-review-rules.md, "Deriving Expected Next PR Date":
-    last PR + 6 months if a PR has happened, else hire date + 3 months for
-    the first (probation-closing) PR, else unknown."""
+    the PR window OPENS at last PR + 6 months (or hire + 3 months for the
+    first/probation-closing PR) and CLOSES PR_WINDOW_TOLERANCE_MONTHS later
+    (6mo -> 7mo) - not earlier than the open date, overdue past the close
+    date, absent a stated exception. Returns (open, close, basis); (None,
+    None, "unknown") if neither hire nor last-PR date is on record."""
     if last_pr_date is not None:
-        return add_months(last_pr_date, PR_CADENCE_MONTHS), "last_pr+6mo"
-    if hire_date is not None:
-        return add_months(hire_date, PROBATION_MONTHS), "hire+3mo(probation)"
-    return None, "unknown"
+        window_open = add_months(last_pr_date, PR_CADENCE_MONTHS)
+        basis = "last_pr+6mo"
+    elif hire_date is not None:
+        window_open = add_months(hire_date, PROBATION_MONTHS)
+        basis = "hire+3mo(probation)"
+    else:
+        return None, None, "unknown"
+    window_close = add_months(window_open, PR_WINDOW_TOLERANCE_MONTHS)
+    return window_open, window_close, basis
 
 
 def parse_args() -> argparse.Namespace:
@@ -204,9 +219,9 @@ def scan_person_okr(
     doc_date, doc_name = max(dated, key=lambda pair: pair[0]) if dated else (None, None)
 
     record = registry.get(person.strip().casefold(), {})
-    expected_date, basis = expected_next_pr(record.get("hire"), record.get("last_pr"))
+    window_open, window_close, basis = expected_pr_window(record.get("hire"), record.get("last_pr"))
 
-    if doc_date is None and expected_date is None:
+    if doc_date is None and window_open is None:
         return [{
             "person": person,
             "due": dt.date.today().isoformat(),
@@ -219,21 +234,19 @@ def scan_person_okr(
         }]
 
     if doc_date is None:
-        # No OKR Doc yet, but the registry lets us compute an expected PR date anyway.
+        # No OKR Doc yet, but the registry lets us compute an expected PR window anyway.
         return [{
             "person": person,
-            "due": expected_date.isoformat(),
+            "due": window_open.isoformat(),
             "type": "OKR",
-            "what": f"Составить OKR для {person} — OKR Doc не найден; ожидаемый Performance Review "
-            f"~{expected_date.isoformat()} (расчёт: {basis})",
+            "what": f"Составить OKR для {person} — OKR Doc не найден; ожидаемое окно Performance "
+            f"Review {window_open.isoformat()}–{window_close.isoformat()} (расчёт: {basis})",
             "owner": "M1",
             "source": f"scan:okr:{person}:missing",
             "notes": f"Расчёт из _people_registry ({basis})",
         }]
 
-    mismatch = (
-        expected_date is not None and abs((expected_date - doc_date).days) > 14
-    )
+    mismatch = window_open is not None and not (window_open <= doc_date <= window_close)
     due = doc_date
     overdue = doc_date < dt.date.today()
     what = (
@@ -247,8 +260,9 @@ def scan_person_okr(
     notes = f"Doc: {doc_name}"
     if mismatch:
         notes += (
-            f"; расхождение с расчётом из _people_registry: ожидалось ~{expected_date.isoformat()} "
-            f"({basis}), в Doc указано {doc_date.isoformat()} — свериться, какая дата верна"
+            f"; расхождение с расчётом из _people_registry: ожидалось окно "
+            f"{window_open.isoformat()}–{window_close.isoformat()} ({basis}), в Doc указано "
+            f"{doc_date.isoformat()} — свериться, какая дата верна"
         )
     return [{
         "person": person,

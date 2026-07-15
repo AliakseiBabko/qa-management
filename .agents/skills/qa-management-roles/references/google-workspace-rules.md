@@ -117,6 +117,11 @@ rather than about one team member:
   across the whole team (see `m1-timeline`). Leading underscore marks it
   as a system/rollup artifact, same convention as `_people_registry`/
   `_project_registry` under `20_M2_Project_Management`.
+- `_m1_pr_calendar` — PR-only view, mechanically regenerated from
+  `_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` by
+  `refresh_m1_pr_calendar.py` (see `m1-timeline`,
+  `performance-review-rules.md`'s "Deriving the Expected Next PR Window").
+  Never hand-edited — same generated-rollup discipline as `_m1_timeline`.
 - `_self_review\<M1 name>\` — M1's own Performance Review self-prep, as
   the employee being reviewed by M3, not as the manager running PR for
   their team (see `m-self-review`, `salary-review-prep`). Kept under its
