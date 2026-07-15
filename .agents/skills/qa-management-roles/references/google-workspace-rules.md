@@ -87,6 +87,11 @@ report dump. Final M2 tabular outputs should go under:
 Standard project folder shape:
 
 - `project_risk` Google Sheet, with CSV fallback `project_risk.csv`
+- `process_checklist` Google Sheet, with CSV fallback `process_checklist.csv`
+  — the 12-section outsource QA process-maturity checklist (see
+  `m2-project-process-checklist`, based on `Templates\аутсорс_чек_лист_qa.csv`).
+  A living record, not a dated snapshot; confirmed gaps route into
+  `project_risk`'s `Риск QA process` column rather than living only here.
 - `project_development_plan` Google Doc, with Markdown fallback
 - `project_metrics` Google Sheet, with CSV fallback `project_metrics.csv`
   — M2-only dashboard for the project (see `Templates\метрики_проекта_qa.md`
