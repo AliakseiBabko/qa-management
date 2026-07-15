@@ -112,7 +112,7 @@ Current canonical skills:
 | `m2-admin-note-intake` | M2 | Short pasted-inline (not file-based) conversation snippets about chat access/membership, chat/project naming ambiguity, and structured person-info cards | `.agents/skills/m2-admin-note-intake/SKILL.md` |
 | `m2-1to1-apply` | M2 | Routes a QA 1:1 transcript's already-analyzed (via `qa-1to1-analysis`) findings through the M2 cascading-update chain into individual/project documents and `m2_input` | `.agents/skills/m2-1to1-apply/SKILL.md` |
 | `qa-management-roles` | Common | Shared M1/M2/M3/M4 role boundaries and role rules, including M1 people-management goals and M2 project-management/business-value rules | `.agents/skills/qa-management-roles/SKILL.md` |
-| `m1-people-1to1-file` | M1 | Individual person Google Sheet in `10_M1_People_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
+| `m1-people-1to1-file` | M1 | Individual person Google Sheet inside `10_M1_People_Management\<Person>\`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
 | `m1-people-risk-report` | M1 | Dated people risk traffic-light Google Sheet, with CSV fallback, based on `Templates/светофор_рисков.csv` from this repo | `.agents/skills/m1-people-risk-report/SKILL.md` |
 | `m1-individual-development-plan` | M1 | Individual OKR Google Doc per Performance Review cycle, with Markdown fallback, based on `Templates/okr_m1.md` from this repo | `.agents/skills/m1-individual-development-plan/SKILL.md` |
 | `m1-timeline` | M1 | Workspace-wide `_m1_timeline` Google Sheet (Performance Reviews computed from real PR cadence, OKR cycle closures, monthly-report deadlines, follow-ups), with CSV fallback | `.agents/skills/m1-timeline/SKILL.md` |
@@ -150,7 +150,7 @@ Expected data folders under that root:
 - `01_Recordings`: raw meeting recordings
 - `02_Transcripts_Inbox`: raw transcript intake
 - `03_Transcripts_Processed`: transcripts that have already been analyzed or moved out of intake
-- `10_M1_People_Management`: M1 person files and people risk snapshots
+- `10_M1_People_Management`: person-based, `<Person>\` subfolder per team member (1to1, OKR, salary-review self-feedback); workspace-wide people-risk snapshots, `_m1_timeline`, and M1's own monthly report stay at the root — see `google-workspace-rules.md`, M1 Person-Based Layout
 - `20_M2_Project_Management`: M2 project-management outputs
 - `80_Exports`: exported packages, shares, or generated external copies
 - `90_Archive`: archived legacy folders and backups

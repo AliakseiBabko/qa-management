@@ -23,6 +23,11 @@ Suggested naming pattern:
 
 `m1_monthly_report_<Manager>_YYYY-MM.csv`
 
+This stays at the `10_M1_People_Management` root — it's M1's own report
+about their own KPIs, not a per-person artifact, so it does not move into
+any `<Person>\` subfolder (see `google-workspace-rules.md`, M1
+Person-Based Layout).
+
 ## Versioning
 
 - Do not overwrite an existing final monthly report by default.

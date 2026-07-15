@@ -7,7 +7,7 @@ description: Create or update an individual QA engineer 1to1 Google Sheet, with 
 
 Use this skill for one output family only:
 
-- `<Person Name> 1to1` Google Sheet in `10_M1_People_Management`, with local CSV fallback
+- `1to1` Google Sheet inside `10_M1_People_Management\<Person>\`, with local CSV fallback
 
 ## Required Start
 
@@ -34,3 +34,4 @@ Use this skill for one output family only:
 - Do not generate people risk traffic lights here.
 - Do not mix project-level analysis into the per-person row beyond what helps explain the conversation.
 - Do not reclassify the meeting topic differently from `qa-1to1-analysis` without explicit evidence.
+- Do not title the Sheet `<Person> 1to1` — the person is already the enclosing folder name (`10_M1_People_Management\<Person>\`), so the Sheet itself is just `1to1` (matches the M2 per-project convention: content-type-named files inside person-named folders, not the reverse).

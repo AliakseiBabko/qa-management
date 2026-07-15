@@ -14,9 +14,15 @@ writing.
 
 `G:\My Drive\QA_Management\10_M1_People_Management\светофор_рисков_YYYY-MM-DD.csv`
 
+This stays at the `10_M1_People_Management` root — it's a workspace-wide,
+cross-person snapshot, not per-person content, so it does not move into
+any `<Person>\` subfolder (see `google-workspace-rules.md`, M1
+Person-Based Layout).
+
 ## Source Inputs
 
-- per-person `* 1to1.csv` files
+- per-person `1to1` Sheets/CSVs under `10_M1_People_Management\<Person>\`
+  (see `m1-people-1to1-file`)
 - structured findings from `qa-1to1-analysis`
 - explicit manager notes
 
