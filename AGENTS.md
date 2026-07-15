@@ -126,6 +126,7 @@ Current canonical skills:
 | `m2-project-development-plan` | M2 | Project-level development-plan Google Sheet, with CSV fallback | `.agents/skills/m2-project-development-plan/SKILL.md` |
 | `m2-individual-development-plan` | M2 | Individual development-plan Google Sheet within project scope, with CSV fallback | `.agents/skills/m2-individual-development-plan/SKILL.md` |
 | `m2-project-status-report` | M2 | Short chat-ready project status report for a requested period; regular saved reports use Google Docs with Markdown fallback | `.agents/skills/m2-project-status-report/SKILL.md` |
+| `m2-department-traffic-light` | M2 | Fills M2's own row block on the department's shared (foreign, not workspace-generated) "Auto staff. Светофор проектов" outstaff tracker from real source documents | `.agents/skills/m2-department-traffic-light/SKILL.md` |
 | `m2-timeline` | M2 | Per-project `action_items` Google Sheet (events, deadlines, follow-ups) and the workspace-wide `_timeline` rollup, with CSV fallback | `.agents/skills/m2-timeline/SKILL.md` |
 | `m1-monthly-report` | M1 | Monthly M1 KPI/bonus Google Sheet, with CSV fallback, based on monthly report workbook structure and evidence-backed people-management data | `.agents/skills/m1-monthly-report/SKILL.md` |
 | `m2-monthly-report` | M2 | Monthly M2 KPI/bonus Google Sheet, with CSV fallback, based on monthly report example structure and evidence-backed project-management data | `.agents/skills/m2-monthly-report/SKILL.md` |
