@@ -62,7 +62,7 @@ editing an already-logged file in place makes new content invisible to it.
    - status-report snapshots (who's doing what, current focus)
 2. Cross-check every named person against `_people_registry`. A strategy
    chat is exactly the kind of source likely to reveal a stale or wrong role
-   (e.g. someone recorded as client-side who is actually an the company DC) —
+   (e.g. someone recorded as client-side who is actually an internal DC) —
    when the chat contradicts the registry, or the user directly supplies a
    person's real profile, treat it as a correction, note it explicitly, and
    fix every document that repeated the wrong fact (registry entry, and any

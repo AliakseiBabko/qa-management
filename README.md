@@ -56,7 +56,7 @@ under `20_M2_Project_Management`:
   room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
   продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
   Stopped projects are removed from this registry, not marked inactive.
-- `_people_registry` — every person (the company and client-side) mentioned
+- `_people_registry` — every person (internal and client-side) mentioned
   across projects, with role/side/confirmation status. See
   `google-workspace-rules.md` for the full column list.
 - `_timeline` — generated rollup of every project's open `action_items`

@@ -9,6 +9,18 @@ This repository stores QA-management agent infrastructure for both:
 - `M1` people-management workflows
 - `M2` project-management workflows
 
+**Company context**: skills here assume a QA department inside an
+outsource software development company, staffing engineers onto client
+projects. This repository is public and holds only abstract skill logic
+and templates — no real company name, employee names, or client/project
+names. `Side` values are `Internal` (this company's own staff) vs.
+`Client` (client-side or third-party vendor people) — never the literal
+company name. Real company/employee/client data lives only in the private
+`_people_registry` and the corporate Google Drive workspace referenced
+below, never in this repo. If you're adapting this repository for a real
+company, `apply_person_card.py`'s `COMPANY_EMAIL_DOMAIN`/
+`COMPANY_SIDE_LABEL` are the one place a real domain gets configured.
+
 Business data and generated outputs live in the QA Management Google Drive workspace:
 
 `https://drive.google.com/drive/u/0/folders/1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`

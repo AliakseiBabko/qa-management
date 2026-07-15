@@ -44,13 +44,15 @@ rate», «Баги, найденные в проде за месяц» и «Regr
   автоматизации структурно разные и не выравниваются с опытом:
 
   - **AQA** (automation QA, технический бэкграунд) —
-    `00_Source_Docs\Assessment matrix AQA the company.xlsx`. Автоматизация
+    `00_Source_Docs\Assessment matrix AQA.xlsx` (company assessment
+    matrix). Автоматизация
     растёт вместе с грейдом вплоть до архитектуры фреймворка и
     инфраструктуры с нуля на Senior.
   - **MQA / fullstack** (manual QA, включая так называемых "fullstack" —
     ручной QA с базовыми навыками автоматизации: обновить/добавить
     существующий тест, но не спроектировать фреймворк или инфраструктуру
-    с нуля) — `00_Source_Docs\Assessment Matrix MQA the company.xlsx`. Здесь
+    с нуля) — `00_Source_Docs\Assessment Matrix MQA.xlsx` (company
+    assessment matrix). Здесь
     автоматизация даже на Senior стоит на потолке T2 (теория)/T1
     (практика) по шкале матрицы — это структурный потолок трека, не
     личный пробел человека. Не занижай грейд fullstack-специалисту за
