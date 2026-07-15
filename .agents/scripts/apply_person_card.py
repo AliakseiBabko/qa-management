@@ -65,6 +65,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--file", help="Read the card from this file instead of stdin.")
     parser.add_argument("--apply", action="store_true", help="Write the change to _people_registry (default: dry run).")
+    parser.add_argument(
+        "--company-domain",
+        default=COMPANY_EMAIL_DOMAIN,
+        help="Override the company email domain used for the Side check, "
+        "without editing this tracked file (see AGENTS.md, No Sensitive Data In This Repository).",
+    )
+    parser.add_argument(
+        "--company-side-label",
+        default=COMPANY_SIDE_LABEL,
+        help="Override the Side value written for internal people, to match whatever label "
+        "your own _people_registry already uses (e.g. your real company name).",
+    )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
     return parser.parse_args()
@@ -223,9 +235,9 @@ def main() -> int:
     today = dt.date.today().isoformat()
 
     side = (
-        COMPANY_SIDE_LABEL
-        if fields["email"].lower().endswith(f"@{COMPANY_EMAIL_DOMAIN}")
-        else f"ASK - not an @{COMPANY_EMAIL_DOMAIN} address"
+        args.company_side_label
+        if fields["email"].lower().endswith(f"@{args.company_domain}")
+        else f"ASK - not an @{args.company_domain} address"
     )
     role = compute_role(fields["Job Title"], fields["M-level"], fields["DC"])
     internal_rank = compute_internal_rank(fields["Prof.Level"])
