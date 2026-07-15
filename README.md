@@ -63,10 +63,12 @@ team member gets their own folder:
 ├─ Светофор рисков.gsheet              # living, workspace-wide, covers the whole team at once
 ├─ m1_monthly_report_<Manager>_YYYY-MM.gsheet  # M1's own KPI report, not per-person
 ├─ _m1_timeline.gsheet                 # living rollup of upcoming/overdue events
+├─ _m1_pr_calendar.gsheet              # generated PR-only view, from _people_registry
 └─ _self_review/<M1 name>/             # M1's own PR self-prep, as the employee being reviewed
 ```
 
-Root-level files (risk snapshots, M1's monthly report, `_m1_timeline`) stay
+Root-level files (risk snapshots, M1's monthly report, `_m1_timeline`,
+`_m1_pr_calendar`) stay
 at the root because they're workspace-wide or about M1 themselves, not
 about one team member — see
 `.agents/skills/qa-management-roles/references/google-workspace-rules.md`,
@@ -377,6 +379,13 @@ These are what actually runs day to day, once a project's folder already exists:
   workspace-wide `_timeline` Sheet, sorted by due date, creating `_timeline`
   if it doesn't exist yet. Safe to rerun anytime after an `action_items`
   edit; see `.agents/skills/m2-timeline`.
+- `refresh_m1_pr_calendar.py` — M1's analog to `refresh_project_registry.py`:
+  recomputes the expected next-PR window for every person in
+  `_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
+  record, writes the result to `_m1_pr_calendar` (sorted soonest-opening
+  first), no dry-run needed since it's pure recomputation, not a judgment
+  call. Safe to rerun anytime after a `_people_registry` update; see
+  `.agents/skills/m1-timeline`.
 - `scan_open_questions.py` — same kind of mechanical front half as
   `prepare_intake_review.py`/`detect_strategy_chats.py`, but scanning
   `m2_input`/`project_risk`/`project_metrics` instead of raw source files:
@@ -446,14 +455,23 @@ per-project-style Sheet-plus-rollup isn't needed. `scan_m1_events.py`
 derives candidates mechanically: it reads every OKR Doc's title (`OKR к
 Perfomance review DD.MM.YY`) to surface upcoming/overdue Performance
 Reviews and people missing a current OKR, cross-checks that against an
-expected-next-PR date computed from `_people_registry`'s `Дата
-трудоустройства`/`Дата последнего PR` (real cadence: last PR + 6 months,
-or hire date + 3 months for a first/probation-closing PR — see
+expected-next-PR *window* computed from `_people_registry`'s `Дата
+трудоустройства`/`Дата последнего PR` (real cadence: window opens at last
+PR + 6 months, or hire date + 3 months for a first/probation-closing PR,
+and closes 1 month later — see
 `qa-management-roles/references/performance-review-rules.md`), and checks
 `m1_monthly_report_<Manager>_YYYY-MM` presence to surface an overdue
 monthly report. Same read-only-by-default / `--write` split as
 `scan_open_questions.py`, writing its bundle to
 `80_Exports/open_questions_review/YYYY-MM-DD_m1.md`.
+
+For a PR-only view (no other event types mixed in), `refresh_m1_pr_calendar.py`
+generates `_m1_pr_calendar` (template `Templates/m1_pr_calendar.csv`) from
+the same `_people_registry` data — one row per person with a computable
+window, sorted soonest-first, `Статус` one of `Не скоро`/`В окне`/
+`Просрочено`/`Нет данных`. Fully regenerated every run, like
+`refresh_project_registry.py` on the M2 side — never hand-edited, so it
+can't drift from `_people_registry` as a second source of truth.
 
 ## Self-Review (M1/M2)
 
