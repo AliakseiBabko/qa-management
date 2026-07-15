@@ -39,6 +39,19 @@ Person-Based Layout).
 - `Комментарии`
 - `План действий`
 
+## Risk Level Scale
+
+- Use only `Низкий`, `Средний`, or `Высокий` in both risk columns — a
+  3-level scale, same as M2's `project_risk` (see
+  `m2-project-risk-report`'s document-contract). Do not use `Критический`
+  or any other level; a row still on the older 4-level scale (e.g. from a
+  pre-Google-API-access CSV) needs remapping to this scale, not carried
+  forward as-is — an acute, already-materialized situation is still
+  `Высокий`, just without a separate tier above it.
+- Pair the level with a short direction/trend note in the same cell (e.g.
+  `Высокий, рост` / `Средний, стабильный` / `Низкий, снижение`) — matches
+  the style already used in real rows on this Sheet.
+
 ## Rule
 
 Never edit the template file itself (`Templates\светофор_рисков.csv`) —
