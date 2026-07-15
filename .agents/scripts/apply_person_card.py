@@ -54,6 +54,12 @@ EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 LABELS = ["Job Title", "M-level", "Prof.Level", "Mentor", "DC"]
 LEVEL_KEYWORDS = ("Senior", "Middle", "Junior")
 
+# Set this to your own company's email domain (see google-workspace-rules.md,
+# _people_registry Columns, Side) - used to tell internal staff apart from
+# client-side people by email domain alone.
+COMPANY_EMAIL_DOMAIN = "example.com"
+COMPANY_SIDE_LABEL = "Internal"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -216,7 +222,11 @@ def main() -> int:
     fields = parse_card(raw)
     today = dt.date.today().isoformat()
 
-    side = "the company" if fields["email"].lower().endswith("@example.com") else "ASK - not an @example.com address"
+    side = (
+        COMPANY_SIDE_LABEL
+        if fields["email"].lower().endswith(f"@{COMPANY_EMAIL_DOMAIN}")
+        else f"ASK - not an @{COMPANY_EMAIL_DOMAIN} address"
+    )
     role = compute_role(fields["Job Title"], fields["M-level"], fields["DC"])
     internal_rank = compute_internal_rank(fields["Prof.Level"])
     notes = compute_notes(fields, today)

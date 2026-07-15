@@ -175,25 +175,25 @@ Columns are `Проект`, `People`,
 or folder-navigation link; those don't belong in a summary dashboard.
 
 Keep `_people_registry` in `20_M2_Project_Management` as a single workspace-wide
-Google Sheet (CSV fallback), covering people affiliated with both the company
-and clients across all projects — not a per-project list, since roles like
-M1/M2/HR/DC often span multiple projects and a per-project copy would drift
-out of sync. Columns:
+Google Sheet (CSV fallback), covering people affiliated with both the
+company and clients across all projects — not a per-project list, since
+roles like M1/M2/HR/DC often span multiple projects and a per-project copy
+would drift out of sync. Columns:
 
 - `Name (RU)`, `Name (EN)` — both, when the person has a known English-name
   form (useful since transcripts/chats mix scripts).
 - `Email` — when known.
-- `Side` — `the company`, or `Client` / `Client — <company>` when the specific
+- `Side` — `Internal`, or `Client` / `Client — <company>` when the specific
   client-side or third-party vendor company is known (e.g. a client's own
   staff vs. a separate vendor supplying people on the same project). One
   column, not two — a person's affiliation and which company they're at is
   a single fact, and splitting it produced redundant-looking rows like
-  `the company, the company` for every the company person.
+  `Internal, Internal` for every internal person.
 - `Role` — M1 / M2 / M3 / M4 / HR / DC / QA / AQA / Team Lead / PM / Client
   stakeholder / Candidate / etc. Project-scoped detail (stream, specialty)
   can go in the same cell, e.g. "AQA, stream SOLO".
-- `Internal rank` — the company-internal level (Junior/Middle/Senior), for
-  the company people only. This is distinct from a person's project-level
+- `Internal rank` — the company's own internal level (Junior/Middle/Senior),
+  for internal people only. This is distinct from a person's project-level
   grade fit (`Соответствие ожиданиям клиента (грейд)` in
   `individual_metrics`) — the two can differ, and neither substitutes for
   the other. Leave blank when not known; do not infer it from project-level
@@ -211,13 +211,13 @@ out of sync. Columns:
   but don't let one overwrite or dilute the other.
 - `Notes` — anything uncertain, stated explicitly, including any
   cross-project management duty per the `Project(s)` rule above.
-- `Дата трудоустройства` — hire date (`YYYY-MM-DD`), for the company people
+- `Дата трудоустройства` — hire date (`YYYY-MM-DD`), for internal people
   only. Leave blank when not known; ask rather than guess — this is the
   anchor date for the probation-closing Performance Review (hire date + 3
   months, see `qa-management-roles/references/performance-review-rules.md`),
   so a wrong guess here silently mis-schedules a PR.
 - `Дата последнего PR` — the date of the person's most recently completed
-  Performance Review (`YYYY-MM-DD`), the company people only. Blank means no
+  Performance Review (`YYYY-MM-DD`), internal people only. Blank means no
   PR has happened yet (still pre-probation-close), not "unknown" — do not
   fill it from a guess. M1 (or M2/M3 for their own PR) updates this cell
   right after a PR actually happens; `m1-timeline`'s cadence computation
@@ -247,12 +247,13 @@ Map every field explicitly rather than re-deriving the mapping each time:
 - Name (RU) / Name (EN) — from the given Russian/English (or transliterated)
   names directly.
 - Email — as given.
-- Side — `the company` if the email domain is `@example.com`; otherwise ask
+- Side — `Internal` if the email domain matches the company's own domain
+  (see `apply_person_card.py`'s `COMPANY_EMAIL_DOMAIN`); otherwise ask
   rather than guess.
 - Role — `Job Title`, with `DC` prefixed if `DC - Yes` (e.g. `DC; Data
   Engineer`). Do not add `DC` to Role if the card says `DC - No`, even if
   the person is discussed alongside DC-shaped duties elsewhere. Separately,
-  if `M-level` is a recognized the company management level (`M1`/`M2`/`M3`/
+  if `M-level` is a recognized internal management level (`M1`/`M2`/`M3`/
   `M4`), combine it into Role alongside Job Title too (e.g. `M3; DC
   Manager`), matching how existing M3 AQA rows are already written (`M3
   AQA`). If `M-level` is not one of those (e.g. `P`), its meaning isn't
