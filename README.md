@@ -302,6 +302,17 @@ These are what actually runs day to day, once a project's folder already exists:
   their mismatch evidence behind in the old project's docs, invisible to
   this scan; a clean result isn't proof there's no mismatch for someone
   who's changed projects recently.
+- `update_m1_risk_row.py` — mechanical write path for `m1-people-risk-report`:
+  updates or adds one person's row in the living `Светофор рисков` Sheet
+  (`10_M1_People_Management`). Input is a small labeled text block
+  (`Сотрудник:`/`Риск с нашей стороны:`/etc., one per `--file`), same
+  card-style input as `apply_person_card.py`. Only supplied fields change
+  on an existing row (missing fields stay untouched); a new person needs
+  all four content fields present. Validates both risk-level cells against
+  the 3-level scale (`Низкий`/`Средний`/`Высокий`, no `Критический`) and
+  refuses to write an invalid level. Sets `Дата обновления` to today
+  automatically whenever a content field actually changes. Dry-run by
+  default; `--apply` writes.
 - `sync_m2_source_docs_to_sheets.py` — syncs source docs into `evidence_log`
   and `individual_metrics` Sheets (real append-only merge, not overwrite).
   `project_risk` and `project_metrics` are bootstrap-only: it creates a
