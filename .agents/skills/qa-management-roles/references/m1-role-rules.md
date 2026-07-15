@@ -16,7 +16,7 @@ Build and retain a healthy, loyal, growing QA team whose members are prepared fo
 - Run regular 1to1s, including newcomer 1to1s.
 - Help create and control individual development plans / OKR.
 - Share experience and best practices.
-- Prepare people for assessments, Level Check, PR, internal/external interviews, and project requests.
+- Prepare people for assessments, Level Check, PR, internal/external interviews, and project requests — including salary-review self-feedback (see `salary-review-prep`) when a team member's PR is tied to a salary review.
 - Collect employee feedback, team satisfaction feedback, and project feedback.
 - Work with bench and control bench development/readiness.
 - Support staffing: promote employees to projects, review CVs, prepare for interviews, support interview process, analyze results, and create action plans.

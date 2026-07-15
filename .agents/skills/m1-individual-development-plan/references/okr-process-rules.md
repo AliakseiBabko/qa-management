@@ -6,9 +6,15 @@ and cadence this skill must not silently drop.
 
 ## Cadence and Scope
 
+Full PR cadence table, participants, and meeting structure live in
+`../../qa-management-roles/references/performance-review-rules.md` — read
+that for the exact schedule. Summary relevant to OKR specifically:
+
 - OKR is drafted at each Performance Review, for the period until the next
-  one: 3 months during probation; 6 months for Junior, Middle, Senior, and
-  M-level employees.
+  one: 3 months during probation (one-time, anchored to hire date); 6
+  months for every PR after that, for Junior, Middle, Senior, and M-level
+  employees alike. The Intern→Junior transition PR is on individual
+  timing, not this formula.
 - At the Performance Review itself, the direction is agreed at a general
   level. After the review, the employee operationalizes it into concrete
   Objectives and Key Results together with their M-manager.
