@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Format every Google Sheet under 20_M2_Project_Management for readability.
+"""Format every Google Sheet under the workspace root for readability -
+both 10_M1_People_Management and 20_M2_Project_Management by default.
 
 For each non-empty column: wrap text, align left/top, and size the column so
 wrapped text fits in roughly 5 lines. Column widths also try to keep the
@@ -10,6 +11,11 @@ that constraint wins over fitting on screen.
 This is a heuristic (character-count based, no real font metrics), so it
 will not be exact for every cell - long single-column narrative text may
 still exceed 5 lines at the width cap.
+
+Pass --dry-run to print what would change (per-sheet column widths) without
+calling batchUpdate - worth doing at least once whenever the scope of what
+this script walks changes, since it wasn't run against 10_M1_People_Management
+before this option existed.
 """
 
 from __future__ import annotations
@@ -23,7 +29,8 @@ from typing import Any, Callable
 from googleapiclient.errors import HttpError
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
-from sync_m2_source_docs_to_sheets import drive_query
+from show_project_state import find_folder
+from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query
 
 MAX_RETRIES = 5
 
@@ -56,11 +63,20 @@ TARGET_LINES = 5
 SCREEN_BUDGET_PX = 1780  # ~1920px laptop screen minus browser chrome/row numbers
 
 
+DEFAULT_ROOTS = ["10_M1_People_Management", "20_M2_Project_Management"]
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Format all Sheets under 20_M2_Project_Management.")
+    parser = argparse.ArgumentParser(description="Format all Sheets under the workspace root.")
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
-    parser.add_argument("--root-folder-id", default="1rrNLanrQXcqpxDjnrNPYDdcnhO26qJy1")
+    parser.add_argument(
+        "--root-folder-id",
+        action="append",
+        help="Format Sheets under this specific folder ID instead of the default "
+        f"({' + '.join(DEFAULT_ROOTS)}). Repeatable.",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Print planned column widths without writing.")
     return parser.parse_args()
 
 
@@ -89,7 +105,7 @@ def column_width(values: list[str]) -> int:
     return max(MIN_WIDTH_PX, min(MAX_WIDTH_PX, width))
 
 
-def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
+def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: bool = False) -> str:
     meta = call_with_retry(lambda: sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute())
     requests: list[dict[str, Any]] = []
     log_parts = []
@@ -164,6 +180,8 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str) -> str:
         log_parts.append(f"{title}: {len(non_empty_cols)} cols, total_width={sum(widths.values())}px")
 
     if requests:
+        if dry_run:
+            return f"{name}: DRY RUN, would format ({'; '.join(log_parts)})"
         call_with_retry(
             lambda: sheets_service.spreadsheets()
             .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
@@ -181,13 +199,25 @@ def main() -> int:
     drive = services["drive"]
     sheets = services["sheets"]
 
-    found: list[dict[str, Any]] = []
-    find_all_sheets(drive, args.root_folder_id, found)
+    if args.root_folder_id:
+        root_ids = args.root_folder_id
+    else:
+        root_ids = []
+        for name in DEFAULT_ROOTS:
+            folder = find_folder(drive, ROOT_FOLDER_ID, name)
+            if not folder:
+                print(f"WARNING: {name} not found under the workspace root - skipping.")
+                continue
+            root_ids.append(folder["id"])
 
-    print(f"Found {len(found)} Sheets under root folder.")
+    found: list[dict[str, Any]] = []
+    for root_id in root_ids:
+        find_all_sheets(drive, root_id, found)
+
+    print(f"Found {len(found)} Sheets across {len(root_ids)} root folder(s).")
     for f in found:
         try:
-            result = format_sheet(sheets, f["id"], f["name"])
+            result = format_sheet(sheets, f["id"], f["name"], dry_run=args.dry_run)
         except Exception as exc:  # noqa: BLE001
             result = f"{f['name']}: FAILED ({exc})"
         print(result)
