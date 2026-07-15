@@ -6,11 +6,14 @@
 
 ## Target
 
-`G:\My Drive\QA_Management\10_M1_People_Management\<Person Name> 1to1.csv`
+`G:\My Drive\QA_Management\10_M1_People_Management\<Person>\1to1.csv`
 
 Primary Google Workspace target:
 
-`10_M1_People_Management\<Person Name> 1to1` Google Sheet
+`10_M1_People_Management\<Person>\1to1` Google Sheet — inside the
+person's own subfolder, not the M1 root (see `google-workspace-rules.md`,
+M1 Person-Based Layout). Create the `<Person>` subfolder if it doesn't
+exist yet.
 
 Use the CSV target only as local fallback or staging. Preserve `Templates\1to1.csv` as the schema contract.
 

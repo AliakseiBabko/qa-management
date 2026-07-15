@@ -164,12 +164,16 @@ def load_people_registry(services: dict[str, Any], drive: Any) -> dict[str, dict
 
 
 def find_person_roster(drive: Any, m1_root_id: str) -> list[str]:
-    sheets = drive_query(
+    """Roster = every per-person subfolder directly under 10_M1_People_Management
+    (see google-workspace-rules.md, M1 Person-Based Layout). Leading-underscore
+    folders (_self_review, and any future _-prefixed workspace-wide folder) are
+    system folders, not people, and are excluded."""
+    folders = drive_query(
         drive,
-        f"'{m1_root_id}' in parents and mimeType = '{SHEET_MIME}' and trashed = false and name contains ' 1to1'",
+        f"'{m1_root_id}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false",
         fields="id,name",
     )
-    return sorted({s["name"][: -len(" 1to1")] for s in sheets if s["name"].endswith(" 1to1")})
+    return sorted(f["name"] for f in folders if not f["name"].startswith("_"))
 
 
 def parse_okr_date(title: str) -> dt.date | None:

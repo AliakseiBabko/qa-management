@@ -30,7 +30,8 @@ Current Drive layout:
   - `03_Source_Documents/`: durable per-project source documents and
     company-wide reference material (project folders, homework corpus,
     assessment matrices, monthly report examples)
-- `10_M1_People_Management/`: M1 person files and people risk snapshots
+- `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
+  team member) — see M1 Person Layout below
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
 - `80_Exports/`: export packages and external copies
 - `90_Archive/`: archived legacy folders and backups
@@ -46,6 +47,30 @@ for the full folder-mapping and Sharing Safety notes.
 Final business outputs should prefer Google Sheets for tabular artifacts and Google Docs
 for narrative/status artifacts when Google API access is available. Local CSV/Markdown
 files remain valid as fallback, staging, source-extraction, and export artifacts.
+
+## M1 Person Layout
+
+M1 is organized by person, mirroring how M2 is organized by project. Each
+team member gets their own folder:
+
+```text
+10_M1_People_Management/
+├─ <Person>/
+│  ├─ 1to1.gsheet                              # per-person longitudinal record
+│  ├─ OKR к Perfomance review <DD.MM.YY>.gdoc   # one per PR cycle; also M1's version of a "personal development plan"
+│  ├─ salary_review_self_feedback_<DD.MM.YY>.gdoc  # when applicable
+│  └─ 1to1_prep_<YYYY-MM-DD>.gdoc               # only if the user asks to save a prep
+├─ светофор_рисков_YYYY-MM-DD.gsheet   # workspace-wide, covers the whole team at once
+├─ m1_monthly_report_<Manager>_YYYY-MM.gsheet  # M1's own KPI report, not per-person
+├─ _m1_timeline.gsheet                 # living rollup of upcoming/overdue events
+└─ _self_review/<M1 name>/             # M1's own PR self-prep, as the employee being reviewed
+```
+
+Root-level files (risk snapshots, M1's monthly report, `_m1_timeline`) stay
+at the root because they're workspace-wide or about M1 themselves, not
+about one team member — see
+`.agents/skills/qa-management-roles/references/google-workspace-rules.md`,
+M1 Person-Based Layout, for the full rule.
 
 ## M2 Project Layout
 
