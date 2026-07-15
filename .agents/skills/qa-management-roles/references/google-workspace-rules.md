@@ -205,6 +205,17 @@ out of sync. Columns:
   but don't let one overwrite or dilute the other.
 - `Notes` — anything uncertain, stated explicitly, including any
   cross-project management duty per the `Project(s)` rule above.
+- `Дата трудоустройства` — hire date (`YYYY-MM-DD`), for the company people
+  only. Leave blank when not known; ask rather than guess — this is the
+  anchor date for the probation-closing Performance Review (hire date + 3
+  months, see `qa-management-roles/references/performance-review-rules.md`),
+  so a wrong guess here silently mis-schedules a PR.
+- `Дата последнего PR` — the date of the person's most recently completed
+  Performance Review (`YYYY-MM-DD`), the company people only. Blank means no
+  PR has happened yet (still pre-probation-close), not "unknown" — do not
+  fill it from a guess. M1 (or M2/M3 for their own PR) updates this cell
+  right after a PR actually happens; `m1-timeline`'s cadence computation
+  (expected next PR = this date + 6 months) depends on it staying current.
 
 `Aliases / STT variants`, `Status`, and `Confirmed by M2` were removed —
 this table exists to log people who come up in discussions or calls, not to

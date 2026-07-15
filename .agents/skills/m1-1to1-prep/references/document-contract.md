@@ -35,19 +35,19 @@ line.
   `1to1_prep_<YYYY-MM-DD>` in `10_M1_People_Management\<Person>\` (create
   the person subfolder if the existing layout doesn't already have one).
   Do not overwrite a prior date's prep.
-- Do not write into the people-risk Sheet, the person's 1to1 Sheet, or
-  their OKR Doc from this skill — those get updated from what the 1to1
-  actually produces (via `qa-1to1-analysis`, `m1-people-risk-report`,
-  `m1-people-1to1-file`, `m1-individual-development-plan`), not from what
-  was planned to be asked.
+- Do not write into the people-risk Sheet, the person's 1to1 Sheet, their
+  OKR Doc, or `_m1_timeline` from this skill — those get updated from what
+  the 1to1 actually produces (via `qa-1to1-analysis`, `m1-people-risk-report`,
+  `m1-people-1to1-file`, `m1-individual-development-plan`, `m1-timeline`),
+  not from what was planned to be asked.
 
 ## Source Priority
 
 See SKILL.md, Source Order — the person's current people-risk row is the
 primary driver, followed by its own `План действий`, then the most recent
 1to1 Sheet row's open follow-up, then any overdue Key Result in the
-person's current-cycle OKR Doc, then any not-yet-folded-in transcript
-findings.
+person's current-cycle OKR Doc, then this person's open `_m1_timeline`
+rows, then any not-yet-folded-in transcript findings.
 
 ## Normalization
 

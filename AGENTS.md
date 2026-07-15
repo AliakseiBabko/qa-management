@@ -69,6 +69,9 @@ Current canonical skills:
 | `m1-people-1to1-file` | M1 | Individual person Google Sheet in `10_M1_People_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
 | `m1-people-risk-report` | M1 | Dated people risk traffic-light Google Sheet, with CSV fallback, based on `Templates/светофор_рисков.csv` from this repo | `.agents/skills/m1-people-risk-report/SKILL.md` |
 | `m1-individual-development-plan` | M1 | Individual OKR Google Doc per Performance Review cycle, with Markdown fallback, based on `Templates/okr_m1.md` from this repo | `.agents/skills/m1-individual-development-plan/SKILL.md` |
+| `m1-timeline` | M1 | Workspace-wide `_m1_timeline` Google Sheet (Performance Reviews computed from real PR cadence, OKR cycle closures, monthly-report deadlines, follow-ups), with CSV fallback | `.agents/skills/m1-timeline/SKILL.md` |
+| `m-self-review` | Common (M1/M2) | M1's/M2's own Performance Review self-prep: dated `критерии_оценки_команды` team-scoring Google Sheet (CSV fallback) plus a chat-ready self-review prep summary | `.agents/skills/m-self-review/SKILL.md` |
+| `salary-review-prep` | Common | Salary-review self-feedback Google Doc draft (evidence-backed value growth, AI-competency status, blocker pre-check) for a team member or for M1/M2 themselves, based on `Templates/salary_review_self_feedback.md` | `.agents/skills/salary-review-prep/SKILL.md` |
 | `m2-people-1to1-file` | M2 | Individual person Google Sheet in `20_M2_Project_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m2-people-1to1-file/SKILL.md` |
 | `m2-project-risk-report` | M2 | Project risk traffic-light Google Sheet, with CSV fallback | `.agents/skills/m2-project-risk-report/SKILL.md` |
 | `m2-project-qa-metrics-report` | M2 | Project-level QA metrics Google Sheet, with CSV fallback | `.agents/skills/m2-project-qa-metrics-report/SKILL.md` |

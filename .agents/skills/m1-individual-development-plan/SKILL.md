@@ -27,14 +27,20 @@ Neither of those skills writes back into the OKR Doc — status/result
 updates land here only when the user is actually working on this skill's
 output.
 
+`m1-timeline`'s `scan_m1_events.py` reads this Doc's title (`OKR к
+Perfomance review DD.MM.YY`) to surface upcoming/overdue Performance
+Review dates and people missing a current OKR entirely — another
+read-only downstream consumer, same as the two above.
+
 ## Required Start
 
 1. Read `references/document-contract.md`.
 2. Read `references/okr-process-rules.md`.
-3. Read `../qa-management-roles/references/google-workspace-rules.md`.
-4. Read `../qa-management-roles/references/m1-role-rules.md`.
-5. Identify the target person, their current project (or bench status), and the Performance Review date this OKR is for.
-6. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, and — if they're on a project — that project's context (tech stack, tools, current focus).
+3. Read `../qa-management-roles/references/performance-review-rules.md` for the real PR cadence (used to compute the Doc title date, see Workflow step 4).
+4. Read `../qa-management-roles/references/google-workspace-rules.md`.
+5. Read `../qa-management-roles/references/m1-role-rules.md`.
+6. Identify the target person, their current project (or bench status), and the Performance Review date this OKR is for.
+7. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, their `_people_registry` row (`Дата трудоустройства`/`Дата последнего PR`), and — if they're on a project — that project's context (tech stack, tools, current focus).
 
 ## Workflow
 
@@ -45,8 +51,9 @@ output.
    - **Soft skills / командная работа** — source only from the person's `1to1` Sheet, people-risk report, and any explicit manager notes. Do not invent a growth area with no evidence behind it. If there's no usable signal for the period, say so plainly and leave the KR open/general (e.g. "collect team feedback") instead of manufacturing an issue.
    - **Департамент** — an activity the person chooses for themselves (mentoring, meetup, internal course, process help). Frame it as their pick, not an assignment.
 3. Every Key Result carries: the action, "Критерии для оценки" (acceptance criteria), "Результат" (what gets produced/shown), a deadline, and a status. This is a Confluence-mandated format — do not drop any of the four fields even to keep things short.
-4. If the OKR is being drafted after a specific Performance Review date, name the Doc/title accordingly (`OKR к Perfomance review DD.MM.YY`) per `references/okr-process-rules.md`.
+4. Name the Doc title's date using the real cadence, not an arbitrary guess: `Дата последнего PR + 6 months` if set, else `Дата трудоустройства + 3 months` for a first/probation-closing OKR (see `performance-review-rules.md`, "Deriving Expected Next PR Date"). If neither is known in `_people_registry`, ask rather than invent a date.
 5. When closing out an existing OKR (new PR cycle), require a status and result on every KR from the prior cycle before starting the new one; unresolved KRs either get an explicit "не достигнуто" status or are carried into the new OKR — never silently dropped.
+6. After the PR that closes this cycle actually happens, update that person's `Дата последнего PR` in `_people_registry` to the real PR date — this is what keeps `m1-timeline`'s cadence tracking accurate; a new OKR Doc alone doesn't update it.
 
 ## Guardrails
 
@@ -56,3 +63,4 @@ output.
 - Do not duplicate `individual_metrics`/project-metrics values here — reference them, don't restate.
 - Do not create the OKR for unpaid interns — they follow a separate internship program, not this OKR process.
 - Do not skip the "Критерии для оценки" / "Результат" / deadline / status fields on any KR, even for a short/placeholder objective.
+- This skill drafts OKR content for **any one person**, including an M1's or M2's own OKR when they're preparing for their own Performance Review (see `m-self-review`) — the Doc mechanics (skeleton, required KR fields, cadence-based title date) are identical either way. The only thing that changes is where the Doc lives: a team member's own `10_M1_People_Management\<Person>\` (or project) folder vs. `_self_review\<Person>\` for an M-manager's own OKR — see `m-self-review`'s document-contract.md. Confirm which case applies rather than assuming from context.

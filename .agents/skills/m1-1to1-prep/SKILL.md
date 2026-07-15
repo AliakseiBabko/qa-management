@@ -20,6 +20,8 @@ happened yet.
 3. Read `../qa-management-roles/references/m1-role-rules.md`.
 4. Read the person's current-cycle OKR Doc if one exists (see
    `m1-individual-development-plan`).
+5. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
+   against this person.
 
 ## Scope
 
@@ -53,7 +55,10 @@ person's experience of it, not the project's fix.
    for a project-tied Техническое развитие KR, a light "on track / blocked"
    check is enough — a deep technical review belongs to the person and, if
    project-caused, to `m2-1to1-prep`, not here.
-5. Any `qa-1to1-analysis` findings from a transcript newer than the last
+5. This person's open rows in `_m1_timeline` (`m1-timeline`) — any event
+   not covered by sources 1-4 (e.g. a logged reminder unrelated to risk or
+   OKR) becomes a direct follow-up question.
+6. Any `qa-1to1-analysis` findings from a transcript newer than the last
    risk-sheet update, if one exists and hasn't been folded in yet.
 
 ## Workflow
@@ -79,9 +84,10 @@ person's experience of it, not the project's fix.
 - If the person has no risk-sheet row yet, say so plainly rather than
   inventing generic onboarding questions not grounded in their actual
   history.
-- Do not write into the OKR Doc from this skill — status/result updates
-  that come out of the actual 1to1 get applied via
-  `m1-individual-development-plan`, not from what was planned to be asked.
+- Do not write into the OKR Doc or `_m1_timeline` from this skill —
+  status/result updates and event-closure that come out of the actual
+  1to1 get applied via `m1-individual-development-plan`/`m1-timeline`, not
+  from what was planned to be asked.
 - If the person has no current-cycle OKR Doc, say so plainly rather than
   treating it as nothing to ask about — a missing OKR past its due date is
   itself worth a question.

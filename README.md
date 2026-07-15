@@ -370,6 +370,61 @@ mechanical placeholders — see `m2-timeline` SKILL.md for how to turn a raw
 candidate (e.g. an unclear benchmark status) into a real scheduled action
 (e.g. a 1:1 to clarify it) before logging it for real.
 
+M1's people-side counterpart — Performance Review dates, OKR cycle
+closures, and monthly-report deadlines — is handled by:
+
+- `.agents/skills/m1-timeline`
+
+Unlike `m2-timeline`, this is a single flat `_m1_timeline` Google Sheet
+directly under `10_M1_People_Management` (CSV fallback `_m1_timeline.csv`,
+template `Templates/m1_timeline.csv`) — M1's team is small enough that a
+per-project-style Sheet-plus-rollup isn't needed. `scan_m1_events.py`
+derives candidates mechanically: it reads every OKR Doc's title (`OKR к
+Perfomance review DD.MM.YY`) to surface upcoming/overdue Performance
+Reviews and people missing a current OKR, cross-checks that against an
+expected-next-PR date computed from `_people_registry`'s `Дата
+трудоустройства`/`Дата последнего PR` (real cadence: last PR + 6 months,
+or hire date + 3 months for a first/probation-closing PR — see
+`qa-management-roles/references/performance-review-rules.md`), and checks
+`m1_monthly_report_<Manager>_YYYY-MM` presence to surface an overdue
+monthly report. Same read-only-by-default / `--write` split as
+`scan_open_questions.py`, writing its bundle to
+`80_Exports/open_questions_review/YYYY-MM-DD_m1.md`.
+
+## Self-Review (M1/M2)
+
+M1's and M2's own Performance Review self-prep — as the employee being
+reviewed by M3, not as the manager running PR for their team — is handled
+by:
+
+- `.agents/skills/m-self-review`
+
+Two outputs: a dated `критерии_оценки_команды` Google Sheet per PR cycle
+(CSV fallback, template `Templates/критерии_оценки_команды.csv`, scoring
+rules in the skill's `references/team-criteria-rules.md`), scoring the
+manager's own team on 17 metrics out of 34 points (70%+ = effective team);
+and a chat-ready self-review prep summary (own OKR recap, team score,
+outstanding PGROWTH tasks). Stored under `_self_review\<Person>\` inside
+whichever root the manager's own grade uses
+(`10_M1_People_Management` for M1, `20_M2_Project_Management` for M2) —
+distinct from the team-facing M1 skills above, which are about the
+manager's team, not the manager themselves.
+
+Salary review — which happens inside a PR for eligible employees — is a
+separate skill since it applies to any employee, not just M1/M2:
+
+- `.agents/skills/salary-review-prep`
+
+Produces a dated `salary_review_self_feedback` Google Doc draft (template
+`Templates/salary_review_self_feedback.md`): evidence-backed value growth
+(excluding routine on-level work), AI-competency assessment status
+(verified only by the named AI leads, never self-certified), and a
+blocker pre-check (developmental dynamics, AI competency, bench status,
+feedback, department engagement — see
+`qa-management-roles/references/salary-review-rules.md`). Usable both for
+M1 supporting a QA team member's own self-feedback and for M1/M2
+preparing their own, alongside `m-self-review`.
+
 ## Monthly Reports
 
 Monthly KPI report skills:
