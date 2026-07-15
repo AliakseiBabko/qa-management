@@ -74,6 +74,7 @@ Current canonical skills:
 | `salary-review-prep` | Common | Salary-review self-feedback Google Doc draft (evidence-backed value growth, AI-competency status, blocker pre-check) for a team member or for M1/M2 themselves, based on `Templates/salary_review_self_feedback.md` | `.agents/skills/salary-review-prep/SKILL.md` |
 | `m2-people-1to1-file` | M2 | Individual person Google Sheet in `20_M2_Project_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m2-people-1to1-file/SKILL.md` |
 | `m2-project-risk-report` | M2 | Project risk traffic-light Google Sheet, with CSV fallback | `.agents/skills/m2-project-risk-report/SKILL.md` |
+| `m2-project-process-checklist` | M2 | Living per-project outsource QA process-maturity checklist Google Sheet (12 sections), with CSV fallback, based on `Templates/аутсорс_чек_лист_qa.csv` | `.agents/skills/m2-project-process-checklist/SKILL.md` |
 | `m2-project-qa-metrics-report` | M2 | Project-level QA metrics Google Sheet, with CSV fallback | `.agents/skills/m2-project-qa-metrics-report/SKILL.md` |
 | `m2-individual-qa-metrics-report` | M2 | Individual QA metrics Google Sheet within project scope, with CSV fallback | `.agents/skills/m2-individual-qa-metrics-report/SKILL.md` |
 | `m2-project-development-plan` | M2 | Project-level development-plan Google Sheet, with CSV fallback | `.agents/skills/m2-project-development-plan/SKILL.md` |

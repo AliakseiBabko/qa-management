@@ -70,6 +70,7 @@ Each project folder follows this shape:
 ```text
 20_M2_Project_Management/<Project>/
 ├─ project_risk.gsheet
+├─ process_checklist.gsheet     # living outsource QA process-maturity checklist (12 sections)
 ├─ project_development_plan.gsheet
 ├─ project_metrics.gsheet       # M2-only dashboard, see below — never shared with the team
 ├─ qa_process_metrics.gsheet    # engineer-filled, project-wide QA-process facts
@@ -102,6 +103,19 @@ should update the whole chain in the same pass — see `m2-role-rules.md`,
 Cascading Updates. Metric definitions and which artifact each one belongs
 in: `Templates/метрики_qa_по_проекту.md` (individual) and
 `Templates/метрики_проекта_qa.md` (project/QA-process/dashboard).
+
+**Process checklist**: `.agents/skills/m2-project-process-checklist`
+maintains `process_checklist` — a living, 22-question/12-section record of
+outsource QA process maturity (requirements/docs, roles, environment,
+communication, test docs/tooling, quality/test types, dev process, bugs,
+regression, releases, change management, Quality Gates), based on
+`Templates/аутсорс_чек_лист_qa.csv`. A missing item is not automatically a
+project risk — the skill's `references/outsource-operating-principles.md`
+(from the "Роль М2 на аутсорс проекте" / "Особенности работы на аутсорс
+проектах" articles) covers when a gap is a reasonable trade-off under
+fixed scope/timeline vs. a real gap, and lists when QA should escalate to
+M2. A gap judged a real risk gets logged into `project_risk`'s `Риск QA
+process` column, not left to live only in the checklist.
 
 Broad KT/session sources should be split by project before updating final files.
 Use `evidence_log` as the append-only trace of which source changed which project
