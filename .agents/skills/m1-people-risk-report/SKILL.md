@@ -18,6 +18,7 @@ Use this skill for one output family only:
 
 ## Workflow
 
+0. For the actual write, use `.agents\scripts\update_m1_risk_row.py` rather than hand-rolling a Sheets API call — it handles existing-row lookup vs. new-row, `Дата обновления` bookkeeping, and the risk-scale validation below in one place. Dry-run by default; `--apply` writes.
 1. Use `Templates\светофор_рисков.csv` from this repository only when the `Светофор рисков` Sheet doesn't exist yet.
 2. One row per employee. Update that person's existing row in place when their risk status changes — do not append a duplicate row for someone already on the Sheet.
 3. Keep the schema stable:
