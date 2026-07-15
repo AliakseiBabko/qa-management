@@ -25,8 +25,7 @@ owners and different audiences — never merge them into one file.
   Sheet column schema.
 - `<repo-root>\Templates\метрики_проекта_qa.md` — catalogue covering both
   artifacts and how to choose among their candidate metrics. Derived from
-  `00_Source_Docs\M2_project_development_plan` and <Project>'s/<Project>'s
-  actual content.
+  `00_Source_Docs\M2_project_development_plan` and real project content.
 - `<repo-root>\Templates\метрики_qa_по_проекту.csv` / `.md`
   For individual QA metrics inside the project scope.
 

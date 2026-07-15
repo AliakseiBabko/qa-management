@@ -124,7 +124,7 @@ Standard project folder shape:
 Do not create a project-local `source_docs` folder. `00_Source_Docs\<Project>`
 is already the canonical source layer — a per-project copy has no automated
 way to stay in sync with it and will just go stale (this happened once
-already: a one-off script copied <Project>'s source files into
+already: a one-off script copied a project's source files into
 `20_M2_Project_Management\<Project>\source_docs`, and it was never kept
 current or repeated for any other project). Reference `00_Source_Docs`
 directly instead of copying from it.
@@ -169,8 +169,8 @@ inactive in place; archived projects don't belong in a dashboard meant for
 current attention. A **client-driven pause that hasn't been officially
 ended** (e.g. a client-requested hold with an explicit "not a
 cancellation") is not this case — it stays in the registry with `Статус` =
-`На паузе` until M2 confirms it's actually stopped or reactivates it (real
-example: <Project>, 2026-07-13). Columns are `Проект`, `People`,
+`На паузе` until M2 confirms it's actually stopped or reactivates it.
+Columns are `Проект`, `People`,
 `Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
 or folder-navigation link; those don't belong in a summary dashboard.
 
@@ -203,9 +203,10 @@ out of sync. Columns:
   show up performing an M1/M2/DC duty for someone else's team — a person's
   main staffed project and a cross-project management hat they wear for
   other people are two different facts and must not be merged into one
-  column. E.g. an AQA staffed on <Project> who also acts as M2 for a QA on
-  <Project> keeps `Project(s)` = `<Project>`; the <Project> M2 duty goes in
-  `Notes`, naming the project(s) it covers. Multiple people commonly wear
+  column. E.g. an AQA staffed on `<Project A>` who also acts as M2 for a
+  QA on `<Project B>` keeps `Project(s)` = `<Project A>`; the `<Project
+  B>` M2 duty goes in `Notes`, naming the project(s) it covers. Multiple
+  people commonly wear
   more than one hat (staffed role + M1/M2/DC duty elsewhere) — capture both,
   but don't let one overwrite or dilute the other.
 - `Notes` — anything uncertain, stated explicitly, including any
@@ -444,8 +445,8 @@ When asked to analyze a `.docx` or `.xlsx` source file, use
 functions can be imported and called directly on a single file, without
 running the full CLI) rather than reaching for a separate library — it
 reads `.xlsx`/`.docx` straight from the zip/XML package with no external
-dependencies, which is what already made analyzing `Assessment matrix AQA
-the company.xlsx` and the <Project> source docs work without needing to
+dependencies, which is what already made analyzing an internal assessment
+matrix workbook and a project's source docs work without needing to
 install anything.
 
 Before extracting, check whether the file has already been processed:

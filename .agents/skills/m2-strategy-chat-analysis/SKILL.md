@@ -90,9 +90,9 @@ editing an already-logged file in place makes new content invisible to it.
      pending one, whichever the doc's current state calls for; you don't
      need to check `get_last_round_status()` or choose between
      `append_doc_round`/`append_to_pending_round` yourself (an earlier,
-     lower-level version of this API made that choice wrong once — see
-     <Project>'s m2_input history/evidence_log, 2026-07-13 — `add_questions`
-     exists specifically so that mistake isn't repeated). If M2 answers a
+     lower-level version of this API made that choice wrong once on a real
+     project — `add_questions` exists specifically so that mistake isn't
+     repeated). If M2 answers a
      round directly in conversation, write it with `add_answer()`, which
      requires a round to actually be pending.
 5. Update the `evidence_log` row `detect_strategy_chats.py` already created
@@ -121,8 +121,9 @@ editing an already-logged file in place makes new content invisible to it.
   that happens to appear first when skimming.
 - Do not conflate "this person acts as M1/M2/DC for someone on this project"
   with "this person is staffed on this project." A strategy chat is exactly
-  where this shows up — e.g. an <Project>-staffed AQA who also acts as M2 for a
-  <Project> QA is not staffed on <Project>. `_people_registry`'s
+  where this shows up — e.g. an AQA staffed on `<Project A>` who also acts
+  as M2 for a QA on `<Project B>` is not staffed on `<Project B>`.
+  `_people_registry`'s
   `Project(s)` column is staffing only; a cross-project management duty goes
   in `Notes`, naming which project(s) it covers (see
   `google-workspace-rules.md`'s `Project(s)` definition). Someone can and

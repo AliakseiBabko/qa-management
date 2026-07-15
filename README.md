@@ -117,6 +117,19 @@ fixed scope/timeline vs. a real gap, and lists when QA should escalate to
 M2. A gap judged a real risk gets logged into `project_risk`'s `Риск QA
 process` column, not left to live only in the checklist.
 
+**Presale / upsell**: `qa-management-roles/references/presale-upsell-rules.md`
+covers M2's account-growth responsibility — diagnostic markers for a QA/AQA
+resourcing gap, automation-readiness criteria (project stage, duration,
+team size, regression volume), the upsell problem/benefit framework, the
+productized service menu (test-case writing, smoke/critical execution, UI/
+API automation, CI/CD integration, plus accessibility/security add-ons),
+and the escalation path (Head of QA / presale lead) for building a real
+pitch. `project_development_plan` carries this as its own "Возможности
+расширения (Upsell)" section (§4, see `Templates/план_развития_проекта.md`)
+and `m2-project-status-report` as an optional section — both only when a
+real diagnostic signal or conversation exists, never as generic
+service-menu filler.
+
 Broad KT/session sources should be split by project before updating final files.
 Use `evidence_log` as the append-only trace of which source changed which project
 files — including conversational updates, not just automated syncs. Keep
@@ -175,20 +188,19 @@ python .agents\scripts\google_api_smoke_test.py --auth service-account --credent
 
 Add `--keep-files` if you want to inspect the created Sheet and Doc manually.
 
-## M2 batch generation (legacy first-pass tools)
+## M2 batch generation (legacy first-pass tool)
 
 `generate_m2_outputs.py` (stays in `.agents\scripts\` — the current pipeline
-imports functions from it) and `.agents\scripts\legacy\reorganize_m2_project_workspace.py`
-were the original bulk-migration tools for turning raw extracted source
-docs into the first version of each project's folder. `.agents\scripts\legacy\process_remaining_intake.py`
-is a similar one-off with hardcoded dates/people/rows from a specific past
-intake batch. None of these are the day-to-day pipeline anymore — see
-"Current pipeline scripts" further down for what actually runs now. The two
-scripts under `.agents\scripts\legacy\` are one-off/historical by
-construction (hardcoded paths, dates, or batches) and are not meant to be
-rerun against current live project folders at all; `generate_m2_outputs.py`
-is safer to invoke standalone but still only produces rough first-pass
-output that needs the current templates applied on top.
+imports functions from it) was one of the original bulk-migration tools for
+turning raw extracted source docs into the first version of each project's
+folder. It is not the day-to-day pipeline anymore — see "Current pipeline
+scripts" further down for what actually runs now. It is safer to invoke
+standalone than the other original migration tools were (removed from this
+repo — see Git history if the one-off migration logic is ever needed again;
+they were one-off/historical by construction, hardcoded with real project
+data, and not meant to be rerun against current live project folders at
+all), but still only produces rough first-pass output that needs the
+current templates applied on top.
 
 After extraction, generate first-pass M2 CSV outputs with:
 
@@ -207,15 +219,13 @@ Default output:
 The generator preserves source evidence and writes draft CSVs for project risks, project metrics,
 individual QA metrics, project development plans, and individual development plans.
 
-To reorganize generated or KT-derived M2 data into project folders, use:
-
-```powershell
-python .agents\scripts\legacy\reorganize_m2_project_workspace.py
-```
-
-This script creates project folders, project-local CSV fallbacks, Google Sheets,
-and an M2 project registry. It is a one-off migration/setup utility from
-before the current per-project folder shape existed — do not rerun it.
+Reorganizing generated or KT-derived M2 data into project folders (creating
+project folders, project-local CSV fallbacks, Google Sheets, and an M2
+project registry) was previously a one-off migration/setup script from
+before the current per-project folder shape existed; it has been removed
+from this repo since its logic was hardcoded around a specific real past
+migration batch. Recreate it fresh if a similar one-off migration is ever
+needed again, rather than reusing hardcoded historical data.
 
 ## Current pipeline scripts
 
@@ -247,10 +257,9 @@ These are what actually runs day to day, once a project's folder already exists:
   (writes into the current pending round, raises if none is pending). Use
   these two, not the lower-level `append_doc_round()`/
   `append_to_pending_round()` they're built on — picking between those two
-  manually produced a real bug once (<Project>, 2026-07-13, see its
-  evidence_log): appending answer content with the wrong one landed it
-  before the empty answer heading and made `get_last_round_status()`
-  wrongly read the round as still pending.
+  manually produced a real bug once on a real project: appending answer
+  content with the wrong one landed it before the empty answer heading and
+  made `get_last_round_status()` wrongly read the round as still pending.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
   Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`
@@ -264,11 +273,10 @@ These are what actually runs day to day, once a project's folder already exists:
   `individual_metrics`/`individual_development_plan` for a track/level
   mismatch against the card (see `m2-role-rules.md`, Вклад в проект
   Calibration) and prints a heads-up, not a resolution. Known gap: it only
-  checks *current* Project(s) — someone recently moved off a project (e.g.
-  <Name>, <Project> → <Project2>) leaves their mismatch evidence
-  behind in the old project's docs, invisible to this scan; a clean result
-  isn't proof there's no mismatch for someone who's changed projects
-  recently.
+  checks *current* Project(s) — someone recently moved off a project leaves
+  their mismatch evidence behind in the old project's docs, invisible to
+  this scan; a clean result isn't proof there's no mismatch for someone
+  who's changed projects recently.
 - `sync_m2_source_docs_to_sheets.py` — syncs source docs into `evidence_log`
   and `individual_metrics` Sheets (real append-only merge, not overwrite).
   `project_risk` and `project_metrics` are bootstrap-only: it creates a

@@ -36,7 +36,7 @@ Suggested naming pattern:
   the first time (or fixing a row that reads like disconnected fragments
   instead of one coherent risk assessment per column), back up the old row
   as `project_risk_predecessor_<date>` and write a real synthesized row from
-  the evidence, the same way <Project>'s and <Project>'s were done.
+  the evidence, the same way this has already been done for other projects.
   `sync_m2_source_docs_to_sheets.py` uses this same extraction path — it
   only creates `project_risk` when one doesn't exist yet (a rough
   bootstrap) and never overwrites an existing one, specifically so rerunning

@@ -7,10 +7,10 @@ Existing scripts are not required to migrate; this just stops the pattern
 from being copy-pasted again going forward.
 
 Also holds append_doc_round() and get_last_round_status() - the m2_input
-round-append logic that got hand-rolled separately for <Project> and
-<Project> (character-offset tracking + paragraph-style requests
-duplicated each time, a real bug risk). New strategy-chat processing should
-call these instead of rewriting the index math.
+round-append logic that got hand-rolled separately for two different
+projects (character-offset tracking + paragraph-style requests duplicated
+each time, a real bug risk). New strategy-chat processing should call
+these instead of rewriting the index math.
 """
 
 from __future__ import annotations
@@ -113,8 +113,8 @@ def append_doc_round(docs_service: Any, doc_id: str, blocks: list[tuple[str, str
     round (see get_last_round_status), use append_to_pending_round instead -
     appending here would land after the empty "Ответ и общие соображения M2"
     heading and make get_last_round_status wrongly read the round as
-    answered (this happened once; see <Project> m2_input history/evidence_log
-    2026-07-13 for the fix).
+    answered (this happened once on a real project; see the project's own
+    m2_input history/evidence_log for the fix).
     """
     doc = docs_service.documents().get(documentId=doc_id).execute()
     end_index = doc["body"]["content"][-1]["endIndex"]
@@ -149,8 +149,8 @@ def add_questions(
 ) -> dict[str, Any]:
     """Add new question/context content to an m2_input Doc - the entry point
     to use instead of picking between append_doc_round and
-    append_to_pending_round yourself (that choice was made wrong once; see
-    <Project> m2_input history/evidence_log 2026-07-13).
+    append_to_pending_round yourself (that choice was made wrong once on a
+    real project; see that project's own m2_input history/evidence_log).
 
     Auto-routes on the doc's current state (via get_last_round_status):
     - a round is pending -> appended as an addendum before the answer

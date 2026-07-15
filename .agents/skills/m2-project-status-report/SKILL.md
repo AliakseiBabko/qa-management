@@ -22,14 +22,15 @@ status now is also writing next month's raw material for that skill.
 1. Read `references/document-contract.md`.
 2. Read `../qa-management-roles/references/google-workspace-rules.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
-4. Identify project, audience, report type, and period:
+4. Read `../qa-management-roles/references/presale-upsell-rules.md` when the project has any expansion/upsell signal to report (see Content Rules, Расширение / Upsell).
+5. Identify project, audience, report type, and period:
    - regular report
    - on-demand report
    - requested project, or all projects if explicitly requested
    - absolute start/end dates for relative periods such as "last week"
-5. If the project is not specified and cannot be inferred from context, ask for the project unless the user clearly wants a multi-project status.
-6. Run `.agents\scripts\show_project_state.py --project <Project> --summary` (or a full dump if you need more) to see current People count — a project with more than one QA needs the per-person/per-stream breakdown (see Chat Text Shape); a single-QA project doesn't.
-7. Review available evidence for the requested period first, then use older artifacts only for context.
+6. If the project is not specified and cannot be inferred from context, ask for the project unless the user clearly wants a multi-project status.
+7. Run `.agents\scripts\show_project_state.py --project <Project> --summary` (or a full dump if you need more) to see current People count — a project with more than one QA needs the per-person/per-stream breakdown (see Chat Text Shape); a single-QA project doesn't.
+8. Review available evidence for the requested period first, then use older artifacts only for context.
 
 ## Source Order
 
@@ -57,11 +58,9 @@ For DOCX/XLSX sources, prefer existing extracted files under `G:\My Drive\QA_Man
 
 ## Destination
 
-Real weekly reports on these projects (<Name> on <Project>/<Project>,
-<Name> on <Project>, <Name> on <Project>) are
-posted directly into the project's own strategy chat — that's the default
-for a regular report, not a saved Doc. Ask if genuinely unclear, but default
-to:
+Real weekly reports on these projects are posted directly into the
+project's own strategy chat — that's the default for a regular report,
+not a saved Doc. Ask if genuinely unclear, but default to:
 
 - **Regular weekly/status update** → chat-ready text for the project's
   strategy chat (paste-ready, per Chat Text Shape). Only also save it as a
@@ -113,6 +112,9 @@ Optional sections when evidence supports them, in either shape:
 - Metrics / quality
 - Feedback / communication
 - Help needed
+- Расширение / Upsell — only when a real diagnostic signal or an actual
+  conversation exists (see `presale-upsell-rules.md`); omit rather than
+  padding with generic upsell language on a project with no such signal.
 
 ## Guardrails
 
@@ -122,3 +124,4 @@ Optional sections when evidence supports them, in either shape:
 - Do not duplicate full risk, metrics, or development-plan reports. Summarize only what is useful for status.
 - If available evidence for the requested period is weak, say that directly and state which sources were missing.
 - Do not default to a saved Doc for a regular report without checking whether the project has an active strategy chat to post into instead — that's the more common real destination.
+- Do not include a Расширение / Upsell section built from generic service-menu language with no project-specific evidence — see `presale-upsell-rules.md`, Rule.
