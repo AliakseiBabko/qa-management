@@ -373,6 +373,11 @@ literal evidence citations.
 - Use the smoke-test-proven Google APIs: Drive API, Sheets API, Docs API.
 - Do not print credentials, token JSON, client secrets, or authorization URLs containing sensitive parameters unless needed for user action.
 - Keep `.local\google\credentials.json` and `.local\google\token.json` out of git.
+- Real data read from the Drive API (names, emails, project specifics)
+  stays in conversation/generated Drive output — never write it back into
+  this repository's own tracked files (skills, references, templates,
+  scripts, commit messages) as an "example" or "for context." See
+  `AGENTS.md`, "No Sensitive Data In This Repository."
 - If Google API access fails, fall back to writing the established local CSV/Markdown artifact under `G:\My Drive\QA_Management` and state that the Google API write failed.
 - The OAuth client only has `drive.file` scope: it can read metadata for any
   file (via `drive.metadata.readonly`), but can only rename/move/trash files

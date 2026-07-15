@@ -9,17 +9,51 @@ This repository stores QA-management agent infrastructure for both:
 - `M1` people-management workflows
 - `M2` project-management workflows
 
+## No Sensitive Data In This Repository
+
+This repository is **public**. It holds abstract skill logic, templates,
+and scripts only — never real business data. Before writing or editing
+any file here (skills, references, templates, scripts, README/AGENTS
+content, commit messages), check that it contains none of:
+
+- a real person's name (employee, client, candidate — first name alone
+  included, if it identifies someone in context), in any script
+- a real company name — including this tool's own operating company; use
+  `Internal`/`the company` generically (see Company context below)
+- a real client/project codename
+- a real email address, phone number, or other contact detail
+- verbatim content copied from a real transcript, chat, 1:1, risk
+  narrative, or similar first-party source, even as an "example"
+- any other detail that identifies a specific real person, team, or
+  engagement
+
+If a rule or example needs illustrating, use a placeholder
+(`<Person>`/`<Имя>`, `<Project>`, `<email>`) or describe the pattern in
+the abstract ("a real example seen on this kind of team looks like...")
+instead of naming the actual instance. This applies to commit messages
+too, not just file content — a redacted file with an identifying commit
+message defeats the point.
+
+Real names, real project data, and any other company-specific detail
+belong **only** in the corporate Google Drive workspace referenced below
+— principally `_people_registry` for who's who, and each project's own
+folder for project-specific facts. Skills should read/write that data via
+the Drive API at runtime, never hardcode it here.
+
+If you ever find real data that leaked into this repo (an example,
+a leftover reference, a stray script), don't just delete it going
+forward — flag it, since it may also need scrubbing from git history
+(`git log --all -p` still exposes it even after a file is fixed/deleted
+in the current tree).
+
 **Company context**: skills here assume a QA department inside an
 outsource software development company, staffing engineers onto client
-projects. This repository is public and holds only abstract skill logic
-and templates — no real company name, employee names, or client/project
-names. `Side` values are `Internal` (this company's own staff) vs.
+projects. `Side` values are `Internal` (this company's own staff) vs.
 `Client` (client-side or third-party vendor people) — never the literal
-company name. Real company/employee/client data lives only in the private
-`_people_registry` and the corporate Google Drive workspace referenced
-below, never in this repo. If you're adapting this repository for a real
-company, `apply_person_card.py`'s `COMPANY_EMAIL_DOMAIN`/
-`COMPANY_SIDE_LABEL` are the one place a real domain gets configured.
+company name. If you're adapting this repository for a real company,
+`apply_person_card.py`'s `COMPANY_EMAIL_DOMAIN`/`COMPANY_SIDE_LABEL` are
+the one place a real domain gets configured — and that file stays local/
+private, not committed with a real value filled in.
 
 Business data and generated outputs live in the QA Management Google Drive workspace:
 
