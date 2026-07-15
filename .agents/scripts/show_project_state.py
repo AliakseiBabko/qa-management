@@ -38,7 +38,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_last_round_status, get_services
+from pipeline_common import get_last_round_status, get_pending_round_questions, get_services
+from scaffold_project_dashboard import EMPTY_ROUND_PLACEHOLDER
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_sheet_in_folder, q_escape, read_sheet_values
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -202,7 +203,11 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
         if m2_input_doc:
             status = get_last_round_status(services["docs"], m2_input_doc["id"])
             if status["pending"]:
-                m2_input_note = f", m2_input: раунд {status['round_date']} ожидает ответа M2"
+                pending_text = get_pending_round_questions(services["docs"], m2_input_doc["id"])
+                if pending_text.strip() == EMPTY_ROUND_PLACEHOLDER:
+                    m2_input_note = f", m2_input: пустой раунд-заглушка ({status['round_date']})"
+                else:
+                    m2_input_note = f", m2_input: раунд {status['round_date']} ожидает ответа M2"
             elif status["pending"] is False:
                 m2_input_note = f", m2_input: раунд {status['round_date']} отвечен"
 

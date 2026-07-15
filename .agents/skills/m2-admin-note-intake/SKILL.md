@@ -34,6 +34,8 @@ intake skills:
    (topology risk) and Communication and Visibility sections — a chat
    topology finding is often itself a risk signal, not just registry
    housekeeping.
+3. Check `../qa-management-roles/references/aliases.md` before treating an
+   unfamiliar project/person name from the note as new.
 
 ## Workflow — Person Cards
 
