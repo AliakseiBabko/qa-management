@@ -8,6 +8,13 @@ whole sheet's total width within a single 1920x1200 laptop screen; when a
 column's content genuinely needs more room to stay under ~5 wrapped lines,
 that constraint wins over fitting on screen.
 
+Also resets every cell to a standard, uncolored look (white background,
+black text) and un-collapses rows - clears any leftover `hiddenByUser` flag
+and auto-resizes row height to fit wrapped content. A row that looks
+"collapsed"/clipped is usually just a stale fixed row height left over from
+before WRAP was turned on, not an actual fold - a real case of a row's full
+multi-line comment being invisible in the UI was found and fixed this way.
+
 When a sheet has few enough columns that everyone's true single-line width
 still fits on screen (e.g. `_m1_pr_calendar`, `_m2_pr_calendar`-style views),
 columns are widened up to that single-line width instead of being capped at
@@ -70,6 +77,20 @@ MIN_WIDTH_PX = 90
 MAX_WIDTH_PX = 420
 TARGET_LINES = 5
 SCREEN_BUDGET_PX = 1780  # ~1920px laptop screen minus browser chrome/row numbers
+LINE_HEIGHT_PX = 21  # observed default single-line row height
+MAX_ROW_HEIGHT_PX = 800  # sanity cap so one runaway cell can't blow out the sheet
+
+
+def cell_line_count(text: str, width_px: int) -> int:
+    """How many wrapped lines `text` needs at `width_px` - explicit newlines force
+    a break regardless of width; each segment between them wraps on its own."""
+    if not text:
+        return 1
+    chars_per_line = max(1, int((width_px - CELL_PADDING_PX) / CHAR_WIDTH_PX))
+    lines = 0
+    for segment in text.split("\n"):
+        lines += max(1, -(-len(segment) // chars_per_line))  # ceil div
+    return max(1, lines)
 
 
 DEFAULT_ROOTS = ["10_M1_People_Management", "20_M2_Project_Management"]
@@ -193,9 +214,12 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
                             "wrapStrategy": "WRAP",
                             "horizontalAlignment": "LEFT",
                             "verticalAlignment": "TOP",
+                            "backgroundColor": {"red": 1, "green": 1, "blue": 1},
+                            "textFormat": {"foregroundColor": {"red": 0, "green": 0, "blue": 0}},
                         }
                     },
-                    "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment,verticalAlignment)",
+                    "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment,verticalAlignment,"
+                    "backgroundColor,textFormat.foregroundColor)",
                 }
             }
         )
@@ -209,6 +233,45 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
                     }
                 }
             )
+        # Un-collapse: clear any manually-fixed/shrunk row height and any
+        # hiddenByUser flag left over from a source template. autoResizeDimensions
+        # does not override an explicit pre-existing pixelSize (a real case of a
+        # multi-line comment being invisible under a stale fixed row height, from
+        # before WRAP was ever turned on, was found this way) - so instead compute
+        # each row's real needed height from its wrapped line count at the final
+        # column widths, same heuristic as column_width, and set it explicitly.
+        requests.append(
+            {
+                "updateDimensionProperties": {
+                    "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": 0, "endIndex": row_count},
+                    "properties": {"hiddenByUser": False},
+                    "fields": "hiddenByUser",
+                }
+            }
+        )
+        row_heights = [
+            min(MAX_ROW_HEIGHT_PX, LINE_HEIGHT_PX * max(
+                (cell_line_count(col_values[i][row_idx], widths[i]) for i in non_empty_cols), default=1,
+            ))
+            for row_idx in range(len(values))
+        ]
+        # Collapse consecutive rows sharing the same computed height into one
+        # range request instead of one request per row - most rows in a typical
+        # sheet are single-line, so this stays small even for hundreds of rows.
+        run_start = 0
+        for row_idx in range(1, len(row_heights) + 1):
+            if row_idx < len(row_heights) and row_heights[row_idx] == row_heights[run_start]:
+                continue
+            requests.append(
+                {
+                    "updateDimensionProperties": {
+                        "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": run_start, "endIndex": row_idx},
+                        "properties": {"pixelSize": row_heights[run_start]},
+                        "fields": "pixelSize",
+                    }
+                }
+            )
+            run_start = row_idx
         log_parts.append(f"{title}: {len(non_empty_cols)} cols, total_width={sum(widths.values())}px")
 
     if requests:

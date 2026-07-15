@@ -20,8 +20,10 @@ then copy-pastes the result back into the shared table by hand.
   (`M2/DC`, `Project`, `QA team`, `Strategy chat`, `From - To`, `Status`,
   `Risks/comments`, `Action Plan`, `FTE`, `Project roadmap`, `Personal
   development plan`, `Upsale opportunity`, `Upsale comment`) - match its
-  existing structure and formatting, don't impose this workspace's schema
-  or run `format_all_sheets.py` on it.
+  existing column structure, don't impose this workspace's schema on it.
+  Readability formatting (wrap/align/column-width/row-height/no-fill via
+  `format_all_sheets.py`'s `format_sheet()`) is fine and expected to apply
+  here too - see Guardrails.
 - Not a status report: `m2-project-status-report` produces a period-scoped
   update for a project's own strategy chat. This skill produces a
   point-in-time row in someone else's cross-project dashboard.
@@ -116,6 +118,17 @@ then copy-pastes the result back into the shared table by hand.
   `_people_registry`/`project_metrics`. Data flows one way: from this
   workspace's real evidence into the department tracker, not back.
 - Never edit rows outside M2's own block.
-- Don't apply this workspace's Sheet-formatting conventions
-  (`format_all_sheets.py`, wrap/align/column-width rules) to this file -
-  it's the department's own template with its own existing formatting.
+- Do apply `format_all_sheets.py`'s `format_sheet()` (import and call it
+  directly with this file's spreadsheet ID - it lives outside the folder
+  roots that script's default directory walk covers, so a plain run of the
+  script won't reach it) - wrap/align/column-width, a plain white
+  background with black text, and a real computed row height per row's
+  actual wrapped content. A row whose height was left at whatever the
+  original xlsx import set (often a fixed single-line height, well before
+  `WRAP` was ever turned on) can visually clip a full multi-line
+  `Risks/comments` entry down to nothing visible - a real case of a row
+  being mistaken for missing/collapsed, when the data was there all along
+  under a stale row height. `autoResizeDimensions` does not fix this on its
+  own since it doesn't override an existing explicit `pixelSize`; the row
+  height has to be recomputed and set explicitly, same heuristic as column
+  width.
