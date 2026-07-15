@@ -8,6 +8,15 @@ whole sheet's total width within a single 1920x1200 laptop screen; when a
 column's content genuinely needs more room to stay under ~5 wrapped lines,
 that constraint wins over fitting on screen.
 
+When a sheet has few enough columns that everyone's true single-line width
+still fits on screen (e.g. `_m1_pr_calendar`, `_m2_pr_calendar`-style views),
+columns are widened up to that single-line width instead of being capped at
+the 5-line minimum - no reason to force wrapping just because a narrower
+sheet happens to have room to spare. If single-line widths for everyone
+don't fit but the 5-line minimums do, the spare screen budget is still
+handed out proportionally so wide columns get closer to one line without
+starving the others.
+
 This is a heuristic (character-count based, no real font metrics), so it
 will not be exact for every cell - long single-column narrative text may
 still exceed 5 lines at the width cap.
@@ -93,14 +102,14 @@ def find_all_sheets(drive: Any, folder_id: str, found: list[dict[str, Any]]) -> 
             find_all_sheets(drive, child["id"], found)
 
 
-def column_width(values: list[str]) -> int:
+def column_width(values: list[str], target_lines: int = TARGET_LINES) -> int:
     if not values:
         return MIN_WIDTH_PX
     lengths = sorted(len(v) for v in values if v)
     if not lengths:
         return MIN_WIDTH_PX
     p90 = lengths[int(len(lengths) * 0.9)]
-    target_line_chars = max(p90 / TARGET_LINES, 8)
+    target_line_chars = max(p90 / target_lines, 8)
     width = int(target_line_chars * CHAR_WIDTH_PX + CELL_PADDING_PX)
     return max(MIN_WIDTH_PX, min(MAX_WIDTH_PX, width))
 
@@ -135,12 +144,35 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
         if not non_empty_cols:
             continue
 
-        widths = {i: column_width(col_values[i]) for i in non_empty_cols}
-        total_width = sum(widths.values())
-        if total_width > SCREEN_BUDGET_PX:
+        min_widths = {i: column_width(col_values[i]) for i in non_empty_cols}
+        ideal_widths = {i: column_width(col_values[i], target_lines=1) for i in non_empty_cols}
+        total_min = sum(min_widths.values())
+        total_ideal = sum(ideal_widths.values())
+
+        if total_ideal <= SCREEN_BUDGET_PX:
+            # Whole sheet fits on screen even if every column gets its
+            # single-line width - no reason to cap anyone at TARGET_LINES.
+            widths = ideal_widths
+        elif total_min <= SCREEN_BUDGET_PX:
+            # Can't give everyone a single line, but there's slack beyond the
+            # 5-line minimum - hand it out proportionally to how much each
+            # column actually wants (ideal - min), capped at that column's
+            # own single-line width so no one overshoots what it needs.
+            widths = dict(min_widths)
+            slack = SCREEN_BUDGET_PX - total_min
+            wants = {i: ideal_widths[i] - min_widths[i] for i in non_empty_cols}
+            total_want = sum(wants.values())
+            if total_want > 0:
+                for i in non_empty_cols:
+                    grow = int(slack * (wants[i] / total_want))
+                    widths[i] = min(ideal_widths[i], min_widths[i] + grow)
+        else:
+            # Even the 5-line minimum doesn't fit - shrink proportionally,
+            # same as before.
+            widths = dict(min_widths)
             over_min = {i: w for i, w in widths.items() if w > MIN_WIDTH_PX}
             shrinkable_total = sum(over_min.values())
-            excess = total_width - SCREEN_BUDGET_PX
+            excess = total_min - SCREEN_BUDGET_PX
             if shrinkable_total > 0:
                 for i in over_min:
                     reduction = int(excess * (widths[i] / shrinkable_total))
