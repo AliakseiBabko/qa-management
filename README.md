@@ -332,8 +332,14 @@ These are what actually runs day to day, once a project's folder already exists:
   of the project. Safe to rerun; every artifact is created only if
   missing, and an existing `project_metrics` is always left untouched.
 - `format_all_sheets.py` — applies consistent formatting (wrap, alignment,
-  column widths targeting ≤5 lines) across every Sheet under
-  `20_M2_Project_Management`. Safe to rerun anytime after a schema change.
+  column widths targeting ≤5 lines) across every Sheet under both
+  `10_M1_People_Management` and `20_M2_Project_Management` by default
+  (`--root-folder-id` to target a different/specific folder instead,
+  repeatable). Safe to rerun anytime after a schema change. `--dry-run`
+  prints planned column widths per sheet without writing — worth using
+  whenever the scope changes again. A single-sheet read timeout is a
+  transient failure, not a real one; the script is idempotent, so just
+  rerun it rather than chasing the one sheet by hand.
 - `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
   extractor; check `80_Exports/source_extracts/*/manifest.csv` for an
   existing extraction before re-running it on the same source file.
