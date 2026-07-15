@@ -146,6 +146,13 @@ At project start or staffing:
 - write strategy-chat statuses about preparation, start, blockers, plans, and results
 - sync more frequently during the first 1-2 weeks
 - use real project tasks, boards, Jira, comments, bugs, and meetings to build context
+- before treating a newly-assigned person as a blank slate, check whether
+  they have a `10_M1_People_Management/<Person>` folder - anyone M2
+  previously managed as M1 (or inherited from a different M1) already has
+  real 1:1 history there. Use it to seed `individual_metrics`/
+  `individual_development_plan`, clearly marked as self-reported/pre-M2
+  where relevant, not as an already-confirmed project-level fact until
+  independently reconfirmed on the M2 side.
 
 ## Project-Level Rollups
 

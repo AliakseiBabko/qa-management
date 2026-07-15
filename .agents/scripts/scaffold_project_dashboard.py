@@ -36,6 +36,8 @@ from sync_m2_plans_to_docs import (
     build_doc_requests,
 )
 
+EMPTY_ROUND_PLACEHOLDER = "(placeholder - раунд создан автоматически, вопросов ещё нет)"
+
 QA_HEADER = ["Проект", "Период", "Метрика", "Показатель", "Пояснение", "Owner", "Тренд"]
 INTERNAL_HEADER = ["Проект", "Сотрудник", "Дата", "Сторона", "Метрика", "Показатель", "Пояснение", "Тренд"]
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
@@ -158,6 +160,7 @@ def scaffold_m2_input(services: dict, project_folder_id: str, project: str, peri
         f"## {project} - входные данные M2",
         f"## Раунд: {period}",
         "### Вопросы от предварительного анализа",
+        f"- {EMPTY_ROUND_PLACEHOLDER}",
         "### Ответ и общие соображения M2",
         "",
     ])

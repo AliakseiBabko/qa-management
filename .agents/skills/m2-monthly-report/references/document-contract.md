@@ -110,6 +110,28 @@ The current source workbook is an example and contains:
 - Каждая FTE в инвест фонде
 - Таймшиты заполнены не вовремя
 
+## Capacity-Points Rule ("N единиц проекты + FTE")
+
+Internal M2 compensation rule behind the `12 единиц проекты + FTE` /
+`Больше 12 единиц проекты + FTE` / `Меньше 12 единиц проекты + FTE` rows:
+
+- Each project M2 owns counts as **1 point**, plus **1 additional point per
+  person staffed on that project** — a project with one person is 2 points
+  (1 project + 1 person), a project with three people is 4 points, and so
+  on. This is not a headcount total and not "1 point per project
+  regardless of size" — both the project itself and each person on it
+  count separately.
+- Target is **12 points total** across an M2's whole block of projects.
+  Exactly 12 satisfies the base obligation (Section 1, no bonus). Above 12
+  is the KPI bonus trigger (Section 2, `Больше 12 единиц проекты + FTE`).
+  Below 12 is the penalty trigger (Section 2, `Меньше 12 единиц проекты +
+  FTE`).
+- This is purely an internal capacity/compensation calculation — it does
+  not appear on the department's "Auto staff. Светофор проектов" tracker
+  (`m2-department-traffic-light`'s `FTE` column there is plain headcount,
+  a different, unrelated field with the same name) and is not derived from
+  `_project_registry`'s `People` column without applying this formula.
+
 ## Missing Data Rules
 
 - Ask for manager name when absent.

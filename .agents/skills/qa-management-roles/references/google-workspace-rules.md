@@ -372,6 +372,12 @@ like `m2_conversation`. List every document actually touched in
 source" for every source, automated or conversational — a log that only
 covers automated syncs is misleading about what actually changed.
 
+`source_type` canonical values (do not invent a new spelling of an
+existing concept — check this list first): `strategy_chat`,
+`meeting_transcript`, `m1_history`, `m2_conversation`, `qa_1to1`,
+`admin_note`. If a genuinely new source shape appears, add it here rather
+than picking an ad hoc value silently at the point of use.
+
 ## Naming And Versioning
 
 - Preserve existing skill naming patterns, but use Google file titles instead of local filenames.

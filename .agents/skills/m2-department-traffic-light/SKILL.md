@@ -24,6 +24,15 @@ then copy-pastes the result back into the shared table by hand.
   Readability formatting (wrap/align/column-width/row-height/no-fill via
   `format_all_sheets.py`'s `format_sheet()`) is fine and expected to apply
   here too - see Guardrails.
+- Column scope was deliberately trimmed relative to the department's
+  original/heavier borrowed template: `Feedback`, `Security status`, and
+  `MDM status` columns from that source template were dropped for this
+  tracker; every other column above stays. Confirm the currently agreed
+  column set with the department (see the tracker's own recent
+  `evidence_log`/source notes for who confirmed it and when) rather than
+  assuming a freshly re-copied department template still matches - don't
+  re-add Feedback/Security/MDM just because a copy of the original still
+  carries them.
 - Not a status report: `m2-project-status-report` produces a period-scoped
   update for a project's own strategy chat. This skill produces a
   point-in-time row in someone else's cross-project dashboard.
@@ -63,7 +72,14 @@ then copy-pastes the result back into the shared table by hand.
    from this workspace's own `_people_registry`/`project_metrics` Notes -
    those often contain internal data-quality commentary (see Content
    Rules) rather than project facts, and pulling from there instead of the
-   real source document was a mistake corrected mid-session.
+   real source document was a mistake corrected mid-session. This is
+   different from this workspace's own already-curated `project_risk` and
+   `project_development_plan` documents, when they exist for the project -
+   copying/porting `Risks/comments` and `Action Plan` text from those is
+   expected and preferred over re-deriving it from raw chats each time -
+   department leadership has confirmed this directly (see the tracker's
+   own recent source notes for the specific conversation) - reuse M2's own
+   finished judgment, don't redo the analysis from scratch.
 4. Write `Risks/comments` and `Action Plan` short and analytical: lead with
    the actual risk and its trajectory (worsening / stabilizing / resolved,
    what's already been mobilized), not a chronological dump of every date
@@ -78,7 +94,11 @@ then copy-pastes the result back into the shared table by hand.
    development plan`, `Upsale opportunity/comment` blank rather than
    guessing - only fill what's actually known (e.g. a confirmed contract
    end date belongs in `From - To`, not invented for every row to fill the
-   column).
+   column). `FTE` here is just headcount on that row's project - the
+   capacity-points KPI calculation (1 point per project + 1 point per
+   person, target >=12) is a separate, internal M2 compensation rule that
+   does not live on this tracker - see `m2-monthly-report`'s
+   document-contract, "12 единиц проекты + FTE".
 
 ## Content Rules — What Belongs In A Cell, What Doesn't
 

@@ -32,7 +32,9 @@ editing an already-logged file in place makes new content invisible to it.
 
 ## Required Start
 
-1. Run `.agents\scripts\detect_strategy_chats.py` first. It finds
+1. Check `../qa-management-roles/references/aliases.md` before treating an
+   unfamiliar project/person name from the chat as new.
+2. Run `.agents\scripts\detect_strategy_chats.py` first. It finds
    `_strategy` files not yet in the project's `evidence_log`, classifies
    the project from the filename prefix, resolves the message date range
    (Google Chat headers carry no year and use relative weekday-only
@@ -41,12 +43,12 @@ editing an already-logged file in place makes new content invisible to it.
    `evidence_log` row per file, and writes a review bundle under
    `80_Exports\intake_review\strategy_chats_<date>.md`. It does not
    extract facts or touch any other document — see its own docstring.
-2. Read the flagged file(s) from the bundle in full, chronologically —
+3. Read the flagged file(s) from the bundle in full, chronologically —
    these chats mix languages and jump between topics message-to-message;
    don't sample. If a file came back `UNCLASSIFIED`, confirm the project
    with the user and rename the file (`<Project>_strategy...txt`) before
    continuing.
-3. Read `../qa-management-roles/references/m2-role-rules.md` and
+4. Read `../qa-management-roles/references/m2-role-rules.md` and
    `../qa-management-roles/references/google-workspace-rules.md` before
    writing anything — the routing/gating rules there (Cascading Updates,
    Project-Level Rollups, registry role-conflict handling) apply directly.

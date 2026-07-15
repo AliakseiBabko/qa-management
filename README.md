@@ -92,6 +92,12 @@ under `20_M2_Project_Management`:
   `refresh_timeline_registry.py` after changing a project's `action_items`.
   See `.agents/skills/m2-timeline`.
 
+Project completeness is expected to be uneven under the incremental-fill
+model (see `m2-role-rules.md`, Project-Level Rollups) — a freshly-scaffolded
+project with mostly `Неизвестно` rows and an unanswered `m2_input` round
+isn't a data-quality bug, it's the normal state before M2 has answered that
+round.
+
 Each project folder follows this shape:
 
 ```text
