@@ -13,7 +13,7 @@ content (that's still a judgment/drafting step - see m1-timeline SKILL.md,
   m1-individual-development-plan). The most recent such Doc's date is
   surfaced as a Performance Review event; a person with no OKR Doc at all
   is surfaced as its own "missing OKR" candidate.
-- PR cadence cross-check: `_people_registry` (under 20_M2_Project_Management,
+- PR cadence cross-check: `_m1_people_registry` (under 10_M1_People_Management,
   see google-workspace-rules.md) holds `Дата трудоустройства` and `Дата
   последнего PR` per person. This script computes the expected next PR
   WINDOW from those two fields per the real cadence rules in
@@ -72,9 +72,9 @@ REVIEW_ROOT = DEFAULT_ROOT / "80_Exports" / "open_questions_review"
 OKR_DOC_PREFIX = "OKR к Perfomance review "
 MONTHLY_REPORT_RE = re.compile(r"^m1_monthly_report_(?P<manager>.+)_(?P<month>\d{4}-\d{2})(?:_v\d+)?$")
 
-# _people_registry column indices (see google-workspace-rules.md, _people_registry Columns):
-# Name (RU), Name (EN), Email, Side, Role, Internal rank, Project(s), Notes,
-# Дата трудоустройства, Дата последнего PR
+# _m1_people_registry column indices (see google-workspace-rules.md, _m1_people_registry section):
+# Name (RU), Name (EN), Email, Worker ID, M1, Job Title / Role, Internal rank,
+# Project(s) / Бенч, Дата трудоустройства, Дата последнего PR, Notes
 REGISTRY_NAME_RU_COL = 0
 REGISTRY_NAME_EN_COL = 1
 REGISTRY_HIRE_DATE_COL = 8
@@ -146,17 +146,17 @@ def find_folder(drive: Any, parent_id: str, name: str) -> dict[str, Any] | None:
     return matches[0] if matches else None
 
 
-def load_people_registry(services: dict[str, Any], drive: Any) -> dict[str, dict[str, dt.date | None]]:
+def load_m1_people_registry(services: dict[str, Any], drive: Any) -> dict[str, dict[str, dt.date | None]]:
     """Return {normalized name -> {"hire": date|None, "last_pr": date|None}},
     keyed under both Name (RU) and Name (EN) so a lookup by whichever name
     10_M1_People_Management uses still finds the row."""
-    m2_root = find_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
-    if not m2_root:
-        print("20_M2_Project_Management folder not found — skipping PR-cadence cross-check.")
+    m1_root = find_folder(drive, ROOT_FOLDER_ID, "10_M1_People_Management")
+    if not m1_root:
+        print("10_M1_People_Management folder not found — skipping PR-cadence cross-check.")
         return {}
-    sheet = find_sheet_in_folder(drive, m2_root["id"], "_people_registry")
+    sheet = find_sheet_in_folder(drive, m1_root["id"], "_m1_people_registry")
     if not sheet:
-        print("_people_registry not found — skipping PR-cadence cross-check.")
+        print("_m1_people_registry not found — skipping PR-cadence cross-check.")
         return {}
 
     rows = read_sheet_values(services, sheet["id"])
@@ -218,6 +218,23 @@ def scan_person_okr(
     dated = [(date, name) for date, name in dated if date is not None]
     doc_date, doc_name = max(dated, key=lambda pair: pair[0]) if dated else (None, None)
 
+    if docs and not dated:
+        # A draft OKR Doc exists (e.g. m1-individual-development-plan's
+        # placeholder title "(дата уточняется)" when no confirmed PR/hire
+        # date was available at draft time) but its title carries no
+        # parseable date - different from no Doc at all: the content
+        # exists, just needs a real cycle date once one is confirmed.
+        return [{
+            "person": person,
+            "due": dt.date.today().isoformat(),
+            "type": "OKR",
+            "what": f"У {person} есть черновик OKR Doc ({docs[0]['name']}), но без подтверждённой даты цикла - "
+            "уточнить Дата последнего PR/трудоустройства и обновить название Doc",
+            "owner": "M1",
+            "source": f"scan:okr:{person}:undated_draft",
+            "notes": "",
+        }]
+
     record = registry.get(person.strip().casefold(), {})
     window_open, window_close, basis = expected_pr_window(record.get("hire"), record.get("last_pr"))
 
@@ -226,7 +243,7 @@ def scan_person_okr(
             "person": person,
             "due": dt.date.today().isoformat(),
             "type": "OKR",
-            "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _people_registry "
+            "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _m1_people_registry "
             "нет ни «Дата трудоустройства», ни «Дата последнего PR» для расчёта ожидаемой даты PR",
             "owner": "M1",
             "source": f"scan:okr:{person}:missing",
@@ -243,7 +260,7 @@ def scan_person_okr(
             f"Review {window_open.isoformat()}–{window_close.isoformat()} (расчёт: {basis})",
             "owner": "M1",
             "source": f"scan:okr:{person}:missing",
-            "notes": f"Расчёт из _people_registry ({basis})",
+            "notes": f"Расчёт из _m1_people_registry ({basis})",
         }]
 
     mismatch = window_open is not None and not (window_open <= doc_date <= window_close)
@@ -252,7 +269,7 @@ def scan_person_okr(
     what = (
         f"Performance Review для {person} прошёл ({doc_date.isoformat()}) — подтвердить, что PR "
         "проведён и OKR закрыт (у каждого KR проставлен статус/результат), затем открыть новый цикл "
-        "и обновить «Дата последнего PR» в _people_registry"
+        "и обновить «Дата последнего PR» в _m1_people_registry"
         if overdue
         else f"Проверить готовность OKR к Performance Review {person} — все KR должны быть закрыты "
         "(статус/результат) до этой даты"
@@ -260,7 +277,7 @@ def scan_person_okr(
     notes = f"Doc: {doc_name}"
     if mismatch:
         notes += (
-            f"; расхождение с расчётом из _people_registry: ожидалось окно "
+            f"; расхождение с расчётом из _m1_people_registry: ожидалось окно "
             f"{window_open.isoformat()}–{window_close.isoformat()} ({basis}), в Doc указано "
             f"{doc_date.isoformat()} — свериться, какая дата верна"
         )
@@ -342,7 +359,7 @@ def main() -> int:
         if not roster:
             print("No '<Person> 1to1' Sheets found directly under 10_M1_People_Management — nothing to scan.")
 
-    registry = load_people_registry(services, drive)
+    registry = load_m1_people_registry(services, drive)
 
     candidates: list[dict[str, str]] = []
     for person in roster:

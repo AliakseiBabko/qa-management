@@ -40,7 +40,7 @@ read-only downstream consumer, same as the two above.
 4. Read `../qa-management-roles/references/google-workspace-rules.md`.
 5. Read `../qa-management-roles/references/m1-role-rules.md`.
 6. Identify the target person, their current project (or bench status), and the Performance Review date this OKR is for.
-7. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, their `_people_registry` row (`Дата трудоустройства`/`Дата последнего PR`), and — if they're on a project — that project's context (tech stack, tools, current focus).
+7. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, their `_m1_people_registry` row (`Дата трудоустройства`/`Дата последнего PR`/`M1`), and — if they're on a project — that project's context (tech stack, tools, current focus). If the person is also M2-staffed, `_people_registry` points back at `_m1_people_registry` for these facts rather than duplicating them - read there, not both.
 
 ## Workflow
 

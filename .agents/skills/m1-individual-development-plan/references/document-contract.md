@@ -61,16 +61,20 @@ unavailable): `okr_<Person>_<DD.MM.YY>.md`.
 ## Source Priority
 
 1. Existing OKR Doc for this person (current or most recent prior cycle).
-2. Person's `<Person> 1to1` Sheet (`m1-people-1to1-file`) — for soft-skill
+2. `_m1_people_registry` row (`10_M1_People_Management`) — for
+   `Дата трудоустройства`/`Дата последнего PR` (the cycle-title anchor,
+   see SKILL.md Workflow step 4) and `M1`. Do not re-derive these from
+   transcripts if this row already has them.
+3. Person's `<Person> 1to1` Sheet (`m1-people-1to1-file`) — for soft-skill
    evidence and any development-direction mentions.
-3. Person's row in the latest people-risk traffic-light Sheet
+4. Person's row in the latest people-risk traffic-light Sheet
    (`m1-people-risk-report`) — for soft-skill/risk-driven KRs.
-4. If the person is on a project: that project's context (tech stack,
+5. If the person is on a project: that project's context (tech stack,
    tools, `individual_metrics`, project development plan) — for the
    Техническое развитие objective.
-5. If the person is on bench: explicit user-provided market direction. Ask
+6. If the person is on bench: explicit user-provided market direction. Ask
    rather than invent one if it's missing.
-6. Explicit manager (M1) notes given in conversation.
+7. Explicit manager (M1) notes given in conversation.
 
 ## Normalization
 

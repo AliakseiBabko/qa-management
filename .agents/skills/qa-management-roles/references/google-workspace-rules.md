@@ -285,6 +285,58 @@ this table exists to log people who come up in discussions or calls, not to
 track their lifecycle or verification state, and alias-matching in
 transcripts doesn't need a dedicated column to work.
 
+### `_m1_people_registry`
+
+Keep `_m1_people_registry` in `10_M1_People_Management` as a single
+workspace-wide Google Sheet (CSV fallback), sibling to `Светофор рисков`
+and `_m1_pr_calendar`. Scope: every person with a folder under
+`10_M1_People_Management` — Innowise employees under M1 management, full
+stop. Unlike `_people_registry`, there is no `Side` column here — M1 never
+tracks client-side people, so the column would always read `Internal` and
+add nothing.
+
+This registry exists because, as of 2026-07, 8 of 11 people with an M1
+folder had zero row in any registry — `_people_registry` only ever picked
+someone up once they crossed onto an M2-staffed project, leaving pure-M1
+people (bench, onboarding, pre-hire) with no structured record at all,
+their hire/PR dates re-derived from 1:1 transcripts by hand each time they
+were needed.
+
+Columns:
+
+- `Name (RU)`, `Name (EN)` — same convention as `_people_registry`: first +
+  last name only, no patronymic (patronymic goes in Notes if captured).
+- `Email` — when known.
+- `Worker ID` — from an HRM worker-record card (see Person Card Intake,
+  HRM Worker-Record Card shape below); not tracked in `_people_registry`.
+- `M1` — this person's current M1 manager. The actual gap this registry
+  fixes: previously only recorded as free text in `_people_registry`
+  Notes, and only for the handful of people who happened to cross over
+  onto an M2 project.
+- `Job Title / Role`, `Internal rank` — same meaning as `_people_registry`'s
+  equivalent columns.
+- `Project(s) / Бенч` — current staffing status: a project name, or `Бенч`.
+- `Дата трудоустройства`, `Дата последнего PR` — same rules as
+  `_people_registry`'s equivalents (ISO `YYYY-MM-DD`, blank means
+  genuinely unknown, ask rather than guess) — this is the anchor
+  `m1-timeline` and `m1-individual-development-plan` should read from
+  instead of re-deriving a date from transcripts each time.
+- `Notes` — same discipline as `_people_registry`: citations, confidence
+  level on any estimated date, mismatches.
+
+No computed "next PR expected" column — `m1-timeline` already derives that
+dynamically from `Дата последнего PR` + cadence rules
+(`performance-review-rules.md`); storing it statically here would just go
+stale.
+
+**Cross-link with `_people_registry`**, for anyone who exists in both (an
+M1-managed person who's also staffed on an M2 project): `_m1_people_registry`
+is the source of truth for `M1`, `Worker ID`, `Дата трудоустройства`, and
+`Job Title`/`Internal rank`. Don't duplicate those facts as free text in
+`_people_registry`'s Notes — reference `_m1_people_registry` there instead
+(e.g. "M1: see `_m1_people_registry`") so there's one place to update, not
+two copies to keep in sync by hand.
+
 ### Person Card Intake
 
 M2 sometimes hands over a person directly as a structured card rather than
@@ -343,6 +395,43 @@ When processing a transcript/chat and a role is unclear or contradicts this
 registry, ask rather than guess — this registry exists specifically because
 a wrong role guess (e.g. attributing a 1:1 to the wrong person's role) can
 propagate into several documents before anyone notices.
+
+#### HRM Worker-Record Card (Second Card Shape)
+
+A different card shape also comes up: an HRM system export with fields
+like `First Name`/`Last Name`/`Patronymic name`/`First Name (EN)`/`Last
+Name (EN)`, `Worker ID`, `Hire date`/`Employment date`, and an
+`Org. structure` block (`Unit`/`Division`/`Department`/`Team`/`Group`).
+This has no email and doesn't always include the `Job Title`/`M-level`/
+`Prof.Level`/`Mentor`/`DC` block the other card shape has — `apply_person_card.py`
+does not parse this shape; map it by hand. Maps primarily into
+`_m1_people_registry` (see above), not `_people_registry` — this card
+shape is how M1-side facts (hire date, Worker ID, current M1) get filled,
+even for someone who also happens to have a `_people_registry` row from
+being M2-staffed.
+
+- `Дата трудоустройства` — `Hire date` (same as `Employment date` in every
+  case seen so far). Convert to ISO `YYYY-MM-DD` when writing to either
+  registry — the card gives `DD.MM.YYYY`, but both registries' documented
+  convention is ISO; don't carry the card's raw format through unconverted.
+- Name (RU)/(EN) — first + last name, matching the existing column
+  convention (no patronymic in the Name columns); put the patronymic and
+  full official name in Notes instead.
+- `Group: <Surname> Team` — identifies that person's current **M1** (e.g.
+  `Group: Mitsko Team` means M1 = Митько). Cross-check against any M1
+  already on record for this person (e.g. from a Workload sheet) rather
+  than overwriting silently — the two sources confirming each other is
+  itself worth noting in Notes.
+- `Worker ID` — has its own column in `_m1_people_registry`; not tracked
+  in `_people_registry`.
+- `Department` / other org-structure fields — not mapped to a dedicated
+  registry column; record in Notes if useful context.
+- If `Job Title`/`M-level`/`Prof.Level`/`Mentor`/`DC` are present on this
+  card shape too, map those fields the same way as the primary card shape
+  above.
+- If the person also has a `_people_registry` row (M2-staffed), update
+  that row's Notes to point at `_m1_people_registry` for these facts
+  rather than duplicating them — see the Cross-link note above.
 
 For broad cross-project KT, status, or management sessions:
 
