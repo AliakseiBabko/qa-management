@@ -8,12 +8,35 @@ whole sheet's total width within a single 1920x1200 laptop screen; when a
 column's content genuinely needs more room to stay under ~5 wrapped lines,
 that constraint wins over fitting on screen.
 
-Also resets every cell to a standard, uncolored look (white background,
-black text) and un-collapses rows - clears any leftover `hiddenByUser` flag
-and auto-resizes row height to fit wrapped content. A row that looks
-"collapsed"/clipped is usually just a stale fixed row height left over from
-before WRAP was turned on, not an actual fold - a real case of a row's full
-multi-line comment being invisible in the UI was found and fixed this way.
+Also resets every cell across the sheet's full declared grid (not just the
+non-empty data range) to a standard, uncolored, borderless look (white
+background, black text, no cell borders - cleared via a dedicated
+`updateBorders` request, since `repeatCell`'s `userEnteredFormat.borders`
+was tried first and empirically does not actually clear an existing
+border despite matching the documented request shape) and un-collapses
+rows - clears any leftover `hiddenByUser` flag and sets row height from
+computed wrapped-line count, same heuristic as column width.
+`autoResizeDimensions` was tried for row height (to match the Sheets UI's
+own "Fit to data") but empirically resets rows to the flat single-line
+default instead of measuring wrapped content via the API - it is not a
+substitute for computing height explicitly. The line-count heuristic's
+`CELL_PADDING_PX` must match the Sheets default cell padding (~3px each
+side, 6px total - confirmed via `effectiveFormat.padding` on a real cell)
+or it overestimates wrapped line count and leaves a visible gap at the
+bottom of every cell; a much larger value here was the original cause of
+that gap. A row that looks "collapsed"/clipped is usually just a stale
+fixed row height left over from before WRAP was turned on, not an actual
+fold - a real case of a row's full multi-line comment being invisible in
+the UI was found and fixed this way.
+
+Every column is also floored at the pixel width its own single longest
+word needs (`longest_word_width`) - Sheets' WRAP strategy wraps on word
+boundaries but falls back to a mid-word character break for any word wider
+than the column, which reads badly for short category-label columns (e.g.
+a value landing one letter short of the column width, splitting that
+letter onto its own line). This floor overrides the screen-budget shrink
+step if the two conflict - a slightly-over-budget sheet looks better than
+a broken word.
 
 When a sheet has few enough columns that everyone's true single-line width
 still fits on screen (e.g. `_m1_pr_calendar`, `_m2_pr_calendar`-style views),
@@ -72,13 +95,22 @@ def call_with_retry(request: Callable[[], Any]) -> Any:
             raise
 
 CHAR_WIDTH_PX = 7.2
-CELL_PADDING_PX = 14
+CELL_PADDING_PX = 6  # Sheets default cell padding is ~3px each side (confirmed via effectiveFormat.padding)
 MIN_WIDTH_PX = 90
 MAX_WIDTH_PX = 420
 TARGET_LINES = 5
 SCREEN_BUDGET_PX = 1780  # ~1920px laptop screen minus browser chrome/row numbers
-LINE_HEIGHT_PX = 21  # observed default single-line row height
+VERTICAL_PADDING_PX = 4  # top+bottom cell padding (confirmed via effectiveFormat.padding), applied once per row
+TEXT_LINE_HEIGHT_PX = 17  # single text line's own height, excluding padding
 MAX_ROW_HEIGHT_PX = 800  # sanity cap so one runaway cell can't blow out the sheet
+
+
+def row_height(lines: int) -> int:
+    """Row height for `lines` wrapped text lines - padding applies once per
+    row, not once per line (multiplying a single-line height, padding
+    included, by the line count double-counts padding and was the second,
+    smaller source of the bottom-gap bug after the CELL_PADDING_PX fix)."""
+    return min(MAX_ROW_HEIGHT_PX, VERTICAL_PADDING_PX + TEXT_LINE_HEIGHT_PX * max(1, lines))
 
 
 def cell_line_count(text: str, width_px: int) -> int:
@@ -133,6 +165,29 @@ def column_width(values: list[str], target_lines: int = TARGET_LINES) -> int:
     target_line_chars = max(p90 / target_lines, 8)
     width = int(target_line_chars * CHAR_WIDTH_PX + CELL_PADDING_PX)
     return max(MIN_WIDTH_PX, min(MAX_WIDTH_PX, width))
+
+
+WORD_WIDTH_SAFETY_MARGIN_PX = 10  # headroom against per-char width estimation error and bold header text
+
+
+def longest_word_width(values: list[str]) -> int:
+    """Pixel width needed to fit this column's single longest word without
+    breaking it mid-word - Sheets' WRAP strategy wraps on word boundaries
+    but falls back to a mid-word character break for any word that doesn't
+    fit the column width on its own (e.g. a short category label like
+    "Неясно" landing one letter short of the column and splitting a single
+    letter onto its own line). Includes the header row (row 0 of `values`,
+    always bold) - bold text is wider per character than CHAR_WIDTH_PX's
+    flat average accounts for, so a header word that's an exact fit on
+    paper can still overflow by a pixel in the real bold rendering; the
+    safety margin below covers that along with normal proportional-font
+    variance. Capped at MAX_WIDTH_PX - an outlier word long enough to blow
+    past that (e.g. a URL) still gets broken; that's an acceptable rare
+    exception to keep normal columns from ballooning."""
+    longest = max((len(w) for v in values for w in v.split() if w), default=0)
+    if not longest:
+        return MIN_WIDTH_PX
+    return min(MAX_WIDTH_PX, int(longest * CHAR_WIDTH_PX + CELL_PADDING_PX) + WORD_WIDTH_SAFETY_MARGIN_PX)
 
 
 def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: bool = False) -> str:
@@ -199,16 +254,23 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
                     reduction = int(excess * (widths[i] / shrinkable_total))
                     widths[i] = max(MIN_WIDTH_PX, widths[i] - reduction)
 
+        # Never let a column end up narrower than its own longest word -
+        # this floor wins even over the screen-budget shrink above, since a
+        # mid-word break looks worse than a slightly-over-budget sheet.
+        for i in non_empty_cols:
+            widths[i] = max(widths[i], longest_word_width(col_values[i]))
+
+        full_range = {
+            "sheetId": grid_id,
+            "startRowIndex": 0,
+            "endRowIndex": row_count,
+            "startColumnIndex": 0,
+            "endColumnIndex": col_count,
+        }
         requests.append(
             {
                 "repeatCell": {
-                    "range": {
-                        "sheetId": grid_id,
-                        "startRowIndex": 0,
-                        "endRowIndex": row_count,
-                        "startColumnIndex": 0,
-                        "endColumnIndex": num_cols,
-                    },
+                    "range": full_range,
                     "cell": {
                         "userEnteredFormat": {
                             "wrapStrategy": "WRAP",
@@ -223,6 +285,20 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
                 }
             }
         )
+        # repeatCell's userEnteredFormat.borders does not reliably clear an
+        # existing border (tried first, empirically a no-op here) - the
+        # dedicated updateBorders request is what actually works.
+        no_border = {"style": "NONE"}
+        requests.append(
+            {
+                "updateBorders": {
+                    "range": full_range,
+                    "top": no_border, "bottom": no_border,
+                    "left": no_border, "right": no_border,
+                    "innerHorizontal": no_border, "innerVertical": no_border,
+                }
+            }
+        )
         for i, width in widths.items():
             requests.append(
                 {
@@ -233,13 +309,10 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
                     }
                 }
             )
-        # Un-collapse: clear any manually-fixed/shrunk row height and any
-        # hiddenByUser flag left over from a source template. autoResizeDimensions
-        # does not override an explicit pre-existing pixelSize (a real case of a
-        # multi-line comment being invisible under a stale fixed row height, from
-        # before WRAP was ever turned on, was found this way) - so instead compute
-        # each row's real needed height from its wrapped line count at the final
-        # column widths, same heuristic as column_width, and set it explicitly.
+        # Un-collapse: clear any hiddenByUser flag left over from a source
+        # template, then set each row's real needed height from its wrapped
+        # line count at the final column widths, same heuristic as
+        # column_width.
         requests.append(
             {
                 "updateDimensionProperties": {
@@ -250,7 +323,7 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
             }
         )
         row_heights = [
-            min(MAX_ROW_HEIGHT_PX, LINE_HEIGHT_PX * max(
+            row_height(max(
                 (cell_line_count(col_values[i][row_idx], widths[i]) for i in non_empty_cols), default=1,
             ))
             for row_idx in range(len(values))

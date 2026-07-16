@@ -75,6 +75,62 @@ project."
    conversation, not a tracked artifact. Only save it if the user explicitly
    asks to keep a copy (see Versioning in the document-contract for where).
 
+## Optional: First-Contact Invite Message
+
+When this is M2's first 1to1 with this person (new project assignment, new
+M2 relationship), the user may want a short chat message to actually
+propose and schedule the call - not the in-meeting question list itself.
+Produce this as separate, shorter text when asked. Style matters more than
+completeness here - a real example that worked:
+
+```text
+Привет, <Имя>!
+
+Я теперь M2 по <Проект>, и хотел бы с тобой созвониться по проекту.
+Полной картины по проекту у меня пока нет - по бизнесу клиента, по
+текущим приоритетам, по тому, как всё ощущается изнутри. Наш хэд просит
+от M2 больше видимости и планирования по проектам, и тут мне нужно твое
+мнение, поскольку ты лучше всех знаешь, что реально происходит на месте.
+
+Предлагаю созвониться на 15-20 минут, желательно сегодня-завтра. Из тем,
+которые хотел бы затронуть:
+
+как вообще идут дела на проекте с твоей стороны - задачи, темп, ощущения;
+что знаешь про бизнес клиента и как он использует продукт;
+как прошёл недавний релиз и что дальше планирует клиент;
+какая поддержка от меня была бы полезна;
+нужны записи дейликов и других митов по проекту.
+```
+
+Match this shape, not this wording:
+
+- Open with who you are (new M2 on the project) and that you'd like a call
+  about the project - one sentence, no preamble.
+- Name the real information gap in one sentence (no full picture yet -
+  business, current priorities, how things feel from the inside). Don't
+  add a meta-comment explaining that this isn't a status report or an
+  obligation - let the plain, direct tone carry that on its own instead of
+  spelling it out.
+- One sentence connecting to the department head's ask for more M2
+  visibility/planning, framed as needing *their* input/opinion - not as
+  them owing M2 a report.
+- Propose a short call (15-20 minutes) with a near-term window (today/
+  tomorrow), not a vague "sometime this week."
+- Close with a plain list of topics, pulled from the same sources as the
+  full question list (see Source Order) but condensed to short topic
+  phrases, not full interview-style questions - this message schedules the
+  conversation, it isn't the conversation.
+- **Always include one obligatory topic asking for access to recordings of
+  dailies and other project meetings** (not just synced notes) - M2 needs
+  to review these directly to track requirements, follow the actual
+  situation, and build internal plans; manual note-taking doesn't scale at
+  the current data volume. Frame it as wanting to be looped in / given
+  access, not as extra work for them to produce. Include this even when it
+  doesn't come from a specific gap in Source Order - it's a standing ask
+  for every first-contact message, not situational.
+- Same guardrail as the full question list: never reveal
+  `individual_metrics_internal` content or its existence.
+
 ## Guardrails
 
 - Never phrase a question so it reveals `individual_metrics_internal`
