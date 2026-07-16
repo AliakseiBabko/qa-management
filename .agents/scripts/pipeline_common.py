@@ -35,6 +35,27 @@ def get_services(
     return build_services(creds)
 
 
+def get_project_person_folder(services: dict[str, Any], project: str, person: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve (project_folder, person_folder) under
+    20_M2_Project_Management/<project>/people/<person> - the same four-hop
+    lookup (m2_root -> project -> people -> person) that kept getting
+    hand-rolled at the top of every apply-1to1-findings-style script (a
+    copy-paste source of at least one real IndexError). Uses
+    find_or_create_folder throughout, so it's safe to call for a person who
+    doesn't have a folder yet (creates it, matching what
+    scaffold_project_dashboard.py already does for people/<Person>) - it
+    does not create the project folder itself if missing; that's still a
+    deliberate step, not something to paper over silently."""
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder
+
+    drive = services["drive"]
+    m2_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
+    project_folder = find_or_create_folder(drive, m2_root["id"], project)
+    people_folder = find_or_create_folder(drive, project_folder["id"], "people")
+    person_folder = find_or_create_folder(drive, people_folder["id"], person)
+    return project_folder, person_folder
+
+
 def _insert_blocks(docs_service: Any, doc_id: str, insert_at: int, blocks: list[tuple[str, str]]) -> None:
     """Shared insert logic: build insertText + paragraph-style requests for
     a (kind, text) block list starting at a given index, and apply them.

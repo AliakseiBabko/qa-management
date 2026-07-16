@@ -44,6 +44,15 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    listing every document actually touched (person-level and project-level
    both, when both changed).
 
+- A single finding can legitimately belong in more than one place at once
+  - don't under-scope it to just the first document that seems to fit. A
+  story like "manager didn't hear my side of a conflict" can simultaneously
+  be a people-risk signal (`individual_development_plan`), project-process
+  evidence (`m2_input` - e.g. a single point of contact/failure), and a
+  wider organizational-process finding (`m2-role-rules.md` or a similar
+  shared reference, if it's not scoped to just this project). Route it to
+  every document it actually supports, not just the most obvious one.
+
 ## Guardrails
 
 - Apply the same registry-scoping and Person Card cross-reference
