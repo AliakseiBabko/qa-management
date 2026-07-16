@@ -153,6 +153,11 @@ At project start or staffing:
   `individual_development_plan`, clearly marked as self-reported/pre-M2
   where relevant, not as an already-confirmed project-level fact until
   independently reconfirmed on the M2 side.
+- establish access to meeting recordings (dailies, other project syncs)
+  early, as a standing practice, not a one-off ask - manual note-taking
+  doesn't scale against real project data volume. See
+  `m2-1to1-prep`'s obligatory first-contact topic for how to raise this
+  with a person directly.
 
 ## Project-Level Rollups
 

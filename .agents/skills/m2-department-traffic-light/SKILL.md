@@ -39,14 +39,18 @@ then copy-pastes the result back into the shared table by hand.
 
 ## Required Start
 
-1. Confirm which file is M2's own editable copy before touching anything.
+1. Read `../qa-management-roles/references/presale-upsell-rules.md`'s Rule
+   before filling `Upsale opportunity`/`Upsale comment` for any row (see
+   Workflow step 6) - a stricter bar than the general "leave blank rather
+   than guessing" line applies specifically to these two columns.
+2. Confirm which file is M2's own editable copy before touching anything.
    The department original and M2's copy often have near-identical names
    (e.g. `Auto staff. Светофор проектов` vs `Copy of Auto staff. Светофор
    проектов`) - resolve by checking the Drive `owners` field (must be M2
    themselves), not just a name match from search results. If genuinely
    unclear which file the user means, ask; do not guess on a spreadsheet
    this size with other people's data in it.
-2. In the sheet, find M2's own block: rows are grouped by manager, with the
+3. In the sheet, find M2's own block: rows are grouped by manager, with the
    `M2/DC` name only on the first row of each person's block and blank on
    the rows below it (matching each person's project count). Read a wide
    enough range to find the surrounding blocks and confirm the boundary
@@ -85,6 +89,16 @@ then copy-pastes the result back into the shared table by hand.
    what's already been mobilized), not a chronological dump of every date
    and name found in the source chat. A department head reads many of
    these rows; each one needs to be skimmable.
+   Before writing an `Action Plan` item, check whether its premise is
+   still current - if evidence shows an attempted action already ran and
+   its outcome is known (succeeded/failed), write the next real step given
+   that outcome, don't reuse old "verify/try X" wording past the point
+   where it was already tried (e.g. a retention attempt that already
+   failed needs a wind-down plan, not another "confirm the status"
+   action). A detail that isn't a genuine project risk in the first place
+   (e.g. a formality already resolved internally, doesn't affect delivery
+   or client trust) doesn't belong in `Action Plan` at all - at most it's
+   a soft question for the person's own 1:1, not a tracked project action.
 5. Set `Status` (Green/Yellow/Red) from genuine evidence - a brand-new
    project with no metrics yet is not automatically Green (nothing
    confirmed good) or Red (nothing confirmed bad); say so in conversation
@@ -94,7 +108,15 @@ then copy-pastes the result back into the shared table by hand.
    development plan`, `Upsale opportunity/comment` blank rather than
    guessing - only fill what's actually known (e.g. a confirmed contract
    end date belongs in `From - To`, not invented for every row to fill the
-   column). `FTE` here is just headcount on that row's project - the
+   column). `Upsale opportunity/comment` specifically needs a real
+   diagnostic signal or conversation behind it, per
+   `presale-upsell-rules.md`'s Rule - a project simply having "no known
+   problems" is not itself upsell evidence, and a project confirmed to be
+   ending soon is fact-based `Нет потенциала`, not a guess. Weak/mixed
+   signals ("seems generally fine," "nothing stands out either way") are
+   not enough to fill this column either way - leave it blank until a
+   specific fact would support a specific answer. `FTE` here is just
+   headcount on that row's project - the
    capacity-points KPI calculation (1 point per project + 1 point per
    person, target >=12) is a separate, internal M2 compensation rule that
    does not live on this tracker - see `m2-monthly-report`'s
