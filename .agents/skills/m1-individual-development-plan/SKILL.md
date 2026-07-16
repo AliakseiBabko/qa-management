@@ -11,7 +11,8 @@ Use this skill for one output family only:
 
 This mirrors the company's real OKR process: created at each Performance
 Review for the period until the next one, minimum 3 objectives, each Key
-Result carrying acceptance criteria, a result, and a deadline. The Doc
+Result a single concrete-action line (no separate acceptance-criteria/
+result/deadline fields - see `references/okr-process-rules.md`). The Doc
 produced here is the staging copy the person pastes/operationalizes into
 their Jira OKR card — it is not itself the Jira record.
 
@@ -50,9 +51,9 @@ read-only downstream consumer, same as the two above.
    - **ИИ** — one modest, practical KR (course, assessment, or one applied use case). Do not inflate this into several KRs by default; check whether the person already has AI-tool usage on record (1:1 notes, project context) and build from that instead of starting blank.
    - **Soft skills / командная работа** — source only from the person's `1to1` Sheet, people-risk report, and any explicit manager notes. Do not invent a growth area with no evidence behind it. If there's no usable signal for the period, say so plainly and leave the KR open/general (e.g. "collect team feedback") instead of manufacturing an issue.
    - **Департамент** — an activity the person chooses for themselves (mentoring, meetup, internal course, process help). Frame it as their pick, not an assignment.
-3. Every Key Result carries: the action, "Критерии для оценки" (acceptance criteria), "Результат" (what gets produced/shown), a deadline, and a status. This is a Confluence-mandated format — do not drop any of the four fields even to keep things short.
-4. Name the Doc title's date using the real cadence, not an arbitrary guess: `Дата последнего PR + 6 months` if set, else `Дата трудоустройства + 3 months` for a first/probation-closing OKR (see `performance-review-rules.md`, "Deriving Expected Next PR Date"). If neither is known in `_people_registry`, ask rather than invent a date.
-5. When closing out an existing OKR (new PR cycle), require a status and result on every KR from the prior cycle before starting the new one; unresolved KRs either get an explicit "не достигнуто" status or are carried into the new OKR — never silently dropped.
+3. Every Key Result is one line: the concrete action, with a real deadline folded into the same line only when one is actually known. Do not break a KR into separate "Критерии для оценки"/"Результат"/deadline/status fields, and do not add a metadata line (role/level/project/period/Jira epic) under the title — real OKRs at this company are terser than that; see `references/okr-process-rules.md`.
+4. Name the Doc title's date using the real cadence, not an arbitrary guess: `Дата последнего PR + 6 months` if set, else `Дата трудоустройства + 3 months` for a first/probation-closing OKR (see `performance-review-rules.md`, "Deriving Expected Next PR Date"). If neither is known in `_m1_people_registry`, use the `(дата уточняется)` placeholder title rather than inventing a date - and don't add an inline note explaining the date is missing inside the document itself; that's tracked separately via `scan_m1_events.py`'s `undated_draft` candidate (see `m1-timeline`).
+5. When closing out an existing OKR (new PR cycle), require a short one-line result on every KR from the prior cycle before starting the new one; unresolved KRs either get an explicit short "не достигнуто" comment or are carried into the new OKR — never silently dropped.
 6. After the PR that closes this cycle actually happens, update that person's `Дата последнего PR` in `_people_registry` to the real PR date — this is what keeps `m1-timeline`'s cadence tracking accurate; a new OKR Doc alone doesn't update it.
 
 ## Guardrails
@@ -62,5 +63,5 @@ read-only downstream consumer, same as the two above.
 - Do not pad the document past 3-4 objectives; if the person genuinely needs a 5th objective, check with the user first rather than defaulting to it.
 - Do not duplicate `individual_metrics`/project-metrics values here — reference them, don't restate.
 - Do not create the OKR for unpaid interns — they follow a separate internship program, not this OKR process.
-- Do not skip the "Критерии для оценки" / "Результат" / deadline / status fields on any KR, even for a short/placeholder objective.
-- This skill drafts OKR content for **any one person**, including an M1's or M2's own OKR when they're preparing for their own Performance Review (see `m-self-review`) — the Doc mechanics (skeleton, required KR fields, cadence-based title date) are identical either way. The only thing that changes is where the Doc lives: a team member's own `10_M1_People_Management\<Person>\` (or project) folder vs. `_self_review\<Person>\` for an M-manager's own OKR — see `m-self-review`'s document-contract.md. Confirm which case applies rather than assuming from context.
+- Do not reintroduce the "Критерии для оценки" / "Результат" / deadline / status field breakdown per KR, or a metadata line under the title — both were tried and explicitly rejected in favor of the terser format real OKRs at this company actually use.
+- This skill drafts OKR content for **any one person**, including an M1's or M2's own OKR when they're preparing for their own Performance Review (see `m-self-review`) — the Doc mechanics (skeleton, single-line KRs, cadence-based title date) are identical either way. The only thing that changes is where the Doc lives: a team member's own `10_M1_People_Management\<Person>\` (or project) folder vs. `_self_review\<Person>\` for an M-manager's own OKR — see `m-self-review`'s document-contract.md. Confirm which case applies rather than assuming from context.

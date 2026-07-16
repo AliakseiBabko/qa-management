@@ -1,8 +1,9 @@
 # OKR Process Rules
 
-Source: internal Confluence article on OKR requirements. Kept here verbatim
-in meaning (translated to rule form) because it defines mandatory fields
-and cadence this skill must not silently drop.
+Source: internal Confluence article on OKR requirements, cross-checked
+against real OKRs actually used at this company. Kept here verbatim in
+meaning (translated to rule form) because it defines cadence this skill
+must not silently drop.
 
 ## Cadence and Scope
 
@@ -33,10 +34,13 @@ that for the exact schedule. Summary relevant to OKR specifically:
 ## Required Content
 
 - At least 3 objectives.
-- Each objective needs: goals, a plan to reach them, deadlines, acceptance
-  method, and how results are evaluated.
-- Each Key Result needs: the action, "Критерии для оценки" (acceptance
-  criteria), "Результат" (what evidence gets produced), and a deadline.
+- Each Key Result is one line - the concrete action itself, with a real
+  deadline folded into the same line when one is known. Real OKRs at this
+  company do not break a KR into separate "Критерии для оценки"/
+  "Результат"/"Дедлайн"/"Статус" fields - an earlier version of this rule
+  claimed that breakdown was Confluence-mandated; real examples reviewed
+  2026-07 contradicted that, and the single-line format is what's actually
+  used. Don't reintroduce the 4-field breakdown.
 - OKR is drafted by the employee, with manager support — not written
   unilaterally by M1.
 - OKR is approved by the manager after drafting, and accepted/closed by the
@@ -45,10 +49,12 @@ that for the exact schedule. Summary relevant to OKR specifically:
 ## Closing an OKR
 
 - Every OKR must be closed by the date of the next Performance Review.
-- At closing, every goal/KR must have a result recorded: what was actually
-  done, and whether the goal was met.
-- An unmet goal gets an explicit status and comment. If it should continue,
-  it is carried forward into the next OKR rather than silently dropped.
+- At closing, each KR gets a short one-line result appended (done / not
+  done and why) - not a separate structured field, same one-line
+  discipline as the KR itself.
+- An unmet goal gets an explicit short result comment. If it should
+  continue, it is carried forward into the next OKR rather than silently
+  dropped.
 
 ## The Three Standing Purposes of OKR
 

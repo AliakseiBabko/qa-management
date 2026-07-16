@@ -16,10 +16,9 @@ family.
 `<repo-root>\Templates\okr_m1.md`
 
 Use this as the section skeleton for every individual OKR. It encodes the
-Confluence-mandated fields (Критерии для оценки / Результат / deadline /
-status per Key Result) plus the four standing objective categories this
-skill defaults to: Техническое развитие, ИИ, Soft skills / командная
-работа, Департамент.
+single-line-per-KR format real OKRs at this company actually use, plus the
+four standing objective categories this skill defaults to: Техническое
+развитие, ИИ, Soft skills / командная работа, Департамент.
 
 ## Expected Output
 
@@ -84,20 +83,22 @@ unavailable): `okr_<Person>_<DD.MM.YY>.md`.
 
 ## Normalization
 
-- Keep every objective's Key Results to 2-3; keep the whole Doc to 3-4
+- Keep every objective's Key Results to 2-5; keep the whole Doc to 3-4
   objectives. This is a deliberate ceiling — the company process requires
   a minimum of 3, not a maximum, but this skill defaults to staying near
   that minimum unless the user asks for more.
-- Every KR needs all four fields: action, Критерии для оценки, Результат,
-  deadline, plus a status once the cycle is underway. Do not compress these
-  into a single sentence — keep them as separate, scannable lines, matching
-  the real OKR examples this template was built from.
+- Each KR is one line: the concrete action, with a real deadline folded
+  into the same line only when actually known. Do not break a KR into
+  separate Критерии для оценки/Результат/deadline/status fields, and do
+  not add a role/level/project/period/Jira-epic metadata line under the
+  title - real OKR examples reviewed 2026-07 confirmed this terser format
+  is what's actually used, not the earlier 4-field breakdown.
 - Do not restate the same project/role context paragraph before every KR;
   state it once at the objective level, then let each KR stay concrete.
 - A KR tied to project technology must name the actual technology/tool in
   question, not a generic phrase like "improve technical skills."
 - A soft-skill KR must trace to a specific 1:1/risk-report episode; if none
   exists, say so and leave the KR general rather than fabricating one.
-- Preserve links (courses, docs, repos) inline in the "Результат" field
-  when the source material provides them — matches how the real OKR
-  examples this template is based on cite evidence links directly.
+- Preserve links (courses, docs, repos) inline in the KR line itself when
+  the source material provides them — matches how the real OKR examples
+  this template is based on cite evidence links directly.
