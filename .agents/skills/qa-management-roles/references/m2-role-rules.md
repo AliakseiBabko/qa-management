@@ -159,6 +159,18 @@ At project start or staffing:
   `m2-1to1-prep`'s obligatory first-contact topic for how to raise this
   with a person directly.
 
+**Open process question (not yet resolved - flag, don't silently assume an
+answer):** a real case traced a serious early-tenure conflict back to a
+support gap created by the M1/M2 role split itself -
+before the split, M1 owned a new hire's early support end-to-end; after
+the split, that ownership can fall between M1 and M2, with neither
+treating early hands-on support as clearly theirs. The person affected
+named this gap herself, unprompted. Worth deciding explicitly: who owns
+close support in the first 1-2 weeks after M1/M2 now that the roles are
+split - M1 by default, M2 by default, or an explicit handoff point neither
+role currently owns? Until that's decided, don't assume the other role has
+it covered just because the onboarding checklist above lists both.
+
 ## Project-Level Rollups
 
 `project_development_plan` and `project_risk` get updated by rolling up
@@ -193,6 +205,19 @@ archive prior rounds — the visible history of questions and answers across
 cycles is itself useful context for the next round, and Google Docs version
 history is a backstop, not a substitute for keeping rounds visible in the
 document.
+
+A round left unanswered while new addenda keep stacking on top of it is
+itself a signal, not just a growing backlog — `project_risk`/
+`project_development_plan` stay frozen behind the gate the whole time,
+even as real new evidence piles up unrolled-up. When appending an addendum
+to an already-pending round, check how old the round is and how many
+addenda it already has; if it's been open for multiple weeks or has
+several addenda, say so explicitly to the user when you finish (e.g. "this
+round has been open since <date> with N addenda — the rollup has been
+frozen that whole time") rather than silently adding addendum N+1 as if
+nothing's unusual. This doesn't mean answering it on the user's behalf —
+it means surfacing the staleness so the user can decide to actually close
+it out.
 
 ## Cascading Updates
 

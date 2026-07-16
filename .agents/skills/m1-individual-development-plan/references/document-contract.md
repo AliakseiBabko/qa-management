@@ -44,7 +44,13 @@ unavailable): `okr_<Person>_<DD.MM.YY>.md`.
   OKR is explicitly period-scoped by the company process, so each cycle's
   Doc is its own dated record.
 - Within one cycle, update the current cycle's Doc in place (e.g. status
-  updates, KR results as they land) rather than creating `_vN` copies.
+  updates, KR results as they land) rather than creating `_vN` copies. "In
+  place" means merging the update into the existing Doc - read it in full
+  first and carry forward every objective/KR that's still valid; never
+  regenerate the whole Doc from just the newest source, which risks
+  silently dropping KRs or context the new source didn't happen to repeat
+  (a real case of this happening to a sibling Doc in
+  `m2-individual-development-plan` is why this note exists).
 - When closing a cycle (see SKILL.md, Workflow step 5), record final
   status/result on every KR in that cycle's Doc before drafting the next
   cycle's Doc.

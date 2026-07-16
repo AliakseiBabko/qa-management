@@ -44,6 +44,14 @@ unavailable): `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.md`
   version history already preserves prior revisions, so do not create a new
   dated file for routine updates. "In place" means the same file/URL, not
   preserving whatever section structure the Doc currently happens to have.
+- "In place" means **merge new findings into the existing content**, never
+  wholesale-regenerate the Doc from only the newest source. A real case:
+  rewriting a Doc from a single new 1:1 transcript silently dropped
+  still-valid facts from an earlier cycle (specific sprint metrics, a
+  named process gap) that the new transcript simply didn't happen to
+  repeat. Before writing, read the current Doc in full and carry forward
+  every fact that's still true, updating or removing only what the new
+  source actually supersedes.
 - Append source traceability to the project `evidence_log` Sheet.
 - Create a separate dated snapshot only for a formal reporting event or when
   the user explicitly asks for one.
