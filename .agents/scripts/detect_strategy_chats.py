@@ -27,7 +27,7 @@ Pipeline Architecture):
 - writes a review bundle markdown summarizing what's new
 
 It does NOT extract facts, apply corrections, or touch m2_input/
-project_risk/project_development_plan/_people_registry - by design, this
+project_risk/project_development_plan/_m2_people_registry - by design, this
 repo keeps judgment-level updates conversational (see README, "Current
 pipeline scripts"). Read the review bundle, then run the
 m2-strategy-chat-analysis skill's conversational workflow for anything worth
@@ -324,7 +324,7 @@ def main() -> int:
     lines.append(
         "Next step: read the flagged file(s) above using the `m2-strategy-chat-analysis` skill. This script "
         "only detects, date-ranges, and logs new files to evidence_log; it does not extract facts or update "
-        "_people_registry/project_risk/project_development_plan/m2_input. UNCLASSIFIED items need manual "
+        "_m2_people_registry/project_risk/project_development_plan/m2_input. UNCLASSIFIED items need manual "
         "routing (confirm the project and rename the file to `<Project>_strategy...txt` if needed)."
     )
     bundle_path.write_text("\n".join(lines), encoding="utf-8")

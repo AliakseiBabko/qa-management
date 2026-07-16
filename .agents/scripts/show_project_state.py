@@ -10,7 +10,7 @@ Prints, for --project <Name>:
   individual_metrics_internal (Sheets), individual_development_plan (Doc)
 
 Prints, for --registries:
-- _people_registry, _project_registry, _timeline (Sheets)
+- _m2_people_registry, _project_registry, _timeline (Sheets)
 
 --summary (alone, or with --project) skips the full dump and prints a cheap
 one-liner per project instead: People count (from _project_registry),
@@ -49,7 +49,7 @@ DOC_MIME = "application/vnd.google-apps.document"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <ProjectName>")
-    parser.add_argument("--registries", action="store_true", help="Also/instead dump _people_registry and _project_registry")
+    parser.add_argument("--registries", action="store_true", help="Also/instead dump _m2_people_registry and _project_registry")
     parser.add_argument(
         "--summary",
         action="store_true",
@@ -256,8 +256,8 @@ def main() -> int:
         return 0
 
     if args.registries:
-        print("===== _people_registry =====")
-        dump_sheet(services, m2_root["id"], "_people_registry")
+        print("===== _m2_people_registry =====")
+        dump_sheet(services, m2_root["id"], "_m2_people_registry")
         print("===== _project_registry =====")
         dump_sheet(services, m2_root["id"], "_project_registry")
         print("===== _timeline =====")

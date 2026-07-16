@@ -36,9 +36,22 @@ message defeats the point.
 
 Real names, real project data, and any other company-specific detail
 belong **only** in the corporate Google Drive workspace referenced below
-— principally `_people_registry` for who's who, and each project's own
+— principally `_m2_people_registry` for who's who, and each project's own
 folder for project-specific facts. Skills should read/write that data via
 the Drive API at runtime, never hardcode it here.
+
+This strict rule applies to **this repository only**. The Drive workspace
+itself is internal, shared only with the relevant management audience —
+real names, personal/compensation history, performance judgments, and
+reliability assessments about named colleagues are exactly what documents
+like `project_risk`, `individual_*`, and the department traffic-light
+tracker are for. Don't hedge, genericize, or hold back real judgment
+content when writing into a Drive Sheet/Doc just because the same detail
+would be unsafe here in the repo — the two have different audiences by
+design, and treating Drive output with repo-level caution just adds
+friction nobody asked for. Ordinary evidence-backed judgment still applies
+(don't state something as fact without support); this is only about not
+over-redacting real, sourced content meant for that audience.
 
 If you ever find real data that leaked into this repo (an example,
 a leftover reference, a stray script), don't just delete it going

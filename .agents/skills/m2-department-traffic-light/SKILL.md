@@ -73,7 +73,7 @@ then copy-pastes the result back into the shared table by hand.
    `<Name> case chat.txt` / `<Person> case at <Project>.txt`-style file
    under `02_Chats_and_Emails` first, then the project's own
    `<Project>_strategy.txt`. Do not source `Risks/comments`/`Action Plan`
-   from this workspace's own `_people_registry`/`project_metrics` Notes -
+   from this workspace's own `_m2_people_registry`/`project_metrics` Notes -
    those often contain internal data-quality commentary (see Content
    Rules) rather than project facts, and pulling from there instead of the
    real source document was a mistake corrected mid-session. This is
@@ -157,7 +157,7 @@ then copy-pastes the result back into the shared table by hand.
 - This tracker is not part of this workspace's generated-rollup family
   (`_project_registry`, `_timeline`, etc.) - there is no refresh script,
   and it should never be treated as a source of truth to read back into
-  `_people_registry`/`project_metrics`. Data flows one way: from this
+  `_m2_people_registry`/`project_metrics`. Data flows one way: from this
   workspace's real evidence into the department tracker, not back.
 - Never edit rows outside M2's own block.
 - Do apply `format_all_sheets.py`'s `format_sheet()` (import and call it

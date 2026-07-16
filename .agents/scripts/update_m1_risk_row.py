@@ -5,7 +5,7 @@
 place, no dated snapshots (see google-workspace-rules.md, M1 Person-Based
 Layout, and m1-people-risk-report/references/file-contract.md). This
 script is the mechanical write path for that skill, the same role
-apply_person_card.py plays for _people_registry: it does not decide risk
+apply_person_card.py plays for _m2_people_registry: it does not decide risk
 levels or write narrative - it takes already-decided field values and
 applies them safely (existing-row lookup, in-place update vs. new row,
 Дата обновления bookkeeping, risk-scale validation).

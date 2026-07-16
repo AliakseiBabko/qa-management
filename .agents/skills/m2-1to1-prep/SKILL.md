@@ -19,6 +19,8 @@ happened yet.
    draw from (a person can be on more than one project).
 2. Read `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
+5. Read `../qa-management-roles/references/chat-message-style-rules.md` if drafting the optional first-contact invite message (see below).
 
 ## Scope
 
@@ -59,6 +61,12 @@ project."
    belongs in a question asked directly to the person.
 6. That project's `qa_process_metrics` — rows where this person is Owner
    and `Показатель` is still blank.
+7. If `Первый коммерческий проект` is unconfirmed for this person and
+   they're newly staffed, ask it directly this round rather than deferring
+   — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
+   within their first month, proactively ask how the environment, process,
+   and buddy/mentor relationship are actually working, rather than waiting
+   for them to raise a problem.
 
 ## Workflow
 
@@ -102,7 +110,11 @@ completeness here - a real example that worked:
 нужны записи дейликов и других митов по проекту.
 ```
 
-Match this shape, not this wording:
+Match this shape, not this wording. Also apply
+`../qa-management-roles/references/chat-message-style-rules.md` (no
+unrequested clarifying questions, no meta-commentary, no default
+format-choice closing, no em dashes) to this message and any other chat
+message drafted from this skill:
 
 - Open with who you are (new M2 on the project) and that you'd like a call
   about the project - one sentence, no preamble.

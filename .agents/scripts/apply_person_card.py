@@ -1,7 +1,7 @@
 """Parse a person card (the structured HRM-style block M2 pastes in
 conversation - Job Title/M-level/Prof.Level/Mentor/DC) and apply the Person
 Card Intake field mapping (see google-workspace-rules.md, Person Card
-Intake) to _people_registry.
+Intake) to _m2_people_registry.
 
 Scope, deliberately mechanical only (see m2-admin-note-intake SKILL.md):
 this script does the part that's the same every time - parse fields, find
@@ -52,10 +52,14 @@ RECOGNIZED_M_LEVELS = {"M1", "M2", "M3", "M4"}
 RECOGNIZED_RANKS = {"Junior", "Middle", "Senior", "Middle+", "Middle-", "Junior+", "Senior+"}
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 LABELS = ["Job Title", "M-level", "Prof.Level", "Mentor", "DC"]
+# Optional - not every card states this, and unlike LABELS its absence is not
+# an error (see newcomer-support-rules.md: ask rather than guess when a card
+# doesn't say, don't treat missing as "Нет").
+OPTIONAL_LABELS = ["First commercial project"]
 LEVEL_KEYWORDS = ("Senior", "Middle", "Junior")
 
 # Set this to your own company's email domain (see google-workspace-rules.md,
-# _people_registry Columns, Side) - used to tell internal staff apart from
+# _m2_people_registry Columns, Side) - used to tell internal staff apart from
 # client-side people by email domain alone.
 COMPANY_EMAIL_DOMAIN = "example.com"
 COMPANY_SIDE_LABEL = "Internal"
@@ -64,7 +68,7 @@ COMPANY_SIDE_LABEL = "Internal"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--file", help="Read the card from this file instead of stdin.")
-    parser.add_argument("--apply", action="store_true", help="Write the change to _people_registry (default: dry run).")
+    parser.add_argument("--apply", action="store_true", help="Write the change to _m2_people_registry (default: dry run).")
     parser.add_argument(
         "--company-domain",
         default=COMPANY_EMAIL_DOMAIN,
@@ -75,7 +79,7 @@ def parse_args() -> argparse.Namespace:
         "--company-side-label",
         default=COMPANY_SIDE_LABEL,
         help="Override the Side value written for internal people, to match whatever label "
-        "your own _people_registry already uses (e.g. your real company name).",
+        "your own _m2_people_registry already uses (e.g. your real company name).",
     )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
@@ -104,7 +108,7 @@ def parse_card(text: str) -> dict[str, str]:
     i = 0
     while i < len(rest) - 1:
         label = rest[i]
-        if label in LABELS:
+        if label in LABELS or label in OPTIONAL_LABELS:
             fields[label] = rest[i + 1]
             i += 2
         else:
@@ -128,6 +132,15 @@ def compute_internal_rank(prof_level: str) -> str:
     return prof_level if prof_level in RECOGNIZED_RANKS else ""
 
 
+def compute_first_commercial_project(fields: dict[str, str]) -> str:
+    """Да/Нет only when the card actually states it; blank (not "Нет") when
+    the card is silent - see newcomer-support-rules.md, don't guess."""
+    value = fields.get("First commercial project")
+    if value is None:
+        return ""
+    return "Да" if value.strip().lower() == "yes" else "Нет"
+
+
 def compute_notes(fields: dict[str, str], today: str) -> str:
     parts = [f"Подтверждено карточкой M2 ({today}): Job Title {fields['Job Title']}"]
     if fields["M-level"] not in RECOGNIZED_M_LEVELS:
@@ -137,6 +150,9 @@ def compute_notes(fields: dict[str, str], today: str) -> str:
     ))
     parts.append(f"Mentor: {'Да' if fields['Mentor'].lower() == 'yes' else 'Нет'}")
     parts.append(f"DC: {'Да' if fields['DC'].lower() == 'yes' else 'Нет'}")
+    first_commercial = compute_first_commercial_project(fields)
+    if first_commercial:
+        parts.append(f"Первый коммерческий проект: {first_commercial}")
     return ", ".join(parts) + "."
 
 
@@ -242,22 +258,28 @@ def main() -> int:
     role = compute_role(fields["Job Title"], fields["M-level"], fields["DC"])
     internal_rank = compute_internal_rank(fields["Prof.Level"])
     notes = compute_notes(fields, today)
+    first_commercial = compute_first_commercial_project(fields)
 
     print("Parsed card:")
     for key in ("name_latin", "name_cyrillic", "email", *LABELS):
         print(f"  {key}: {fields[key]!r}")
+    for key in OPTIONAL_LABELS:
+        if key in fields:
+            print(f"  {key}: {fields[key]!r}")
     print()
     print("Computed registry fields:")
     print(f"  Side:          {side}")
     print(f"  Role:          {role}")
     print(f"  Internal rank: {internal_rank!r} {'(non-standard Prof.Level, kept out of this column)' if not internal_rank and fields['Prof.Level'] else ''}")
     print(f"  Notes:         {notes}")
+    print(f"  Первый коммерческий проект: {first_commercial!r} "
+          f"{'(not stated on card - ask rather than leave silently blank once staffed)' if not first_commercial else ''}")
     print()
 
     services = get_services(args.credentials, args.token)
     drive = services["drive"]
     m2_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
-    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_people_registry")
+    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_m2_people_registry")
     rows = read_sheet_values(services, people_sheet["id"])
     header, body = rows[0], rows[1:]
 
@@ -286,7 +308,10 @@ def main() -> int:
                 print("No obvious track/level mismatch found in that person's project documents.")
     else:
         print("No existing row found for this email - this looks like a new person.")
-        new_row = [fields["name_cyrillic"], fields["name_latin"], fields["email"], side, role, internal_rank, "", notes]
+        new_row = [
+            fields["name_cyrillic"], fields["name_latin"], fields["email"], side, role, internal_rank, "", notes,
+            "", "", first_commercial,
+        ]
         print(f"Would add row: {new_row}")
         if args.apply:
             body.append(new_row)
@@ -296,7 +321,7 @@ def main() -> int:
                 spreadsheetId=people_sheet["id"], range=f"'{title}'!A1", valueInputOption="RAW",
                 body={"values": [header, *body]},
             ).execute()
-            print("Applied: added new row to _people_registry.")
+            print("Applied: added new row to _m2_people_registry.")
         else:
             print("Dry run - nothing written. Re-run with --apply to add this row.")
     return 0

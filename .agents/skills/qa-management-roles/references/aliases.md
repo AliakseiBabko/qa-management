@@ -10,7 +10,7 @@ first.
 
 **The actual alias dictionary (real names/projects) lives in Drive, not
 here** — see `_aliases` in `20_M2_Project_Management`, alongside
-`_project_registry`/`_people_registry`. This repo file only documents the
+`_project_registry`/`_m2_people_registry`. This repo file only documents the
 *mechanism* and the recurring STT error patterns worth watching for; see
 `AGENTS.md`, "No Sensitive Data In This Repository," for why real names
 never get written into this repository's own tracked files.
@@ -20,7 +20,7 @@ never get written into this repository's own tracked files.
 1. Before asking the user "is `<name heard in transcript>` a new
    project/person," check `_aliases` in Drive first.
 2. If the transcript name isn't there and isn't a clean match to anything
-   in `_project_registry`/`_people_registry`, treat it as genuinely
+   in `_project_registry`/`_m2_people_registry`, treat it as genuinely
    unresolved — ask, don't guess (per `m2-strategy-chat-analysis`'s
    UNCLASSIFIED handling).
 3. Once an alias is confirmed in conversation, add a row to `_aliases` in
@@ -37,7 +37,7 @@ never get written into this repository's own tracked files.
 - This file (and `_aliases` in Drive) is name-resolution only — "X is the
   same as Y," nothing more. Don't let it grow into a second registry: any
   fact beyond a name/spelling match (a risk, a role, a history) belongs in
-  `_people_registry`, `_project_registry`, or the project's own documents,
+  `_m2_people_registry`, `_project_registry`, or the project's own documents,
   not in a Notes cell here.
 
 #### STT Error Patterns To Watch For

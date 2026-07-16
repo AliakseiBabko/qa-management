@@ -62,7 +62,7 @@ editing an already-logged file in place makes new content invisible to it.
    - client relationship, visits, visas, logistics
    - risk signals, per person or per project
    - status-report snapshots (who's doing what, current focus)
-2. Cross-check every named person against `_people_registry`. A strategy
+2. Cross-check every named person against `_m2_people_registry`. A strategy
    chat is exactly the kind of source likely to reveal a stale or wrong role
    (e.g. someone recorded as client-side who is actually an internal DC) —
    when the chat contradicts the registry, or the user directly supplies a
@@ -79,7 +79,7 @@ editing an already-logged file in place makes new content invisible to it.
 4. Route extracted facts using the same chain as any other source
    (`m2-role-rules.md`, Cascading Updates):
    - direct, unambiguous corrections (a wrong name/role/affiliation) can be
-     fixed directly in `_people_registry` and any doc that repeated them.
+     fixed directly in `_m2_people_registry` and any doc that repeated them.
    - person-level facts that materially change a picture already in
      `individual_metrics`/`individual_development_plan` update those
      directly.
@@ -106,7 +106,7 @@ editing an already-logged file in place makes new content invisible to it.
 ## Guardrails
 
 - Do not treat every person mentioned in a strategy chat as registry-worthy.
-  `_people_registry` is scoped to QA-management-relevant roles (M1/M2/M3/M4/
+  `_m2_people_registry` is scoped to QA-management-relevant roles (M1/M2/M3/M4/
   HR/DC/QA/AQA/PM/client stakeholder/etc.) — a strategy chat for a
   DE-heavy project will name many developers who are simply not in scope;
   only add people whose role matters for QA-management topology (DC/PM
@@ -125,7 +125,7 @@ editing an already-logged file in place makes new content invisible to it.
   with "this person is staffed on this project." A strategy chat is exactly
   where this shows up — e.g. an AQA staffed on `<Project A>` who also acts
   as M2 for a QA on `<Project B>` is not staffed on `<Project B>`.
-  `_people_registry`'s
+  `_m2_people_registry`'s
   `Project(s)` column is staffing only; a cross-project management duty goes
   in `Notes`, naming which project(s) it covers (see
   `google-workspace-rules.md`'s `Project(s)` definition). Someone can and

@@ -63,7 +63,7 @@ team member gets their own folder:
 ├─ Светофор рисков.gsheet              # living, workspace-wide, covers the whole team at once
 ├─ m1_monthly_report_<Manager>_YYYY-MM.gsheet  # M1's own KPI report, not per-person
 ├─ _m1_timeline.gsheet                 # living rollup of upcoming/overdue events
-├─ _m1_pr_calendar.gsheet              # generated PR-only view, from _people_registry
+├─ _m1_pr_calendar.gsheet              # generated PR-only view, from _m2_people_registry
 └─ _self_review/<M1 name>/             # M1's own PR self-prep, as the employee being reviewed
 ```
 
@@ -83,7 +83,7 @@ under `20_M2_Project_Management`:
   room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
   продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
   Stopped projects are removed from this registry, not marked inactive.
-- `_people_registry` — every person (internal and client-side) mentioned
+- `_m2_people_registry` — every person (internal and client-side) mentioned
   across projects, with role/side/confirmation status. See
   `google-workspace-rules.md` for the full column list.
 - `_timeline` — generated rollup of every project's open `action_items`
@@ -295,7 +295,7 @@ These are what actually runs day to day, once a project's folder already exists:
   made `get_last_round_status()` wrongly read the round as still pending.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
-  Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`
+  Intake mapping in `google-workspace-rules.md`, looks up `_m2_people_registry`
   by email, and prints the computed Role/Internal rank/Notes plus a diff
   against any existing row. Dry-run by default; `--apply` adds a genuinely
   new row (an existing row's Name/Project(s) still need human judgment per
@@ -356,7 +356,7 @@ These are what actually runs day to day, once a project's folder already exists:
   yet in `evidence_log`, reuses an existing extraction by sha256 instead of
   re-extracting, classifies each by project (folder-based under
   `03_Source_Documents`, filename-matched against `_project_registry`/
-  `_people_registry` under the inbox folders), appends `evidence_log` rows,
+  `_m2_people_registry` under the inbox folders), appends `evidence_log` rows,
   and writes a review bundle to `80_Exports/intake_review/YYYY-MM-DD.md`.
   Genuinely ambiguous files are left `UNCLASSIFIED` rather than guessed —
   route those manually. Stops there: does not touch `m2_input`,
@@ -387,12 +387,12 @@ These are what actually runs day to day, once a project's folder already exists:
   edit; see `.agents/skills/m2-timeline`.
 - `refresh_m1_pr_calendar.py` — M1's analog to `refresh_project_registry.py`:
   recomputes the expected next-PR window for every person in
-  `_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
+  `_m2_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
   record, writes the result to `_m1_pr_calendar` (sorted soonest-opening
   first) and applies the workspace's standard formatting to it every run
   (see `format_all_sheets.py`), no dry-run needed since it's pure
   recomputation, not a judgment call. Safe to rerun anytime after a
-  `_people_registry` update; see `.agents/skills/m1-timeline`.
+  `_m2_people_registry` update; see `.agents/skills/m1-timeline`.
 - `scan_open_questions.py` — same kind of mechanical front half as
   `prepare_intake_review.py`/`detect_strategy_chats.py`, but scanning
   `m2_input`/`project_risk`/`project_metrics` instead of raw source files:
@@ -471,7 +471,7 @@ per-project-style Sheet-plus-rollup isn't needed. `scan_m1_events.py`
 derives candidates mechanically: it reads every OKR Doc's title (`OKR к
 Perfomance review DD.MM.YY`) to surface upcoming/overdue Performance
 Reviews and people missing a current OKR, cross-checks that against an
-expected-next-PR *window* computed from `_people_registry`'s `Дата
+expected-next-PR *window* computed from `_m2_people_registry`'s `Дата
 трудоустройства`/`Дата последнего PR` (real cadence: window opens at last
 PR + 6 months, or hire date + 3 months for a first/probation-closing PR,
 and closes 1 month later — see
@@ -483,11 +483,11 @@ monthly report. Same read-only-by-default / `--write` split as
 
 For a PR-only view (no other event types mixed in), `refresh_m1_pr_calendar.py`
 generates `_m1_pr_calendar` (template `Templates/m1_pr_calendar.csv`) from
-the same `_people_registry` data — one row per person with a computable
+the same `_m2_people_registry` data — one row per person with a computable
 window, sorted soonest-first, `Статус` one of `Не скоро`/`В окне`/
 `Просрочено`/`Нет данных`. Fully regenerated every run, like
 `refresh_project_registry.py` on the M2 side — never hand-edited, so it
-can't drift from `_people_registry` as a second source of truth. Also
+can't drift from `_m2_people_registry` as a second source of truth. Also
 reformatted (wrap/align/column widths) on every run, so it never needs a
 separate manual formatting pass.
 
