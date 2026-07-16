@@ -25,7 +25,7 @@ inside each person's own subfolder:
 - `_m1_timeline` — every event type together (Performance Review, OKR,
   Monthly report, Встреча, Follow-up, Прочее).
 - `_m1_pr_calendar` — PR-only view, mechanically generated from
-  `_people_registry` by `refresh_m1_pr_calendar.py`, never hand-edited.
+  `_m2_people_registry` by `refresh_m1_pr_calendar.py`, never hand-edited.
 
 Suggested target folder:
 
@@ -38,7 +38,7 @@ roll up `_m1_timeline` from — it's a single living Sheet, edited directly.
 Do not create per-person `action_items`-style Sheets for this purpose;
 M1's team size (3-8 people, see `m1-role-rules.md`) doesn't need the
 two-tier structure M2 uses to avoid one giant cross-project Sheet.
-`_m1_pr_calendar` *is* a generated rollup, but from `_people_registry`
+`_m1_pr_calendar` *is* a generated rollup, but from `_m2_people_registry`
 directly, not from per-person Sheets — same one-source-of-truth principle
 as `_timeline` on the M2 side.
 
@@ -97,7 +97,7 @@ one row per person with a computable window:
 - OKR Doc titles (`m1-individual-development-plan`) — the PR date encoded
   in `OKR к Perfomance review DD.MM.YY` is the primary source for
   Performance Review events.
-- `_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` columns
+- `_m2_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` columns
   (see `google-workspace-rules.md`) — an independent, cadence-based way to
   compute the expected next PR window (`performance-review-rules.md`,
   "Deriving the Expected Next PR Window"), used both to track people before

@@ -150,6 +150,13 @@ tells the reader nothing, and that traceability already lives in
 - If a project-side stakeholder questions the need for QA or believes QA can be replaced without loss, treat this as an `our-role` / business-value risk and map it to communication/client or QA-process dimensions as appropriate.
 - If the project is paused, contract end is near, tender horizon is known, or client dissatisfaction has already affected continuation, reflect that in the overall level and action plan.
 - If a junior or newly onboarded QA is placed into a senior/project-critical expectation, classify the risk by project impact, not by personal criticism.
+- If someone on the project has `Первый коммерческий проект` = `Да` (see
+  `newcomer-support-rules.md`) and is within their first month on it, that
+  fragility can be a real `Риск staffing / continuity` factor if it
+  concretely threatens delivery — but the buddy/mentor assignment and the
+  person-level risk elevation itself belong to M1's people-risk report, not
+  here; only surface it in `project_risk` when it has actual project
+  impact.
 
 ## Rule
 

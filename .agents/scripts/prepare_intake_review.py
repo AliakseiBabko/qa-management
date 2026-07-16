@@ -10,7 +10,7 @@ Project-Level Rollups and Pipeline Architecture):
   80_Exports/source_extracts/*/manifest.csv) instead of re-extracting
 - classifies each new file by project (folder-based under
   03_Source_Documents, filename-matched against _project_registry /
-  _people_registry under 01/02) using substring matching only — genuinely
+  _m2_people_registry under 01/02) using substring matching only — genuinely
   ambiguous files are left unclassified, not guessed
 - appends evidence_log rows (mechanical trace, not a judgment call)
 - writes a local review bundle markdown file summarizing what's new
@@ -107,7 +107,7 @@ def load_known_names(services: dict[str, Any]) -> tuple[list[str], dict[str, lis
     ]
 
     person_to_projects: dict[str, list[str]] = {}
-    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_people_registry")
+    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_m2_people_registry")
     if people_sheet:
         rows = read_sheet_values(services, people_sheet["id"])
         for row in rows[1:]:

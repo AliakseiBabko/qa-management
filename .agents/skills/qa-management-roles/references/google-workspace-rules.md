@@ -115,10 +115,10 @@ rather than about one team member:
   report, not a per-person artifact (see `m1-monthly-report`).
 - `_m1_timeline` — living workspace-wide Sheet of upcoming/overdue events
   across the whole team (see `m1-timeline`). Leading underscore marks it
-  as a system/rollup artifact, same convention as `_people_registry`/
+  as a system/rollup artifact, same convention as `_m2_people_registry`/
   `_project_registry` under `20_M2_Project_Management`.
 - `_m1_pr_calendar` — PR-only view, mechanically regenerated from
-  `_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` by
+  `_m1_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` by
   `refresh_m1_pr_calendar.py` (see `m1-timeline`,
   `performance-review-rules.md`'s "Deriving the Expected Next PR Window").
   Never hand-edited — same generated-rollup discipline as `_m1_timeline`.
@@ -231,7 +231,7 @@ Columns are `Проект`, `People`,
 `Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
 or folder-navigation link; those don't belong in a summary dashboard.
 
-Keep `_people_registry` in `20_M2_Project_Management` as a single workspace-wide
+Keep `_m2_people_registry` in `20_M2_Project_Management` as a single workspace-wide
 Google Sheet (CSV fallback), covering people affiliated with both the
 company and clients across all projects — not a per-project list, since
 roles like M1/M2/HR/DC often span multiple projects and a per-project copy
@@ -279,6 +279,11 @@ would drift out of sync. Columns:
   fill it from a guess. M1 (or M2/M3 for their own PR) updates this cell
   right after a PR actually happens; `m1-timeline`'s cadence computation
   (expected next PR = this date + 6 months) depends on it staying current.
+- `Первый коммерческий проект` — `Да` / `Нет`, whether this is the person's
+  first-ever commercial (client-facing/production) project, distinct from
+  hire date or internal rank — see `newcomer-support-rules.md` for the full
+  detection and response rule. Ask rather than guess; leave blank only
+  while genuinely unconfirmed.
 
 `Aliases / STT variants`, `Status`, and `Confirmed by M2` were removed —
 this table exists to log people who come up in discussions or calls, not to
@@ -291,12 +296,12 @@ Keep `_m1_people_registry` in `10_M1_People_Management` as a single
 workspace-wide Google Sheet (CSV fallback), sibling to `Светофор рисков`
 and `_m1_pr_calendar`. Scope: every person with a folder under
 `10_M1_People_Management` — Innowise employees under M1 management, full
-stop. Unlike `_people_registry`, there is no `Side` column here — M1 never
+stop. Unlike `_m2_people_registry`, there is no `Side` column here — M1 never
 tracks client-side people, so the column would always read `Internal` and
 add nothing.
 
 This registry exists because, as of 2026-07, 8 of 11 people with an M1
-folder had zero row in any registry — `_people_registry` only ever picked
+folder had zero row in any registry — `_m2_people_registry` only ever picked
 someone up once they crossed onto an M2-staffed project, leaving pure-M1
 people (bench, onboarding, pre-hire) with no structured record at all,
 their hire/PR dates re-derived from 1:1 transcripts by hand each time they
@@ -304,36 +309,40 @@ were needed.
 
 Columns:
 
-- `Name (RU)`, `Name (EN)` — same convention as `_people_registry`: first +
+- `Name (RU)`, `Name (EN)` — same convention as `_m2_people_registry`: first +
   last name only, no patronymic (patronymic goes in Notes if captured).
 - `Email` — when known.
 - `Worker ID` — from an HRM worker-record card (see Person Card Intake,
-  HRM Worker-Record Card shape below); not tracked in `_people_registry`.
+  HRM Worker-Record Card shape below); not tracked in `_m2_people_registry`.
 - `M1` — this person's current M1 manager. The actual gap this registry
-  fixes: previously only recorded as free text in `_people_registry`
+  fixes: previously only recorded as free text in `_m2_people_registry`
   Notes, and only for the handful of people who happened to cross over
   onto an M2 project.
-- `Job Title / Role`, `Internal rank` — same meaning as `_people_registry`'s
+- `Job Title / Role`, `Internal rank` — same meaning as `_m2_people_registry`'s
   equivalent columns.
 - `Project(s) / Бенч` — current staffing status: a project name, or `Бенч`.
 - `Дата трудоустройства`, `Дата последнего PR` — same rules as
-  `_people_registry`'s equivalents (ISO `YYYY-MM-DD`, blank means
+  `_m2_people_registry`'s equivalents (ISO `YYYY-MM-DD`, blank means
   genuinely unknown, ask rather than guess) — this is the anchor
   `m1-timeline` and `m1-individual-development-plan` should read from
   instead of re-deriving a date from transcripts each time.
-- `Notes` — same discipline as `_people_registry`: citations, confidence
+- `Notes` — same discipline as `_m2_people_registry`: citations, confidence
   level on any estimated date, mismatches.
+- `Первый коммерческий проект` — last column, added after `Notes`. Same
+  rule as `_m2_people_registry`'s equivalent, see `newcomer-support-rules.md`.
+  This is the M1-side copy of the same fact for people who don't have a
+  `_m2_people_registry` row.
 
 No computed "next PR expected" column — `m1-timeline` already derives that
 dynamically from `Дата последнего PR` + cadence rules
 (`performance-review-rules.md`); storing it statically here would just go
 stale.
 
-**Cross-link with `_people_registry`**, for anyone who exists in both (an
+**Cross-link with `_m2_people_registry`**, for anyone who exists in both (an
 M1-managed person who's also staffed on an M2 project): `_m1_people_registry`
 is the source of truth for `M1`, `Worker ID`, `Дата трудоустройства`, and
 `Job Title`/`Internal rank`. Don't duplicate those facts as free text in
-`_people_registry`'s Notes — reference `_m1_people_registry` there instead
+`_m2_people_registry`'s Notes — reference `_m1_people_registry` there instead
 (e.g. "M1: see `_m1_people_registry`") so there's one place to update, not
 two copies to keep in sync by hand.
 
@@ -373,6 +382,11 @@ Map every field explicitly rather than re-deriving the mapping each time:
 - Project(s) — leave blank unless the card or its context states an actual
   staffed project; never infer it from which chat/project the card happened
   to arrive alongside (see the `Project(s)` rule above).
+- `Первый коммерческий проект` — only if the card explicitly states it
+  (e.g. a `First commercial project - Yes` line); do not infer it from
+  `Prof.Level`, `M-level`, or the absence of prior `Project(s)` entries. If
+  the card doesn't state it and the person is being staffed onto a project,
+  ask rather than leave it silently blank — see `newcomer-support-rules.md`.
 - Notes — `M-level` verbatim (only when it wasn't already folded into Role
   per above), flagged as unconfirmed in meaning; `Mentor` status in plain
   language; and a citation of the source (which chat/note the card came
@@ -405,9 +419,9 @@ Name (EN)`, `Worker ID`, `Hire date`/`Employment date`, and an
 This has no email and doesn't always include the `Job Title`/`M-level`/
 `Prof.Level`/`Mentor`/`DC` block the other card shape has — `apply_person_card.py`
 does not parse this shape; map it by hand. Maps primarily into
-`_m1_people_registry` (see above), not `_people_registry` — this card
+`_m1_people_registry` (see above), not `_m2_people_registry` — this card
 shape is how M1-side facts (hire date, Worker ID, current M1) get filled,
-even for someone who also happens to have a `_people_registry` row from
+even for someone who also happens to have a `_m2_people_registry` row from
 being M2-staffed.
 
 - `Дата трудоустройства` — `Hire date` (same as `Employment date` in every
@@ -423,13 +437,13 @@ being M2-staffed.
   than overwriting silently — the two sources confirming each other is
   itself worth noting in Notes.
 - `Worker ID` — has its own column in `_m1_people_registry`; not tracked
-  in `_people_registry`.
+  in `_m2_people_registry`.
 - `Department` / other org-structure fields — not mapped to a dedicated
   registry column; record in Notes if useful context.
 - If `Job Title`/`M-level`/`Prof.Level`/`Mentor`/`DC` are present on this
   card shape too, map those fields the same way as the primary card shape
   above.
-- If the person also has a `_people_registry` row (M2-staffed), update
+- If the person also has a `_m2_people_registry` row (M2-staffed), update
   that row's Notes to point at `_m1_people_registry` for these facts
   rather than duplicating them — see the Cross-link note above.
 
@@ -495,9 +509,16 @@ than picking an ad hoc value silently at the point of use.
 ## Language Rules
 
 Apply this to any prose written into a final output (development plans,
-status reports, risk narratives, summaries) — not to code, file paths, or
-literal evidence citations.
+status reports, risk narratives, summaries) or into a chat message drafted
+for the user to send to a colleague/stakeholder (see
+`chat-message-style-rules.md` for that case specifically) — not to code,
+file paths, or literal evidence citations.
 
+- Do not use an em dash / long dash ("—") as word-joining punctuation in
+  any generated prose. It reads as AI-generated and undermines text meant
+  to sound natural, especially colleague-facing chat messages. Use a
+  comma, period, semicolon, parentheses, or restructure the sentence
+  instead.
 - Base language is Russian. Write full sentences in Russian; do not build a
   clause out of one Russian verb followed by an English noun phrase.
   - Bad: "Ввести lightweight bug tracking rule." / "Подготовить account-level
@@ -593,6 +614,33 @@ When sharing with an employee is eventually set up:
   `insertText`, its paragraph style resets to normal text — you must reapply
   `updateParagraphStyle` (e.g. `HEADING_2`) afterward, or the heading silently
   stops looking like a heading.
+
+## Search Strategy
+
+Do not grep recursively across the whole `G:\My Drive\QA_Management` mirror
+to find mentions of a person or topic. This reads every file's raw bytes,
+including multi-MB `.docx`/`.xlsx` source binaries and `.gdoc`/`.gsheet`
+placeholder files whose real content lives in the cloud, not the local
+pointer file (grepping them finds nothing anyway, since the local file is
+just a JSON stub) — a real attempt at this timed out well before finishing
+on a single-name search.
+
+Instead:
+
+1. Check `_m2_people_registry` / `_m1_people_registry` first — their
+   `Project(s)`/`Notes` columns usually already point at the person's
+   project and known source docs.
+2. Then look directly in the conventional location this repo already
+   documents: `<Person> case chat.txt` / `<Person> case at <Project>.txt`
+   under `00_Source_Docs\02_Chats_and_Emails`, that project's
+   `<Project>_strategy.txt`, or `01_Meeting_Transcripts` — the naming
+   convention already tells you where to look; don't blind-search first.
+3. If a genuinely broad text search across Drive is still needed, use the
+   Drive API's `fullText contains` query (server-side indexed, and it
+   covers native Google Docs/Sheets content) instead of a local filesystem
+   grep over the mirror.
+4. Don't introduce a new tagging/indexing layer to solve this — the
+   existing naming conventions and registries already serve that purpose.
 
 ## Source Extraction
 

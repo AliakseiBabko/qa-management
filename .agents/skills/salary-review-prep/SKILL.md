@@ -21,7 +21,7 @@ prepare theirs, and when M1/M2 is preparing their own (alongside
 2. Read `../qa-management-roles/references/salary-review-rules.md`.
 3. Read `../qa-management-roles/references/performance-review-rules.md` for PR cadence context.
 4. Identify the person and whether this is a team-member case (M1/M2 supporting a QA engineer) or a self case (M1/M2 preparing their own).
-5. Read the person's OKR Doc (`m1-individual-development-plan` / `m2-individual-development-plan` / `m-self-review`), their `_people_registry` row (grade, hire date), their `1to1` Sheet, and — if on a project — `project_metrics`'s `Вклад в проект` row.
+5. Read the person's OKR Doc (`m1-individual-development-plan` / `m2-individual-development-plan` / `m-self-review`), their `_m2_people_registry` row (grade, hire date), their `1to1` Sheet, and — if on a project — `project_metrics`'s `Вклад в проект` row.
 
 ## Workflow
 
@@ -43,7 +43,7 @@ prepare theirs, and when M1/M2 is preparing their own (alongside
    grade is on record. If unknown, ask. Never certify AI competency
    yourself — that's the current AI lead's call (QA or AQA track — look
    up who currently holds `AI Lead (QA)`/`AI Lead (AQA)` in
-   `_people_registry` rather than assuming a name), per
+   `_m2_people_registry` rather than assuming a name), per
    `salary-review-rules.md`.
 6. Run the blocker pre-check (dynamics, AI competency, bench status,
    feedback, department engagement) honestly against real evidence — the

@@ -18,9 +18,10 @@ happened yet.
 1. Identify the person.
 2. Read `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m1-role-rules.md`.
-4. Read the person's current-cycle OKR Doc if one exists (see
+4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
+5. Read the person's current-cycle OKR Doc if one exists (see
    `m1-individual-development-plan`).
-5. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
+6. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
    against this person.
 
 ## Scope
@@ -60,6 +61,11 @@ person's experience of it, not the project's fix.
    OKR) becomes a direct follow-up question.
 6. Any `qa-1to1-analysis` findings from a transcript newer than the last
    risk-sheet update, if one exists and hasn't been folded in yet.
+7. If `_m1_people_registry`'s `Первый коммерческий проект` is unconfirmed
+   for this person and they're newly staffed to a project, ask it directly
+   — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
+   within their first month, proactively ask about environment, process,
+   and whether the assigned buddy/mentor relationship is actually working.
 
 ## Workflow
 

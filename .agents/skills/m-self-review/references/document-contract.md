@@ -78,7 +78,7 @@ Use exactly the columns in `Templates\критерии_оценки_команд
 4. `Ответственный за сбор` — `Лид команды` for every metric except #1
    (`M+1`).
 5. `Метод сбора` — as given in `team-criteria-rules.md`; note where this
-   repo has partial evidence (project_metrics, _people_registry) vs. where
+   repo has partial evidence (project_metrics, _m2_people_registry) vs. where
    the number must come from an external system.
 6. `Макс баллов` — fixed per metric (see `team-criteria-rules.md`).
 7. `Балл` — the actual score. Blank (not `0`) when unknown.
@@ -91,7 +91,7 @@ Use exactly the columns in `Templates\критерии_оценки_команд
 1. Existing `критерии_оценки_команды` snapshot from the prior PR cycle —
    for continuity/comparison, not for carrying forward stale numbers.
 2. `project_metrics`'s `Вклад в проект` rows (metric 4) and
-   `_people_registry`'s `Role`/`Internal rank` (metrics 6, 12) — the only
+   `_m2_people_registry`'s `Role`/`Internal rank` (metrics 6, 12) — the only
    metrics with in-repo partial evidence.
 3. Explicit numbers the user provides for every other metric.
 4. The person's own OKR Doc and PGROWTH task state, for the self-review
