@@ -393,6 +393,33 @@ read as high-risk and defeats the point of having the field.
 
 Assess evidence strength for feedback and risk signals. Mark whether feedback is direct client feedback, intermediary feedback, DC/QA Lead feedback, team feedback, or employee self-report. Multi-hop or indirect feedback can still be useful, but it lowers confidence and should be named in the evidence.
 
+A source's category (DC/QA Lead, self-report, etc.) sets a baseline
+confidence, but it is not the whole picture — weigh it further by the
+source's position/seniority/domain expertise relative to the *specific
+claim*, and by whether their incentives align with an accurate answer or
+push them toward a distorted one. A senior DC/QA Lead's concrete, checkable
+technical assessment (e.g. a specific code-quality or comprehension gap)
+carries real weight, particularly when they have no incentive to make the
+project look worse than it is. A newcomer's self-report on their own
+performance — especially on their first commercial project — should be
+read through the onboarding-fragility lens (`newcomer-support-rules.md`),
+not treated as an equally authoritative counter-claim just because it
+disagrees with someone more senior.
+
+Do not let a reliability concern on one axis discount a source's claims on
+an unrelated axis. Whether someone is honest/consistent in what they tell
+a person directly versus what they say about that person to a third party
+(a communication/diplomacy axis) is a different question from whether
+their technical assessment of that person's work is accurate (a
+judgment/expertise axis). A source shown to be inconsistent on the first
+does not become unreliable on the second — name which axis is actually in
+question rather than applying a blanket "this source is unreliable" label
+to everything they say. Independent verification (code review, direct
+metrics) is still the right closing step for any single-source claim
+regardless of how credible the source already is — not because the source
+is under suspicion, but because that is the standard bar before this
+document treats a conclusion as settled.
+
 Treat hidden or unclear project topology as a risk signal: unknown streams, unknown DC/PM ownership, unclear vendor chain, missing client path, or incomplete staffing visibility can cause wrong escalations, duplicated communication, missed stakeholders, or loss of project scope.
 
 Separate individual performance risk from project/stake risk. A person may perform well while the project is still high risk because of vendor-chain issues, client dissatisfaction, role value doubts, weak processes, or contract horizon.

@@ -64,6 +64,77 @@ def get_people_registry_sheet(services):
     return sheet
 
 
+# Workspace-wide log of which skill(s) actually got applied when processing a
+# source document (2026-07-17) - separate from evidence_log (which is
+# per-project and answers "which live documents changed"), this answers "what
+# skill combo handled this kind of source," across both M1 and M2, so those
+# patterns can eventually be analyzed instead of only living in conversation
+# history. Lives at the workspace root, not nested under 10_/20_, for the
+# same clone-independence reason as _people_registry.
+SKILL_INVOCATIONS_SHEET = "_skill_invocations"
+SKILL_INVOCATIONS_HEADER = [
+    "Date", "Source", "Source type", "Project", "Person", "Skills applied", "Documents touched", "Notes",
+]
+# Canonical source_type values - keep in sync with google-workspace-rules.md's
+# evidence_log list; extend both together rather than picking an ad hoc value
+# silently at the point of use.
+SKILL_INVOCATION_SOURCE_TYPES = {
+    "strategy_chat", "meeting_transcript", "m1_history", "m2_conversation",
+    "qa_1to1", "admin_note", "people_case_chat",
+}
+
+
+def get_skill_invocations_sheet(services):
+    """Resolve the workspace-wide skill-invocations log (creating it if this
+    is the first call ever - unlike the people registry, an empty log is a
+    legitimate starting state, not a sign something's missing)."""
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, create_sheet, find_sheet_in_folder
+
+    sheet = find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SKILL_INVOCATIONS_SHEET)
+    if sheet:
+        return sheet
+    return create_sheet(services, SKILL_INVOCATIONS_SHEET, ROOT_FOLDER_ID, [SKILL_INVOCATIONS_HEADER])
+
+
+def log_skill_invocation(
+    services,
+    *,
+    date: str,
+    source: str,
+    source_type: str,
+    skills: str,
+    project: str = "",
+    person: str = "",
+    documents_touched: str = "",
+    notes: str = "",
+) -> None:
+    """Append one row to _skill_invocations. `skills` and `documents_touched`
+    are comma-separated strings, same convention as evidence_log's
+    `routed_to` - list every skill actually applied, not just the first one
+    that seems to fit. `source_type` should be one of
+    SKILL_INVOCATION_SOURCE_TYPES; add a genuinely new shape to that set
+    (and to google-workspace-rules.md's list) rather than inventing an ad
+    hoc value here."""
+    from sync_m2_source_docs_to_sheets import read_sheet_values
+
+    if source_type not in SKILL_INVOCATION_SOURCE_TYPES:
+        raise ValueError(
+            f"Unrecognized source_type {source_type!r} - add it to SKILL_INVOCATION_SOURCE_TYPES "
+            "(and google-workspace-rules.md) if this is a genuinely new source shape."
+        )
+    sheet = get_skill_invocations_sheet(services)
+    rows = read_sheet_values(services, sheet["id"])
+    header, body = (rows[0], rows[1:]) if rows else (SKILL_INVOCATIONS_HEADER, [])
+    body.append([date, source, source_type, project, person, skills, documents_touched, notes])
+    title = services["sheets"].spreadsheets().get(spreadsheetId=sheet["id"]).execute()["sheets"][0]["properties"]["title"]
+    services["sheets"].spreadsheets().values().clear(spreadsheetId=sheet["id"], range=f"'{title}'").execute()
+    services["sheets"].spreadsheets().values().update(
+        spreadsheetId=sheet["id"], range=f"'{title}'!A1", valueInputOption="RAW",
+        body={"values": [header, *body]},
+    ).execute()
+    reformat_sheet(services, sheet["id"], SKILL_INVOCATIONS_SHEET)
+
+
 def get_services(
     credentials_path: Path | str = DEFAULT_CREDENTIALS,
     token_path: Path | str = DEFAULT_TOKEN,

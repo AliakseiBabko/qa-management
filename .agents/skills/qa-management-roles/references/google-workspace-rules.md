@@ -455,8 +455,35 @@ covers automated syncs is misleading about what actually changed.
 `source_type` canonical values (do not invent a new spelling of an
 existing concept — check this list first): `strategy_chat`,
 `meeting_transcript`, `m1_history`, `m2_conversation`, `qa_1to1`,
-`admin_note`. If a genuinely new source shape appears, add it here rather
-than picking an ad hoc value silently at the point of use.
+`admin_note`, `people_case_chat` (a person-specific incident chat under
+`02_Chats_and_Emails`, e.g. a leaving-case thread — distinct from a
+project-wide `strategy_chat`). If a genuinely new source shape appears, add
+it here rather than picking an ad hoc value silently at the point of use.
+
+### `_skill_invocations`
+
+Separate from `evidence_log` (which is per-project and answers "which live
+documents changed because of this source"), `_skill_invocations` is a
+single workspace-wide living Sheet at the Drive root (not nested under
+`10_`/`20_`, same clone-independence reasoning as `_people_registry`) that
+answers "what skill(s) actually got applied to this source" — across both
+M1 and M2, so those patterns can be analyzed later (e.g. "which document
+shapes reliably trigger which skill combo") instead of only living in
+conversation history. Log a row every time a source document or
+conversational request gets processed through one or more skills —
+whether or not it ends up changing a canonical document (a first-contact
+1to1-invite draft that produces no lasting document is still worth
+logging, since the point is skill-trigger patterns, not just outcomes).
+
+Use `pipeline_common.log_skill_invocation()` rather than hand-rolling the
+Sheets write — it validates `source_type` against the same canonical list
+above and reformats the Sheet after writing. Columns: `Date`, `Source`,
+`Source type`, `Project` (blank if not project-scoped), `Person` (blank if
+not about one person), `Skills applied` (comma-separated skill folder
+names, e.g. `qa-1to1-analysis, m2-1to1-apply` — list every skill actually
+applied, not just the first one that seems to fit, same discipline as
+`evidence_log`'s `routed_to`), `Documents touched` (blank if none),
+`Notes`.
 
 ## Naming And Versioning
 
