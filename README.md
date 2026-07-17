@@ -299,6 +299,10 @@ These are what actually runs day to day, once a project's folder already exists:
   Sheet right after a write — `format_all_sheets.py` is otherwise the only
   thing that keeps row height in sync with edited content, so a script that
   writes without calling this leaves stale, clipped row heights behind);
+  `log_skill_invocation()` (appends a row to `_skill_invocations`, the
+  workspace-wide log of which skill(s) actually handled a given source —
+  see `google-workspace-rules.md` — use this instead of a raw Sheets write
+  so `source_type` stays validated against the canonical list);
   `get_last_round_status()` (reads
   an m2_input Doc and reports the latest round's date and whether its
   "Ответ и общие соображения M2" section is still empty — used by
