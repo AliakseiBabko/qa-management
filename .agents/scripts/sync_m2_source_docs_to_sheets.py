@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials, move_file_to_folder
+from pipeline_common import reformat_sheet
 from generate_m2_outputs import (
     clean_markdown,
     generate_metrics,
@@ -200,6 +201,7 @@ def create_sheet(services: dict[str, Any], title: str, folder_id: str, values: l
         valueInputOption="RAW",
         body={"values": values},
     ).execute()
+    reformat_sheet(services, spreadsheet_id, title)
     return services["drive"].files().get(
         fileId=spreadsheet_id,
         fields="id,name,webViewLink",
@@ -224,6 +226,7 @@ def upsert_sheet(services: dict[str, Any], folder_id: str, title: str, values: l
         valueInputOption="RAW",
         body={"values": values},
     ).execute()
+    reformat_sheet(services, existing["id"], title)
     return existing
 
 

@@ -27,7 +27,7 @@ Ask directly.
 
 - Ask the engineer themselves, their M1, or the project's DC/QA lead —
   whichever is available first. Do not guess or leave it unrecorded.
-- Record the answer in `_m2_people_registry` / `_m1_people_registry`'s
+- Record the answer in `_people_registry`'s
   `Первый коммерческий проект` column (`Да` / `Нет`) — see
   `google-workspace-rules.md`. Leave blank only while genuinely unconfirmed,
   and treat an unconfirmed value on someone newly staffed to a project as

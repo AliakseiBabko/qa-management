@@ -1,7 +1,7 @@
 """Grep-based guard for AGENTS.md's "No Sensitive Data In This Repository"
 rule: check whether any added line under `.agents/` in the current git diff
 (staged + unstaged) contains a real person name or real project name pulled
-live from `_m2_people_registry`/`_project_registry`.
+live from `_people_registry`/`_project_registry`.
 
 This is a cheap net, not a proof of safety: it only catches names/projects
 that are already registered in Drive, matched as literal substrings. It
@@ -22,7 +22,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_services
+from pipeline_common import get_people_registry_sheet, get_services
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values
 
 MIN_NAME_LEN = 4  # skip short tokens likely to false-positive (e.g. common words)
@@ -34,7 +34,7 @@ def load_watch_strings(services: dict[str, Any]) -> set[str]:
 
     watch: set[str] = set()
 
-    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_m2_people_registry")
+    people_sheet = get_people_registry_sheet(services)
     if people_sheet:
         rows = read_sheet_values(services, people_sheet["id"])
         for row in rows[1:]:

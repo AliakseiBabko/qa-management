@@ -37,7 +37,7 @@ formula — do not auto-compute this one; ask/confirm instead.
 The next PR is not a single predicted date — it's a **window**: opens no
 earlier than 6 months after the last PR, and shouldn't slip past 7 months
 without a stated reason. Given `Дата трудоустройства` and `Дата последнего
-PR` from `_m2_people_registry`:
+PR` from `_people_registry`:
 
 1. If `Дата последнего PR` is set: window opens at that date + 6 months.
 2. Else if `Дата трудоустройства` is set: window opens at hire date + 3
@@ -58,7 +58,7 @@ the window means one of the two sources is stale and needs reconciling,
 not that one is automatically right.
 
 `refresh_m1_pr_calendar.py` generates a dedicated `_m1_pr_calendar` Sheet
-(see `m1-timeline`'s document-contract) from this same `_m2_people_registry`
+(see `m1-timeline`'s document-contract) from this same `_people_registry`
 data — a PR-only view, mechanically regenerated, never hand-edited, so it
 never becomes a second source of truth for `Дата последнего PR`.
 

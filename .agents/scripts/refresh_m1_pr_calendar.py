@@ -1,11 +1,11 @@
-"""Refresh `_m1_pr_calendar` from `_m1_people_registry` - a PR-only view,
+"""Refresh `_m1_pr_calendar` from `_people_registry` - a PR-only view,
 same mechanical-rollup spirit as `refresh_project_registry.py`/
 `refresh_timeline_registry.py`: no judgment of its own, just recomputes
 the expected next-PR window for every internal person on record and
 writes it out sorted by how soon it opens.
 
 This does NOT duplicate `Дата последнего PR` as an independently-editable
-fact anywhere - `_m1_people_registry` stays the single source of truth for
+fact anywhere - `_people_registry` stays the single source of truth for
 that; this Sheet is fully regenerated from it every run, so it can never
 drift out of sync the way a second hand-maintained sheet could (see
 performance-review-rules.md, "Deriving the Expected Next PR Window").
@@ -16,7 +16,7 @@ scaffold_project_dashboard.py-created Sheets are expected to eventually be
 formatted. A fully-rewritten Sheet has no reason to ever sit unformatted
 between runs.
 
-Safe to rerun anytime after a `_m1_people_registry` update. Unlike
+Safe to rerun anytime after a `_people_registry` update. Unlike
 scan_m1_events.py, there is no --write/dry-run split here - there's no
 candidate to review, just a recomputation, so it always writes.
 """
@@ -31,7 +31,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 from format_all_sheets import format_sheet
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_services
+from pipeline_common import get_people_registry_sheet, get_services
 from scan_m1_events import (
     REGISTRY_HIRE_DATE_COL,
     REGISTRY_LAST_PR_COL,
@@ -59,7 +59,7 @@ def compute_row(name_ru: str, name_en: str, hire: dt.date | None, last_pr: dt.da
     window_open, window_close, basis = expected_pr_window(hire, last_pr)
 
     if window_open is None:
-        return [person, "нет данных", "", "", "", "Нет данных", "Нужна «Дата трудоустройства» в _m1_people_registry"]
+        return [person, "нет данных", "", "", "", "Нет данных", "Нужна «Дата трудоустройства» в _people_registry"]
 
     anchor = last_pr if last_pr is not None else hire
     today = dt.date.today()
@@ -90,10 +90,7 @@ def main() -> int:
     if not m1_root:
         print("10_M1_People_Management folder not found under the workspace root.")
         return 1
-    registry_sheet = find_sheet_in_folder(drive, m1_root["id"], "_m1_people_registry")
-    if not registry_sheet:
-        print("_m1_people_registry not found.")
-        return 1
+    registry_sheet = get_people_registry_sheet(services)
 
     registry_rows = read_sheet_values(services, registry_sheet["id"])
     rows: list[list[str]] = []

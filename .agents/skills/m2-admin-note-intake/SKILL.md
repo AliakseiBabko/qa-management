@@ -28,7 +28,7 @@ intake skills:
 ## Required Start
 
 1. Read `../qa-management-roles/references/google-workspace-rules.md`'s
-   `_m2_people_registry` section, including **Person Card Intake** — the field
+   `_people_registry` section, including **Person Card Intake** — the field
    mapping for person cards lives there, not duplicated here.
 2. Read `../qa-management-roles/references/m2-role-rules.md`'s Risk Rules
    (topology risk) and Communication and Visibility sections — a chat
@@ -42,7 +42,7 @@ intake skills:
 1. Save the card to a file and run
    `.agents\scripts\apply_person_card.py --file <path>` first — it parses
    the fields, computes Role/Internal rank/Notes per the Person Card Intake
-   mapping, and looks up any existing `_m2_people_registry` row by email, so
+   mapping, and looks up any existing `_people_registry` row by email, so
    you're not re-deriving the mapping by hand each time. Pass `--file`, not
    stdin — a Windows bash heredoc was found to silently drop the Cyrillic
    half of the name.
@@ -61,7 +61,7 @@ intake skills:
 1. Extract the concrete fact(s): who's missing from which chat, who granted
    or couldn't grant access, and why (e.g. "never added myself"), or which
    raw chat names map to which single canonical project.
-2. Cross-check against `_project_registry`/`_m2_people_registry` — a topology
+2. Cross-check against `_project_registry`/`_people_registry` — a topology
    note is exactly the kind of source that resolves (or reveals) exactly
    the kind of ambiguity flagged in `google-workspace-rules.md`'s registry
    rules (unclear role, unclear project mapping).
@@ -93,7 +93,7 @@ intake skills:
   or role (e.g. a "was M2 until <date>" note vs. a message implying the
   role continued) — state both readings and pick the one the new evidence
   actually supports, explaining why, rather than picking silently.
-- Do not add every person mentioned in passing to `_m2_people_registry` — same
+- Do not add every person mentioned in passing to `_people_registry` — same
   scoping rule as `m2-strategy-chat-analysis`: only people whose role
   matters for QA-management topology.
 - Use `pipeline_common.add_questions()`/`add_answer()` for all `m2_input`

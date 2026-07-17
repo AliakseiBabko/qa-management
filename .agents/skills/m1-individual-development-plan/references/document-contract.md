@@ -66,7 +66,7 @@ unavailable): `okr_<Person>_<DD.MM.YY>.md`.
 ## Source Priority
 
 1. Existing OKR Doc for this person (current or most recent prior cycle).
-2. `_m1_people_registry` row (`10_M1_People_Management`) — for
+2. `_people_registry` row (`05_People_Management`) — for
    `Дата трудоустройства`/`Дата последнего PR` (the cycle-title anchor,
    see SKILL.md Workflow step 4) and `M1`. Do not re-derive these from
    transcripts if this row already has them.

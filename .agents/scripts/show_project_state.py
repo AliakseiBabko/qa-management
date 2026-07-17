@@ -10,7 +10,7 @@ Prints, for --project <Name>:
   individual_metrics_internal (Sheets), individual_development_plan (Doc)
 
 Prints, for --registries:
-- _m2_people_registry, _project_registry, _timeline (Sheets)
+- _people_registry, _project_registry, _timeline (Sheets)
 
 --summary (alone, or with --project) skips the full dump and prints a cheap
 one-liner per project instead: People count (from _project_registry),
@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
 from pipeline_common import get_last_round_status, get_pending_round_questions, get_services
 from scaffold_project_dashboard import EMPTY_ROUND_PLACEHOLDER
-from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_sheet_in_folder, q_escape, read_sheet_values
+from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_or_create_folder, find_sheet_in_folder, q_escape, read_sheet_values
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
@@ -49,7 +49,7 @@ DOC_MIME = "application/vnd.google-apps.document"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <ProjectName>")
-    parser.add_argument("--registries", action="store_true", help="Also/instead dump _m2_people_registry and _project_registry")
+    parser.add_argument("--registries", action="store_true", help="Also/instead dump _people_registry and _project_registry")
     parser.add_argument(
         "--summary",
         action="store_true",
@@ -256,8 +256,9 @@ def main() -> int:
         return 0
 
     if args.registries:
-        print("===== _m2_people_registry =====")
-        dump_sheet(services, m2_root["id"], "_m2_people_registry")
+        print("===== _people_registry =====")
+        people_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "05_People_Management")
+        dump_sheet(services, people_root["id"], "_people_registry")
         print("===== _project_registry =====")
         dump_sheet(services, m2_root["id"], "_project_registry")
         print("===== _timeline =====")

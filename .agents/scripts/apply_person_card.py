@@ -1,7 +1,7 @@
 """Parse a person card (the structured HRM-style block M2 pastes in
 conversation - Job Title/M-level/Prof.Level/Mentor/DC) and apply the Person
 Card Intake field mapping (see google-workspace-rules.md, Person Card
-Intake) to _m2_people_registry.
+Intake) to _people_registry.
 
 Scope, deliberately mechanical only (see m2-admin-note-intake SKILL.md):
 this script does the part that's the same every time - parse fields, find
@@ -38,7 +38,22 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_services
+from pipeline_common import (
+    PR_EMAIL,
+    PR_FIRST_COMMERCIAL,
+    PR_M1,
+    PR_NAME_EN,
+    PR_NAME_RU,
+    PR_NOTES,
+    PR_PROJECT,
+    PR_RANK,
+    PR_ROLE,
+    PR_SIDE,
+    PR_WORKER_ID,
+    get_people_registry_sheet,
+    get_services,
+    reformat_sheet,
+)
 from show_project_state import find_doc, find_folder
 from sync_m2_source_docs_to_sheets import (
     ROOT_FOLDER_ID,
@@ -59,7 +74,7 @@ OPTIONAL_LABELS = ["First commercial project"]
 LEVEL_KEYWORDS = ("Senior", "Middle", "Junior")
 
 # Set this to your own company's email domain (see google-workspace-rules.md,
-# _m2_people_registry Columns, Side) - used to tell internal staff apart from
+# _people_registry Columns, Side) - used to tell internal staff apart from
 # client-side people by email domain alone.
 COMPANY_EMAIL_DOMAIN = "example.com"
 COMPANY_SIDE_LABEL = "Internal"
@@ -68,7 +83,7 @@ COMPANY_SIDE_LABEL = "Internal"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--file", help="Read the card from this file instead of stdin.")
-    parser.add_argument("--apply", action="store_true", help="Write the change to _m2_people_registry (default: dry run).")
+    parser.add_argument("--apply", action="store_true", help="Write the change to _people_registry (default: dry run).")
     parser.add_argument(
         "--company-domain",
         default=COMPANY_EMAIL_DOMAIN,
@@ -79,7 +94,7 @@ def parse_args() -> argparse.Namespace:
         "--company-side-label",
         default=COMPANY_SIDE_LABEL,
         help="Override the Side value written for internal people, to match whatever label "
-        "your own _m2_people_registry already uses (e.g. your real company name).",
+        "your own _people_registry already uses (e.g. your real company name).",
     )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
@@ -156,7 +171,7 @@ def compute_notes(fields: dict[str, str], today: str) -> str:
     return ", ".join(parts) + "."
 
 
-def find_row_by_email(body: list[list[str]], email: str, email_col: int = 2) -> list[str] | None:
+def find_row_by_email(body: list[list[str]], email: str, email_col: int = PR_EMAIL) -> list[str] | None:
     for row in body:
         if len(row) > email_col and row[email_col].strip().lower() == email.strip().lower():
             return row
@@ -279,7 +294,7 @@ def main() -> int:
     services = get_services(args.credentials, args.token)
     drive = services["drive"]
     m2_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
-    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_m2_people_registry")
+    people_sheet = get_people_registry_sheet(services)
     rows = read_sheet_values(services, people_sheet["id"])
     header, body = rows[0], rows[1:]
 
@@ -292,13 +307,13 @@ def main() -> int:
         print("Review the computed Role/Internal rank/Notes above against the existing row and edit by hand,")
         print("or extend this script's --apply path if this becomes a common enough case to automate safely.")
         print()
-        projects = [p.strip() for p in existing[6].split(",")] if len(existing) > 6 and existing[6] else []
+        projects = [p.strip() for p in existing[PR_PROJECT].split(",")] if len(existing) > PR_PROJECT and existing[PR_PROJECT] else []
         if not projects:
             print("Project(s) is blank on the existing row - skipping track/level mismatch scan (nowhere to look).")
         else:
             print(f"Scanning {', '.join(projects)} individual_metrics/individual_development_plan for mismatches...")
             flags = scan_track_level_mismatch(
-                services, m2_root["id"], projects, existing[0], existing[1], fields["Job Title"], fields["Prof.Level"]
+                services, m2_root["id"], projects, existing[PR_NAME_RU], existing[PR_NAME_EN], fields["Job Title"], fields["Prof.Level"]
             )
             if flags:
                 print("HEADS UP - possible track/level mismatch worth checking by hand (not auto-resolved):")
@@ -308,10 +323,15 @@ def main() -> int:
                 print("No obvious track/level mismatch found in that person's project documents.")
     else:
         print("No existing row found for this email - this looks like a new person.")
-        new_row = [
-            fields["name_cyrillic"], fields["name_latin"], fields["email"], side, role, internal_rank, "", notes,
-            "", "", first_commercial,
-        ]
+        new_row = [""] * len(header)
+        new_row[PR_NAME_RU] = fields["name_cyrillic"]
+        new_row[PR_NAME_EN] = fields["name_latin"]
+        new_row[PR_EMAIL] = fields["email"]
+        new_row[PR_SIDE] = side
+        new_row[PR_ROLE] = role
+        new_row[PR_RANK] = internal_rank
+        new_row[PR_NOTES] = notes
+        new_row[PR_FIRST_COMMERCIAL] = first_commercial
         print(f"Would add row: {new_row}")
         if args.apply:
             body.append(new_row)
@@ -321,7 +341,8 @@ def main() -> int:
                 spreadsheetId=people_sheet["id"], range=f"'{title}'!A1", valueInputOption="RAW",
                 body={"values": [header, *body]},
             ).execute()
-            print("Applied: added new row to _m2_people_registry.")
+            reformat_sheet(services, people_sheet["id"], "_people_registry")
+            print("Applied: added new row to _people_registry.")
         else:
             print("Dry run - nothing written. Re-run with --apply to add this row.")
     return 0

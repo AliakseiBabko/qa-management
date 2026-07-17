@@ -5,7 +5,7 @@
 place, no dated snapshots (see google-workspace-rules.md, M1 Person-Based
 Layout, and m1-people-risk-report/references/file-contract.md). This
 script is the mechanical write path for that skill, the same role
-apply_person_card.py plays for _m2_people_registry: it does not decide risk
+apply_person_card.py plays for _people_registry: it does not decide risk
 levels or write narrative - it takes already-decided field values and
 applies them safely (existing-row lookup, in-place update vs. new row,
 Дата обновления bookkeeping, risk-scale validation).
@@ -42,7 +42,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_services
+from pipeline_common import get_services, reformat_sheet
 from show_project_state import find_folder
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_sheet_in_folder, first_sheet_range, read_sheet_values
 
@@ -178,6 +178,7 @@ def main() -> int:
                 valueInputOption="RAW",
                 body={"values": [new_row]},
             ).execute()
+            reformat_sheet(services, sheet["id"], SHEET_TITLE)
             print("Applied: added new row.")
         else:
             print("Dry run — nothing written. Re-run with --apply to add this row.")
@@ -209,6 +210,7 @@ def main() -> int:
             valueInputOption="RAW",
             body={"values": [updated]},
         ).execute()
+        reformat_sheet(services, sheet["id"], SHEET_TITLE)
         print("Applied: updated row in place.")
     else:
         print("Dry run — nothing written. Re-run with --apply to write this update.")

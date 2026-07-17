@@ -30,6 +30,11 @@ Current Drive layout:
   - `03_Source_Documents/`: durable per-project source documents and
     company-wide reference material (project folders, homework corpus,
     assessment matrices, monthly report examples)
+- `05_People_Management/`: `_people_registry` — the single workspace-wide
+  people Sheet, covering everyone (M1-managed, M2-staffed, client-side)
+  regardless of which skill is looking at it. Deliberately not nested under
+  `10_` or `20_` so a repo clone used for only M1 or only M2 work still
+  finds it — see M1/M2 Person and Project Layout below.
 - `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
   team member) — see M1 Person Layout below
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
@@ -48,6 +53,15 @@ Final business outputs should prefer Google Sheets for tabular artifacts and Goo
 for narrative/status artifacts when Google API access is available. Local CSV/Markdown
 files remain valid as fallback, staging, source-extraction, and export artifacts.
 
+## People Registry
+
+`05_People_Management/_people_registry` is the single workspace-wide people
+Sheet — one row per person (internal and client-side), covering everyone M1
+or M2 might need to look up: role/side, project(s), hire date, PR history,
+M1 manager, Worker ID, aliases, and notes. See `google-workspace-rules.md`
+for the full column list. Neither M1's nor M2's own outputs duplicate this
+data — `_m1_pr_calendar`, `individual_metrics`, etc. all read from it.
+
 ## M1 Person Layout
 
 M1 is organized by person, mirroring how M2 is organized by project. Each
@@ -63,7 +77,7 @@ team member gets their own folder:
 ├─ Светофор рисков.gsheet              # living, workspace-wide, covers the whole team at once
 ├─ m1_monthly_report_<Manager>_YYYY-MM.gsheet  # M1's own KPI report, not per-person
 ├─ _m1_timeline.gsheet                 # living rollup of upcoming/overdue events
-├─ _m1_pr_calendar.gsheet              # generated PR-only view, from _m2_people_registry
+├─ _m1_pr_calendar.gsheet              # generated PR-only view, from _people_registry
 └─ _self_review/<M1 name>/             # M1's own PR self-prep, as the employee being reviewed
 ```
 
@@ -83,9 +97,6 @@ under `20_M2_Project_Management`:
   room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
   продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
   Stopped projects are removed from this registry, not marked inactive.
-- `_m2_people_registry` — every person (internal and client-side) mentioned
-  across projects, with role/side/confirmation status. See
-  `google-workspace-rules.md` for the full column list.
 - `_timeline` — generated rollup of every project's open `action_items`
   rows, sorted by date; the one place to see what's due today/tomorrow/this
   week across all projects. Never edited directly — refresh it with
@@ -280,7 +291,15 @@ These are what actually runs day to day, once a project's folder already exists:
   grows, and most conversational updates only need what happened recently.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
-  (`load_credentials` + `build_services`); `get_last_round_status()` (reads
+  (`load_credentials` + `build_services`); `get_people_registry_sheet()`
+  (resolves `05_People_Management/_people_registry` — every script that
+  reads/writes the people registry should use this instead of its own
+  `find_sheet_in_folder` call, so a future schema change has one place to
+  fix); `reformat_sheet()` (recomputes column widths/row heights for one
+  Sheet right after a write — `format_all_sheets.py` is otherwise the only
+  thing that keeps row height in sync with edited content, so a script that
+  writes without calling this leaves stale, clipped row heights behind);
+  `get_last_round_status()` (reads
   an m2_input Doc and reports the latest round's date and whether its
   "Ответ и общие соображения M2" section is still empty — used by
   `show_project_state.py --summary` to flag a pending round without opening
@@ -295,7 +314,7 @@ These are what actually runs day to day, once a project's folder already exists:
   made `get_last_round_status()` wrongly read the round as still pending.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
-  Intake mapping in `google-workspace-rules.md`, looks up `_m2_people_registry`
+  Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`
   by email, and prints the computed Role/Internal rank/Notes plus a diff
   against any existing row. Dry-run by default; `--apply` adds a genuinely
   new row (an existing row's Name/Project(s) still need human judgment per
@@ -356,7 +375,7 @@ These are what actually runs day to day, once a project's folder already exists:
   yet in `evidence_log`, reuses an existing extraction by sha256 instead of
   re-extracting, classifies each by project (folder-based under
   `03_Source_Documents`, filename-matched against `_project_registry`/
-  `_m2_people_registry` under the inbox folders), appends `evidence_log` rows,
+  `_people_registry` under the inbox folders), appends `evidence_log` rows,
   and writes a review bundle to `80_Exports/intake_review/YYYY-MM-DD.md`.
   Genuinely ambiguous files are left `UNCLASSIFIED` rather than guessed —
   route those manually. Stops there: does not touch `m2_input`,
@@ -387,12 +406,12 @@ These are what actually runs day to day, once a project's folder already exists:
   edit; see `.agents/skills/m2-timeline`.
 - `refresh_m1_pr_calendar.py` — M1's analog to `refresh_project_registry.py`:
   recomputes the expected next-PR window for every person in
-  `_m2_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
+  `_people_registry` with a `Дата трудоустройства`/`Дата последнего PR` on
   record, writes the result to `_m1_pr_calendar` (sorted soonest-opening
   first) and applies the workspace's standard formatting to it every run
   (see `format_all_sheets.py`), no dry-run needed since it's pure
   recomputation, not a judgment call. Safe to rerun anytime after a
-  `_m2_people_registry` update; see `.agents/skills/m1-timeline`.
+  `_people_registry` update; see `.agents/skills/m1-timeline`.
 - `scan_open_questions.py` — same kind of mechanical front half as
   `prepare_intake_review.py`/`detect_strategy_chats.py`, but scanning
   `m2_input`/`project_risk`/`project_metrics` instead of raw source files:
@@ -471,7 +490,7 @@ per-project-style Sheet-plus-rollup isn't needed. `scan_m1_events.py`
 derives candidates mechanically: it reads every OKR Doc's title (`OKR к
 Perfomance review DD.MM.YY`) to surface upcoming/overdue Performance
 Reviews and people missing a current OKR, cross-checks that against an
-expected-next-PR *window* computed from `_m2_people_registry`'s `Дата
+expected-next-PR *window* computed from `_people_registry`'s `Дата
 трудоустройства`/`Дата последнего PR` (real cadence: window opens at last
 PR + 6 months, or hire date + 3 months for a first/probation-closing PR,
 and closes 1 month later — see
@@ -483,11 +502,11 @@ monthly report. Same read-only-by-default / `--write` split as
 
 For a PR-only view (no other event types mixed in), `refresh_m1_pr_calendar.py`
 generates `_m1_pr_calendar` (template `Templates/m1_pr_calendar.csv`) from
-the same `_m2_people_registry` data — one row per person with a computable
+the same `_people_registry` data — one row per person with a computable
 window, sorted soonest-first, `Статус` one of `Не скоро`/`В окне`/
 `Просрочено`/`Нет данных`. Fully regenerated every run, like
 `refresh_project_registry.py` on the M2 side — never hand-edited, so it
-can't drift from `_m2_people_registry` as a second source of truth. Also
+can't drift from `_people_registry` as a second source of truth. Also
 reformatted (wrap/align/column widths) on every run, so it never needs a
 separate manual formatting pass.
 

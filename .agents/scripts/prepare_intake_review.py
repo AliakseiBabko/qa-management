@@ -10,7 +10,7 @@ Project-Level Rollups and Pipeline Architecture):
   80_Exports/source_extracts/*/manifest.csv) instead of re-extracting
 - classifies each new file by project (folder-based under
   03_Source_Documents, filename-matched against _project_registry /
-  _m2_people_registry under 01/02) using substring matching only — genuinely
+  _people_registry under 01/02) using substring matching only — genuinely
   ambiguous files are left unclassified, not guessed
 - appends evidence_log rows (mechanical trace, not a judgment call)
 - writes a local review bundle markdown file summarizing what's new
@@ -34,6 +34,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 from qa_source_extract import docx_to_markdown, extract_xlsx, safe_name, sha256_file
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
+from pipeline_common import get_people_registry_sheet, reformat_sheet
 from sync_m2_source_docs_to_sheets import (
     ROOT_FOLDER_ID,
     find_or_create_folder,
@@ -107,14 +108,15 @@ def load_known_names(services: dict[str, Any]) -> tuple[list[str], dict[str, lis
     ]
 
     person_to_projects: dict[str, list[str]] = {}
-    people_sheet = find_sheet_in_folder(drive, m2_root["id"], "_m2_people_registry")
+    people_sheet = get_people_registry_sheet(services)
     if people_sheet:
         rows = read_sheet_values(services, people_sheet["id"])
+        project_col = rows[0].index("Project(s)") if rows and "Project(s)" in rows[0] else 8
         for row in rows[1:]:
             if len(row) < 2:
                 continue
             names = [n for n in (row[0], row[1]) if n]
-            person_projects = [p.strip() for p in row[6].split(",")] if len(row) > 6 and row[6] else []
+            person_projects = [p.strip() for p in row[project_col].split(",")] if len(row) > project_col and row[project_col] else []
             for name in names:
                 if name:
                     person_to_projects[name] = person_projects
@@ -265,6 +267,7 @@ def main() -> int:
                 spreadsheetId=sheet["id"], range="A1", valueInputOption="RAW",
                 body={"values": evidence_by_project[project]},
             ).execute()
+            reformat_sheet(services, sheet["id"], "evidence_log")
             logged_projects.append(project)
 
     REVIEW_ROOT.mkdir(parents=True, exist_ok=True)

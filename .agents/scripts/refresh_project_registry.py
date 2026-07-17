@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
+from pipeline_common import reformat_sheet
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values
 
 REGISTRY_HEADER = [
@@ -129,6 +130,7 @@ def main() -> int:
     services["sheets"].spreadsheets().values().update(
         spreadsheetId=registry_sheet["id"], range="A1", valueInputOption="RAW", body={"values": rows}
     ).execute()
+    reformat_sheet(services, registry_sheet["id"], "_project_registry")
     print(f"_project_registry: {len(rows) - 1} project rows written")
     return 0
 

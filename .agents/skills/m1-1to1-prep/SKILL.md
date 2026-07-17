@@ -61,7 +61,7 @@ person's experience of it, not the project's fix.
    OKR) becomes a direct follow-up question.
 6. Any `qa-1to1-analysis` findings from a transcript newer than the last
    risk-sheet update, if one exists and hasn't been folded in yet.
-7. If `_m1_people_registry`'s `Первый коммерческий проект` is unconfirmed
+7. If `_people_registry`'s `Первый коммерческий проект` is unconfirmed
    for this person and they're newly staffed to a project, ask it directly
    — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
    within their first month, proactively ask about environment, process,

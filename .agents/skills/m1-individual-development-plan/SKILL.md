@@ -42,7 +42,7 @@ read-only downstream consumer, same as the two above.
 5. Read `../qa-management-roles/references/m1-role-rules.md`.
 6. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 7. Identify the target person, their current project (or bench status), and the Performance Review date this OKR is for.
-8. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, their `_m1_people_registry` row (`Дата трудоустройства`/`Дата последнего PR`/`M1`/`Первый коммерческий проект`), and — if they're on a project — that project's context (tech stack, tools, current focus). If the person is also M2-staffed, `_m2_people_registry` points back at `_m1_people_registry` for these facts rather than duplicating them - read there, not both.
+8. Read the person's existing OKR Doc if one exists, their `<Person> 1to1` Sheet, their people-risk report row, their `_people_registry` row (`Дата трудоустройства`/`Дата последнего PR`/`M1`/`Первый коммерческий проект`), and — if they're on a project — that project's context (tech stack, tools, current focus). If the person is also M2-staffed, `_people_registry` points back at `_people_registry` for these facts rather than duplicating them - read there, not both.
 
 ## Workflow
 
@@ -59,9 +59,9 @@ read-only downstream consumer, same as the two above.
      This is in addition to the normal 2-5 KR count for that objective, not
      a replacement for the project-technology KR.
 3. Every Key Result is one line: the concrete action, with a real deadline folded into the same line only when one is actually known. Do not break a KR into separate "Критерии для оценки"/"Результат"/deadline/status fields, and do not add a metadata line (role/level/project/period/Jira epic) under the title — real OKRs at this company are terser than that; see `references/okr-process-rules.md`.
-4. Name the Doc title's date using the real cadence, not an arbitrary guess: `Дата последнего PR + 6 months` if set, else `Дата трудоустройства + 3 months` for a first/probation-closing OKR (see `performance-review-rules.md`, "Deriving Expected Next PR Date"). If neither is known in `_m1_people_registry`, use the `(дата уточняется)` placeholder title rather than inventing a date - and don't add an inline note explaining the date is missing inside the document itself; that's tracked separately via `scan_m1_events.py`'s `undated_draft` candidate (see `m1-timeline`).
+4. Name the Doc title's date using the real cadence, not an arbitrary guess: `Дата последнего PR + 6 months` if set, else `Дата трудоустройства + 3 months` for a first/probation-closing OKR (see `performance-review-rules.md`, "Deriving Expected Next PR Date"). If neither is known in `_people_registry`, use the `(дата уточняется)` placeholder title rather than inventing a date - and don't add an inline note explaining the date is missing inside the document itself; that's tracked separately via `scan_m1_events.py`'s `undated_draft` candidate (see `m1-timeline`).
 5. When closing out an existing OKR (new PR cycle), require a short one-line result on every KR from the prior cycle before starting the new one; unresolved KRs either get an explicit short "не достигнуто" comment or are carried into the new OKR — never silently dropped.
-6. After the PR that closes this cycle actually happens, update that person's `Дата последнего PR` in `_m2_people_registry` to the real PR date — this is what keeps `m1-timeline`'s cadence tracking accurate; a new OKR Doc alone doesn't update it.
+6. After the PR that closes this cycle actually happens, update that person's `Дата последнего PR` in `_people_registry` to the real PR date — this is what keeps `m1-timeline`'s cadence tracking accurate; a new OKR Doc alone doesn't update it.
 
 ## Guardrails
 
