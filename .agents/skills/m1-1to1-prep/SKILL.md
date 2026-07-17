@@ -19,9 +19,10 @@ happened yet.
 2. Read `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m1-role-rules.md`.
 4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
-5. Read the person's current-cycle OKR Doc if one exists (see
+5. Read `../qa-management-roles/references/off-scope-stress-rules.md`.
+6. Read the person's current-cycle OKR Doc if one exists (see
    `m1-individual-development-plan`).
-6. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
+7. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
    against this person.
 
 ## Scope
@@ -66,6 +67,11 @@ person's experience of it, not the project's fix.
    — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
    within their first month, proactively ask about environment, process,
    and whether the assigned buddy/mentor relationship is actually working.
+8. If this person has an off-scope submission/interview-prep episode on
+   record within the last six months (see `off-scope-stress-rules.md`),
+   include a direct, specific question about it every time this prep runs
+   within that window, even if the risk row currently reads calm — do not
+   let "no recent complaints" substitute for actually asking.
 
 ## Workflow
 

@@ -13,9 +13,10 @@ Use this skill for one output family only:
 
 1. Read `../qa-management-roles/references/google-workspace-rules.md`.
 2. Read `../qa-management-roles/references/newcomer-support-rules.md`.
-3. Read `references/file-contract.md`.
-4. Read the existing `Светофор рисков` Sheet — this is a living document updated in place, not a dated snapshot; always read current state before writing.
-5. Read the relevant person Sheets/files in `10_M1_People_Management\<Person>\` and/or structured findings from `qa-1to1-analysis`.
+3. Read `../qa-management-roles/references/off-scope-stress-rules.md`.
+4. Read `references/file-contract.md`.
+5. Read the existing `Светофор рисков` Sheet — this is a living document updated in place, not a dated snapshot; always read current state before writing.
+6. Read the relevant person Sheets/files in `10_M1_People_Management\<Person>\` and/or structured findings from `qa-1to1-analysis`.
 
 ## Workflow
 
@@ -38,6 +39,14 @@ Use this skill for one output family only:
    alone, and record the assigned buddy/mentor in `Комментарии`/`План
    действий` — see `newcomer-support-rules.md`. If the field is unconfirmed
    for someone newly staffed, ask rather than skip this check.
+8. If a person has been submitted, interviewed, or asked to rapidly prepare
+   for a role outside their real competence (different stack/domain than
+   their actual experience) — regardless of whether they were placed in
+   it — log it explicitly and keep the row's risk conditioned on it for at
+   least six months from the episode, not from whenever they last mentioned
+   it. Do not close or silently downgrade this purely because there have
+   been no recent complaints — see `off-scope-stress-rules.md`, this is
+   exactly the pattern where apparent calm is not evidence of resolution.
 
 ## Guardrails
 
