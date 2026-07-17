@@ -130,10 +130,10 @@ misses.
 - Escalate to **Head of QA** or the current presale-team lead for support
   building the actual expansion strategy/pitch — this repository does not
   replace that conversation, it prepares the evidence for it. Look up who
-  currently holds the presale-lead role in `_m2_people_registry` (`Role` =
+  currently holds the presale-lead role in `_people_registry` (`Role` =
   `Presale Lead`) rather than naming a specific person here — this
   repository holds skill logic and templates only; who's who is company
-  data that lives in `_m2_people_registry` on the corporate Google Drive,
+  data that lives in `_people_registry` on the corporate Google Drive,
   not in this public repo, and role holders change over time regardless.
 
 ## Business-Language Arguments

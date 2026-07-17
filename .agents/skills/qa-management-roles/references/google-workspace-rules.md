@@ -115,10 +115,10 @@ rather than about one team member:
   report, not a per-person artifact (see `m1-monthly-report`).
 - `_m1_timeline` — living workspace-wide Sheet of upcoming/overdue events
   across the whole team (see `m1-timeline`). Leading underscore marks it
-  as a system/rollup artifact, same convention as `_m2_people_registry`/
-  `_project_registry` under `20_M2_Project_Management`.
+  as a system/rollup artifact, same convention as `_people_registry`/
+  `_project_registry`.
 - `_m1_pr_calendar` — PR-only view, mechanically regenerated from
-  `_m1_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` by
+  `_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` by
   `refresh_m1_pr_calendar.py` (see `m1-timeline`,
   `performance-review-rules.md`'s "Deriving the Expected Next PR Window").
   Never hand-edited — same generated-rollup discipline as `_m1_timeline`.
@@ -231,14 +231,31 @@ Columns are `Проект`, `People`,
 `Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
 or folder-navigation link; those don't belong in a summary dashboard.
 
-Keep `_m2_people_registry` in `20_M2_Project_Management` as a single workspace-wide
-Google Sheet (CSV fallback), covering people affiliated with both the
-company and clients across all projects — not a per-project list, since
-roles like M1/M2/HR/DC often span multiple projects and a per-project copy
-would drift out of sync. Columns:
+### `_people_registry`
+
+Keep `_people_registry` in its own top-level folder, `05_People_Management`
+(not nested under `10_M1_People_Management` or `20_M2_Project_Management`),
+as a single workspace-wide Google Sheet (CSV fallback) covering **every**
+person who comes up — Innowise employees under M1 management, M2-staffed
+people, and client/vendor-side people across all projects. One person, one
+row, regardless of which skill (M1 or M2) is the one touching them that day.
+
+**History (2026-07-17 merge)**: this replaces two separate sheets,
+`_m1_people_registry` (under `10_M1_People_Management`) and
+`_m2_people_registry` (under `20_M2_Project_Management`), which duplicated
+~10 of 13 columns between them with no principled rule for which sheet owned
+which field. That let a field (e.g. `Name (EN)`) go missing in one sheet
+while other fields for the same person got filled — a real bug, not a
+hypothetical one. A dedicated top-level folder (rather than nesting the
+merged sheet under either skill's folder) means a repo clone used for only
+M1 or only M2 work still finds this registry without needing the other
+skill's folder tree.
+
+Columns:
 
 - `Name (RU)`, `Name (EN)` — both, when the person has a known English-name
-  form (useful since transcripts/chats mix scripts).
+  form (useful since transcripts/chats mix scripts). First + last name only,
+  no patronymic (patronymic goes in Notes if captured).
 - `Email` — when known.
 - `Side` — `Internal`, or `Client` / `Client — <company>` when the specific
   client-side or third-party vendor company is known (e.g. a client's own
@@ -246,9 +263,17 @@ would drift out of sync. Columns:
   column, not two — a person's affiliation and which company they're at is
   a single fact, and splitting it produced redundant-looking rows like
   `Internal, Internal` for every internal person.
+- `Worker ID` — from an HRM worker-record card (see Person Card Intake,
+  HRM Worker-Record Card shape below). Blank for client-side people — they
+  have no Worker ID at all, not just an unknown one.
+- `M1` — this person's current M1 manager, for internal people. Blank for
+  client-side people, and for a person who is themselves a top-level M1
+  with no manager on record.
 - `Role` — M1 / M2 / M3 / M4 / HR / DC / QA / AQA / Team Lead / PM / Client
-  stakeholder / Candidate / etc. Project-scoped detail (stream, specialty)
-  can go in the same cell, e.g. "AQA, stream SOLO".
+  stakeholder / Candidate / etc. Keep this to title/M-level/DC-status only —
+  stream, tech stack, and secondary-project detail belong in `Project(s)` or
+  `Notes`, not stuffed into `Role` (that drift is exactly what caused
+  duplicate/conflicting Role text across the two now-merged sheets).
 - `Internal rank` — the company's own internal level (Junior/Middle/Senior),
   for internal people only. This is distinct from a person's project-level
   grade fit (`Соответствие ожиданиям клиента (грейд)` in
@@ -256,23 +281,23 @@ would drift out of sync. Columns:
   the other. Leave blank when not known; do not infer it from project-level
   grade.
 - `Project(s)` — where the person is staffed/employed, comma-separated, or
-  "all" for company-wide roles (HR, DC). **Not** every project where they
-  show up performing an M1/M2/DC duty for someone else's team — a person's
-  main staffed project and a cross-project management hat they wear for
-  other people are two different facts and must not be merged into one
-  column. E.g. an AQA staffed on `<Project A>` who also acts as M2 for a
-  QA on `<Project B>` keeps `Project(s)` = `<Project A>`; the `<Project
-  B>` M2 duty goes in `Notes`, naming the project(s) it covers. Multiple
-  people commonly wear
-  more than one hat (staffed role + M1/M2/DC duty elsewhere) — capture both,
-  but don't let one overwrite or dilute the other.
-- `Notes` — anything uncertain, stated explicitly, including any
-  cross-project management duty per the `Project(s)` rule above.
+  "all"/`Бенч` for company-wide roles or no current project. **Not** every
+  project where they show up performing an M1/M2/DC duty for someone else's
+  team — a person's main staffed project and a cross-project management hat
+  they wear for other people are two different facts and must not be merged
+  into one column. E.g. an AQA staffed on `<Project A>` who also acts as M2
+  for a QA on `<Project B>` keeps `Project(s)` = `<Project A>`; the
+  `<Project B>` M2 duty goes in `Notes`, naming the project(s) it covers.
+  Multiple people commonly wear more than one hat (staffed role + M1/M2/DC
+  duty elsewhere) — capture both, but don't let one overwrite or dilute the
+  other.
 - `Дата трудоустройства` — hire date (`YYYY-MM-DD`), for internal people
   only. Leave blank when not known; ask rather than guess — this is the
   anchor date for the probation-closing Performance Review (hire date + 3
   months, see `qa-management-roles/references/performance-review-rules.md`),
-  so a wrong guess here silently mis-schedules a PR.
+  so a wrong guess here silently mis-schedules a PR. Also the anchor
+  `m1-timeline` and `m1-individual-development-plan` read from instead of
+  re-deriving a date from transcripts each time.
 - `Дата последнего PR` — the date of the person's most recently completed
   Performance Review (`YYYY-MM-DD`), internal people only. Blank means no
   PR has happened yet (still pre-probation-close), not "unknown" — do not
@@ -284,67 +309,19 @@ would drift out of sync. Columns:
   hire date or internal rank — see `newcomer-support-rules.md` for the full
   detection and response rule. Ask rather than guess; leave blank only
   while genuinely unconfirmed.
-
-`Aliases / STT variants`, `Status`, and `Confirmed by M2` were removed —
-this table exists to log people who come up in discussions or calls, not to
-track their lifecycle or verification state, and alias-matching in
-transcripts doesn't need a dedicated column to work.
-
-### `_m1_people_registry`
-
-Keep `_m1_people_registry` in `10_M1_People_Management` as a single
-workspace-wide Google Sheet (CSV fallback), sibling to `Светофор рисков`
-and `_m1_pr_calendar`. Scope: every person with a folder under
-`10_M1_People_Management` — Innowise employees under M1 management, full
-stop. Unlike `_m2_people_registry`, there is no `Side` column here — M1 never
-tracks client-side people, so the column would always read `Internal` and
-add nothing.
-
-This registry exists because, as of 2026-07, 8 of 11 people with an M1
-folder had zero row in any registry — `_m2_people_registry` only ever picked
-someone up once they crossed onto an M2-staffed project, leaving pure-M1
-people (bench, onboarding, pre-hire) with no structured record at all,
-their hire/PR dates re-derived from 1:1 transcripts by hand each time they
-were needed.
-
-Columns:
-
-- `Name (RU)`, `Name (EN)` — same convention as `_m2_people_registry`: first +
-  last name only, no patronymic (patronymic goes in Notes if captured).
-- `Email` — when known.
-- `Worker ID` — from an HRM worker-record card (see Person Card Intake,
-  HRM Worker-Record Card shape below); not tracked in `_m2_people_registry`.
-- `M1` — this person's current M1 manager. The actual gap this registry
-  fixes: previously only recorded as free text in `_m2_people_registry`
-  Notes, and only for the handful of people who happened to cross over
-  onto an M2 project.
-- `Job Title / Role`, `Internal rank` — same meaning as `_m2_people_registry`'s
-  equivalent columns.
-- `Project(s) / Бенч` — current staffing status: a project name, or `Бенч`.
-- `Дата трудоустройства`, `Дата последнего PR` — same rules as
-  `_m2_people_registry`'s equivalents (ISO `YYYY-MM-DD`, blank means
-  genuinely unknown, ask rather than guess) — this is the anchor
-  `m1-timeline` and `m1-individual-development-plan` should read from
-  instead of re-deriving a date from transcripts each time.
-- `Notes` — same discipline as `_m2_people_registry`: citations, confidence
-  level on any estimated date, mismatches.
-- `Первый коммерческий проект` — last column, added after `Notes`. Same
-  rule as `_m2_people_registry`'s equivalent, see `newcomer-support-rules.md`.
-  This is the M1-side copy of the same fact for people who don't have a
-  `_m2_people_registry` row.
+- `Aliases / spelling variants` — alternate spellings/transliterations/STT
+  mishearings confirmed for this person (e.g. a name transcribed three
+  different ways across meeting recordings). Add to this column instead of
+  burying an alias inside `Notes` prose, where a later Notes rewrite can
+  silently drop it.
+- `Notes` — anything uncertain, stated explicitly, including any
+  cross-project management duty per the `Project(s)` rule above, citations,
+  and confidence level on any estimated date.
 
 No computed "next PR expected" column — `m1-timeline` already derives that
 dynamically from `Дата последнего PR` + cadence rules
 (`performance-review-rules.md`); storing it statically here would just go
 stale.
-
-**Cross-link with `_m2_people_registry`**, for anyone who exists in both (an
-M1-managed person who's also staffed on an M2 project): `_m1_people_registry`
-is the source of truth for `M1`, `Worker ID`, `Дата трудоустройства`, and
-`Job Title`/`Internal rank`. Don't duplicate those facts as free text in
-`_m2_people_registry`'s Notes — reference `_m1_people_registry` there instead
-(e.g. "M1: see `_m1_people_registry`") so there's one place to update, not
-two copies to keep in sync by hand.
 
 ### Person Card Intake
 
@@ -418,16 +395,15 @@ Name (EN)`, `Worker ID`, `Hire date`/`Employment date`, and an
 `Org. structure` block (`Unit`/`Division`/`Department`/`Team`/`Group`).
 This has no email and doesn't always include the `Job Title`/`M-level`/
 `Prof.Level`/`Mentor`/`DC` block the other card shape has — `apply_person_card.py`
-does not parse this shape; map it by hand. Maps primarily into
-`_m1_people_registry` (see above), not `_m2_people_registry` — this card
-shape is how M1-side facts (hire date, Worker ID, current M1) get filled,
-even for someone who also happens to have a `_m2_people_registry` row from
-being M2-staffed.
+does not parse this shape; map it by hand. Since the 2026-07-17 merge there
+is only one `_people_registry` row per person, so this card shape and the
+primary card shape both write into the same row — no cross-link bookkeeping
+needed anymore.
 
 - `Дата трудоустройства` — `Hire date` (same as `Employment date` in every
-  case seen so far). Convert to ISO `YYYY-MM-DD` when writing to either
-  registry — the card gives `DD.MM.YYYY`, but both registries' documented
-  convention is ISO; don't carry the card's raw format through unconverted.
+  case seen so far). Convert to ISO `YYYY-MM-DD` when writing — the card
+  gives `DD.MM.YYYY`, but the registry's documented convention is ISO;
+  don't carry the card's raw format through unconverted.
 - Name (RU)/(EN) — first + last name, matching the existing column
   convention (no patronymic in the Name columns); put the patronymic and
   full official name in Notes instead.
@@ -435,17 +411,18 @@ being M2-staffed.
   `Group: Mitsko Team` means M1 = Митько). Cross-check against any M1
   already on record for this person (e.g. from a Workload sheet) rather
   than overwriting silently — the two sources confirming each other is
-  itself worth noting in Notes.
-- `Worker ID` — has its own column in `_m1_people_registry`; not tracked
-  in `_m2_people_registry`.
+  itself worth noting in Notes. Prefer the most recent M1-leads roster
+  (e.g. an `M1 Leads <date>.xlsx` source doc) over this card's own
+  `M-level` field when they disagree — HRM's `M-level` can lag a real
+  promotion/handoff by weeks; say so explicitly in Notes rather than
+  silently picking one.
+- `Worker ID` — its own column; blank for client-side people (they were
+  never in HRM at all, not just missing this field).
 - `Department` / other org-structure fields — not mapped to a dedicated
   registry column; record in Notes if useful context.
 - If `Job Title`/`M-level`/`Prof.Level`/`Mentor`/`DC` are present on this
   card shape too, map those fields the same way as the primary card shape
   above.
-- If the person also has a `_m2_people_registry` row (M2-staffed), update
-  that row's Notes to point at `_m1_people_registry` for these facts
-  rather than duplicating them — see the Cross-link note above.
 
 For broad cross-project KT, status, or management sessions:
 
@@ -627,9 +604,8 @@ on a single-name search.
 
 Instead:
 
-1. Check `_m2_people_registry` / `_m1_people_registry` first — their
-   `Project(s)`/`Notes` columns usually already point at the person's
-   project and known source docs.
+1. Check `_people_registry` first — its `Project(s)`/`Notes` columns
+   usually already point at the person's project and known source docs.
 2. Then look directly in the conventional location this repo already
    documents: `<Person> case chat.txt` / `<Person> case at <Project>.txt`
    under `00_Source_Docs\02_Chats_and_Emails`, that project's

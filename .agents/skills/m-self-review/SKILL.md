@@ -29,7 +29,7 @@ though some of the same underlying data feeds both.
    `m2-individual-development-plan` — same Doc mechanics apply to an
    M-manager's own OKR, just stored under `_self_review`, see
    document-contract.md), their most recent `критерии_оценки_команды`
-   snapshot if one exists, `_m2_people_registry`, and — for metric 4 — each
+   snapshot if one exists, `_people_registry`, and — for metric 4 — each
    team member's `project_metrics` `Вклад в проект` rows.
 
 ## Workflow
@@ -45,7 +45,7 @@ though some of the same underlying data feeds both.
    let them self-report it.
 3. For metric 4, pull what `project_metrics` already has for each team
    member before asking the user for projects this repo doesn't track.
-   For metrics 6 and 12, pull what `_m2_people_registry` already has
+   For metrics 6 and 12, pull what `_people_registry` already has
    (`Role`, `Internal rank`) before asking for the rest.
 4. Every other metric needs a real number from the user (utilization tool,
    HRM, mock-interview tool, interview-report chat, offboarding records,

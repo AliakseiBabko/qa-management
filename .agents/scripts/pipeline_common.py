@@ -16,6 +16,7 @@ these instead of rewriting the index math.
 from __future__ import annotations
 
 import datetime as dt
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,42 @@ DEFAULT_TOKEN = Path(".local/google/token.json")
 
 ANSWER_HEADING = "Ответ и общие соображения M2"
 
+# Single merged people registry (2026-07-17) - replaces the former separate
+# _m1_people_registry (10_M1_People_Management) and _m2_people_registry
+# (20_M2_Project_Management), which duplicated ~10 of 13 columns between them
+# and had no principled rule for which sheet owned which field - that's what
+# let Name (EN) silently go missing in one sheet while other fields got filled.
+# Lives in its own top-level folder (not nested under 10_ or 20_) so a repo
+# clone used for only M1 or only M2 work still finds it without needing the
+# other skill's folder.
+PEOPLE_REGISTRY_FOLDER = "05_People_Management"
+PEOPLE_REGISTRY_SHEET = "_people_registry"
+PEOPLE_REGISTRY_HEADER = [
+    "Name (RU)", "Name (EN)", "Email", "Side", "Worker ID", "M1",
+    "Role", "Internal rank", "Project(s)", "Дата трудоустройства",
+    "Дата последнего PR", "Первый коммерческий проект", "Aliases / spelling variants", "Notes",
+]
+# Column index constants - use these instead of magic numbers so a future
+# schema change (e.g. inserting a column) doesn't silently break every
+# script that indexes into a row by hand.
+PR_NAME_RU, PR_NAME_EN, PR_EMAIL, PR_SIDE, PR_WORKER_ID, PR_M1, PR_ROLE, \
+    PR_RANK, PR_PROJECT, PR_HIRE_DATE, PR_LAST_PR, PR_FIRST_COMMERCIAL, \
+    PR_ALIASES, PR_NOTES = range(len(PEOPLE_REGISTRY_HEADER))
+
+
+def get_people_registry_sheet(services):
+    """Resolve the merged people registry Sheet (creating the folder if
+    needed, but never the sheet itself - a missing sheet is a real problem,
+    not something to silently recreate empty)."""
+    from show_project_state import find_folder
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder
+
+    people_root = find_or_create_folder(services["drive"], ROOT_FOLDER_ID, PEOPLE_REGISTRY_FOLDER)
+    sheet = find_sheet_in_folder(services["drive"], people_root["id"], PEOPLE_REGISTRY_SHEET)
+    if not sheet:
+        raise SystemExit(f"{PEOPLE_REGISTRY_SHEET} not found under {PEOPLE_REGISTRY_FOLDER} - has it been created?")
+    return sheet
+
 
 def get_services(
     credentials_path: Path | str = DEFAULT_CREDENTIALS,
@@ -33,6 +70,28 @@ def get_services(
 ) -> dict[str, Any]:
     creds = load_credentials(Path(credentials_path), Path(token_path))
     return build_services(creds)
+
+
+def reformat_sheet(services: dict[str, Any], spreadsheet_id: str, name: str = "") -> None:
+    """Recompute column widths/row heights for one Sheet right after writing to it.
+
+    format_all_sheets.py's row-height heuristic is the only thing that keeps
+    row height in sync with cell content - a values().update() never touches
+    dimension properties, so a Sheet whose Notes column keeps growing (person
+    cards, registry refreshes, etc.) silently clips visually unless something
+    recomputes height after every write that changes content length. Call
+    this right after such a write instead of relying on someone remembering
+    to rerun format_all_sheets.py by hand later.
+
+    Best effort - a formatting failure (e.g. a transient API timeout) must
+    never make the caller think its actual data write failed too.
+    """
+    from format_all_sheets import format_sheet  # local import: avoid loading it for scripts that never write
+
+    try:
+        format_sheet(services["sheets"], spreadsheet_id, name or spreadsheet_id)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: could not reformat {name or spreadsheet_id} after write: {exc}", file=sys.stderr)
 
 
 def get_project_person_folder(services: dict[str, Any], project: str, person: str) -> tuple[dict[str, Any], dict[str, Any]]:

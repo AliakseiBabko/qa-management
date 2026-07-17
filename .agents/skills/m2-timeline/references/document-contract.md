@@ -19,7 +19,7 @@ seeing what's due today/tomorrow/this week in one place.
 
 - One `action_items` Sheet per project (living list, not a dated snapshot).
 - One workspace-wide `_timeline` Sheet directly under `20_M2_Project_Management`,
-  next to `_project_registry`/`_m2_people_registry` — a mechanical rollup of every
+  next to `_project_registry`/`_people_registry` — a mechanical rollup of every
   project's open (`Статус = Открыто`) `action_items` rows, sorted by
   `Дата события`.
 

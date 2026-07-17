@@ -13,7 +13,7 @@ content (that's still a judgment/drafting step - see m1-timeline SKILL.md,
   m1-individual-development-plan). The most recent such Doc's date is
   surfaced as a Performance Review event; a person with no OKR Doc at all
   is surfaced as its own "missing OKR" candidate.
-- PR cadence cross-check: `_m1_people_registry` (under 10_M1_People_Management,
+- PR cadence cross-check: `_people_registry` (under 05_People_Management,
   see google-workspace-rules.md) holds `Дата трудоустройства` and `Дата
   последнего PR` per person. This script computes the expected next PR
   WINDOW from those two fields per the real cadence rules in
@@ -59,7 +59,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
-from pipeline_common import get_services
+from pipeline_common import PR_HIRE_DATE, PR_LAST_PR, PR_NAME_EN, PR_NAME_RU, get_people_registry_sheet, get_services
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_sheet_in_folder, q_escape, read_sheet_values, upsert_sheet
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -72,13 +72,13 @@ REVIEW_ROOT = DEFAULT_ROOT / "80_Exports" / "open_questions_review"
 OKR_DOC_PREFIX = "OKR к Perfomance review "
 MONTHLY_REPORT_RE = re.compile(r"^m1_monthly_report_(?P<manager>.+)_(?P<month>\d{4}-\d{2})(?:_v\d+)?$")
 
-# _m1_people_registry column indices (see google-workspace-rules.md, _m1_people_registry section):
-# Name (RU), Name (EN), Email, Worker ID, M1, Job Title / Role, Internal rank,
-# Project(s) / Бенч, Дата трудоустройства, Дата последнего PR, Notes
-REGISTRY_NAME_RU_COL = 0
-REGISTRY_NAME_EN_COL = 1
-REGISTRY_HIRE_DATE_COL = 8
-REGISTRY_LAST_PR_COL = 9
+# _people_registry column indices - re-exported from pipeline_common so other
+# scripts that imported these names from here (refresh_m1_pr_calendar.py)
+# don't need their own import line changed.
+REGISTRY_NAME_RU_COL = PR_NAME_RU
+REGISTRY_NAME_EN_COL = PR_NAME_EN
+REGISTRY_HIRE_DATE_COL = PR_HIRE_DATE
+REGISTRY_LAST_PR_COL = PR_LAST_PR
 PR_CADENCE_MONTHS = 6
 PROBATION_MONTHS = 3
 PR_WINDOW_TOLERANCE_MONTHS = 1  # window closes this many months after it opens (6mo -> 7mo)
@@ -150,13 +150,10 @@ def load_m1_people_registry(services: dict[str, Any], drive: Any) -> dict[str, d
     """Return {normalized name -> {"hire": date|None, "last_pr": date|None}},
     keyed under both Name (RU) and Name (EN) so a lookup by whichever name
     10_M1_People_Management uses still finds the row."""
-    m1_root = find_folder(drive, ROOT_FOLDER_ID, "10_M1_People_Management")
-    if not m1_root:
-        print("10_M1_People_Management folder not found — skipping PR-cadence cross-check.")
-        return {}
-    sheet = find_sheet_in_folder(drive, m1_root["id"], "_m1_people_registry")
-    if not sheet:
-        print("_m1_people_registry not found — skipping PR-cadence cross-check.")
+    try:
+        sheet = get_people_registry_sheet(services)
+    except SystemExit:
+        print("_people_registry not found — skipping PR-cadence cross-check.")
         return {}
 
     rows = read_sheet_values(services, sheet["id"])
@@ -243,7 +240,7 @@ def scan_person_okr(
             "person": person,
             "due": dt.date.today().isoformat(),
             "type": "OKR",
-            "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _m1_people_registry "
+            "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _people_registry "
             "нет ни «Дата трудоустройства», ни «Дата последнего PR» для расчёта ожидаемой даты PR",
             "owner": "M1",
             "source": f"scan:okr:{person}:missing",
@@ -260,7 +257,7 @@ def scan_person_okr(
             f"Review {window_open.isoformat()}–{window_close.isoformat()} (расчёт: {basis})",
             "owner": "M1",
             "source": f"scan:okr:{person}:missing",
-            "notes": f"Расчёт из _m1_people_registry ({basis})",
+            "notes": f"Расчёт из _people_registry ({basis})",
         }]
 
     mismatch = window_open is not None and not (window_open <= doc_date <= window_close)
@@ -269,7 +266,7 @@ def scan_person_okr(
     what = (
         f"Performance Review для {person} прошёл ({doc_date.isoformat()}) — подтвердить, что PR "
         "проведён и OKR закрыт (у каждого KR проставлен статус/результат), затем открыть новый цикл "
-        "и обновить «Дата последнего PR» в _m1_people_registry"
+        "и обновить «Дата последнего PR» в _people_registry"
         if overdue
         else f"Проверить готовность OKR к Performance Review {person} — все KR должны быть закрыты "
         "(статус/результат) до этой даты"
@@ -277,7 +274,7 @@ def scan_person_okr(
     notes = f"Doc: {doc_name}"
     if mismatch:
         notes += (
-            f"; расхождение с расчётом из _m1_people_registry: ожидалось окно "
+            f"; расхождение с расчётом из _people_registry: ожидалось окно "
             f"{window_open.isoformat()}–{window_close.isoformat()} ({basis}), в Doc указано "
             f"{doc_date.isoformat()} — свериться, какая дата верна"
         )

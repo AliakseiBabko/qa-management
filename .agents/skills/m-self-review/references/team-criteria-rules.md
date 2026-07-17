@@ -81,7 +81,7 @@ Each entry: metric, scoring bands, collection method, who collects, window
 12. **Пропорция состава команды** (roughly 1 Senior : ≤3 Junior (interns
     count as Junior) : 3 Middle) — max 1. 1 = proportion roughly holds; 0 =
     disproportion at either the Junior or Middle level. Method: HRM,
-    промзагрузка — cross-reference `_m2_people_registry`'s `Internal rank`
+    промзагрузка — cross-reference `_people_registry`'s `Internal rank`
     column for this manager's team before asking the user for the rest.
 13. **Тимбилдинги** — max 1. 1 = at least one held in the period; 0 = none.
     Method: photo report.
@@ -116,7 +116,7 @@ Each entry: metric, scoring bands, collection method, who collects, window
     3-level mapping already used elsewhere in this repo. Team members on
     projects this repo doesn't track still need the user's input.
   - **Metric 6** (leads / growth-into-M pipeline) and **metric 12**
-    (Junior/Middle/Senior proportion): read `_m2_people_registry`'s `Role` and
+    (Junior/Middle/Senior proportion): read `_people_registry`'s `Role` and
     `Internal rank` columns, filtered to this manager's team (`Project(s)`/
     `Notes` cross-project-duty rows per that file's own rules).
 - Do not silently reinterpret a scoring band's wording — quote it back to

@@ -36,7 +36,7 @@ message defeats the point.
 
 Real names, real project data, and any other company-specific detail
 belong **only** in the corporate Google Drive workspace referenced below
-— principally `_m2_people_registry` for who's who, and each project's own
+— principally `_people_registry` for who's who, and each project's own
 folder for project-specific facts. Skills should read/write that data via
 the Drive API at runtime, never hardcode it here.
 

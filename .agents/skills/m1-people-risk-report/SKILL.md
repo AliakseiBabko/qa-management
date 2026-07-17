@@ -32,7 +32,7 @@ Use this skill for one output family only:
 4. Calibrate people-side and company-side risk for people management, not project management.
 5. Set `Дата обновления` to the actual date the row's content changed — do not touch it when only reading/reviewing, and do not backdate or leave it stale after a real edit.
 6. Use only the 3-level scale (`Низкий`/`Средний`/`Высокий`) in both risk columns — see `references/file-contract.md`, Risk Level Scale. A row still carrying an older `Критический` value needs remapping to `Высокий`, not left as-is.
-7. If `_m1_people_registry`/`_m2_people_registry`'s `Первый коммерческий проект`
+7. If `_people_registry`'s `Первый коммерческий проект`
    is `Да` and the person is within their first month on that project, set
    `Риск с нашей стороны` to at least `Средний` on onboarding fragility
    alone, and record the assigned buddy/mentor in `Комментарии`/`План
