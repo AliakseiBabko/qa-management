@@ -164,8 +164,9 @@ project has more than one QA, split rows across actual names by who has
 access/role fit; seeing your own name in a row is what actually gets it
 filled in.
 
-Full candidate metric list and per-metric collection instructions:
-`Templates\метрики_проекта_qa.md` §3.
+Full Core + Extended metric list and per-metric collection instructions:
+`Templates\метрики_проекта_qa.md` §2 (fixed a stale §3 cross-reference
+here — §3 is `_project_registry`, not this catalog).
 
 ## Source Priority
 
@@ -189,21 +190,35 @@ Full candidate metric list and per-metric collection instructions:
 
 - Keep one metric per row.
 - Each metric should answer a concrete management question and connect to project/business/QA value.
-- Every candidate metric from the catalog is a row in `qa_process_metrics`
-  for every project, always — do not select a "compact" subset and drop
-  the rest (see `m2-role-rules.md`, Template Consistency). A metric that
-  isn't currently a priority for this project, or has no data yet, still
-  gets a row: leave `Показатель` blank and say why in `Пояснение`
-  (including "not a priority for this project because ..." as a valid
-  reason). Do not duplicate another reporting stream's row unless the
-  duplicate answers a different management question.
+- `qa_process_metrics` has two tiers, not one flat catalog (changed
+  2026-07-17 — the old "every candidate is a mandatory row" rule produced
+  15+ rows per project, most permanently blank, which real project
+  feedback (Mathworks, see `Templates\метрики_проекта_qa.md` §2 History)
+  showed teams can't realistically fill):
+  - **Core (5 metrics)** — always a row on every project, same
+    blank-with-reason discipline as everything else under Template
+    Consistency (see `m2-role-rules.md`). Full list and collection method:
+    `Templates\метрики_проекта_qa.md` §2 Core. Two of the five are
+    collected by the QA engineer running `Templates\qa_repo_metrics_prompt.md`
+    against their own project's test repo with whatever coding agent
+    they have access to — not a manual count.
+  - **Extended catalog** — optional, menu not checklist. Add a row only
+    when the project **already has** a working data source for that
+    specific metric (a configured TMS, a CI dashboard, a prod/pre-release
+    tag already in the bug tracker). Do not add a blank placeholder row
+    "in case" a tool gets set up later, and do not ask a project to stand
+    up new tooling just to populate a catalog row.
 - Validate metric fit before using standard delivery metrics. Closed tasks, moved tasks, story points, or sprint throughput are weak primary metrics when scope changes constantly, task sizes are not comparable, estimates are abstract, or there is no stable release cadence.
 - Connect `project_metrics` to individual QA metrics where they materially affect the general project picture — that's exactly what the `Вклад в проект: <Имя>` rows do.
 - Do not turn `project_metrics` into a person-performance table beyond the `Вклад в проект` rows it's explicitly designed to hold. Each person's conclusion must separate personal contribution from project/system constraints such as stream differences, seniority, access, scope, deadlines, requirements quality, and process maturity.
 
-## Candidate Metric Catalog (`qa_process_metrics`)
+## Extended Metric Catalog (`qa_process_metrics`, optional tier)
 
-Use this as a menu, not as a required checklist. Select metrics by project context, client pain, available evidence, and what decision the metric will support. Full definitions and "where to find it" guidance: `Templates\метрики_проекта_qa.md` §3.
+Not the Core 5 (see Schema section above and `Templates\метрики_проекта_qa.md`
+§2 Core) — this is the optional menu. Add a row only when the project
+already has a working data source for that specific metric; never as a
+blank placeholder. Full definitions and "where to find it" guidance:
+`Templates\метрики_проекта_qa.md` §2.
 
 ### Project improvement / plan progress
 
