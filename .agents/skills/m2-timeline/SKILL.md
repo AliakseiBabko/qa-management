@@ -26,13 +26,13 @@ Use this skill for one output family only:
 4. Set `Статус` to `Открыто` when creating the row. Move it to `Выполнено` or `Отменено` when it resolves — do not delete rows; this is a living list, not an append-only log, so editing a row in place (date slip, status change) is normal and expected, unlike `evidence_log`.
 5. `Owner` is who acts on the item — usually M2, sometimes a named QA or the client side. Never leave blank.
 6. `Источник` follows the same discipline as `evidence_log`: name the source (chat, transcript, meeting) that produced the item.
-7. After editing any project's `action_items`, run `refresh_timeline_registry.py` so `_timeline` reflects the change — it is a mechanical mirror, not a judgment step.
+7. After editing any project's `action_items`, run `refresh_all_timeline_views.py` (not just `refresh_timeline_registry.py` alone) — `_timeline` is only one of three derived views built from `action_items`/`_m1_timeline`; the "QA Management Timeline" Google Calendar and `_timeline_looker_view` (feeding the Data Studio report) also need to be rebuilt, or a fixed/closed item keeps showing stale on those two even after `_timeline` itself is correct. This has already happened once — a corrected action item still showed on the calendar because only `_timeline` had been refreshed.
 
 ### Answering "what's due today/tomorrow/this week"
 
 1. Prefer reading `_timeline` (one place, already sorted, already cross-project) over opening each project's `action_items`.
 2. `_timeline` only lists `Статус = Открыто` rows — a project with nothing due does not appear.
-3. If `_timeline` looks stale (an item you know is closed still shows), refresh the source project's `action_items` first, then rerun `refresh_timeline_registry.py`.
+3. If `_timeline` (or the Calendar/Looker Studio views built from it) looks stale, refresh the source project's `action_items` first, then rerun `refresh_all_timeline_views.py`.
 
 ### Deriving action items from project state (open-questions scan)
 
@@ -72,7 +72,7 @@ hand.
      бенчмарки` with no path to actually getting the answer.
 3. Log the reviewed/rewritten candidates into the owning project's
    `action_items` per "Logging or updating an item" above, then run
-   `refresh_timeline_registry.py`.
+   `refresh_all_timeline_views.py`.
 4. `--write` appends the raw (unreviewed) candidates straight into each
    project's `action_items` instead of just printing them — only use this
    when you intend to review/rewrite each row in the Sheet immediately
@@ -83,6 +83,6 @@ hand.
 - Do not use this Sheet for project health/risk judgment — that's `project_risk`. An action item is a dated to-do, not an assessment.
 - Do not use it for the append-only evidence trail — that's `evidence_log`. `action_items` rows get edited/closed in place; `evidence_log` rows never do.
 - Do not fabricate a due date. If genuinely unknown, that itself is worth a row with `Комментарии` stating the date is unknown and who owes clarifying it — don't skip logging just because the date is fuzzy.
-- `_timeline` is a generated rollup, never edited directly — edits always go into the owning project's `action_items`, then `refresh_timeline_registry.py`.
+- `_timeline` is a generated rollup, never edited directly — edits always go into the owning project's `action_items`, then `refresh_all_timeline_views.py`. The same applies to its two further-derived views: the "QA Management Timeline" Google Calendar (`sync_timeline_to_calendar.py`) and `_timeline_looker_view` (`refresh_timeline_looker_view.py`, feeds the Data Studio report) — never edit either directly, they're regenerated wholesale on every run.
 - `scan_open_questions.py` only reads `m2_input`, `project_risk`, and `project_metrics` — it does not read status reports, strategy chats, or raw transcripts. A real open item mentioned only in a chat/transcript still needs manual logging; the scan is a floor, not a complete list.
 - Never treat a scan candidate's placeholder wording/date as final without the review in step 2 above — writing it into `action_items` unreviewed defeats the point of picking a concrete, actionable next step.
