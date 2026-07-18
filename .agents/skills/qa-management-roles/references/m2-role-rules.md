@@ -420,6 +420,22 @@ regardless of how credible the source already is — not because the source
 is under suspicion, but because that is the standard bar before this
 document treats a conclusion as settled.
 
+The premise "a source shown to be inconsistent" needs the same evidence bar
+as any other claim before it gets asserted — do not skip that step just
+because the claim is *about* reliability rather than about a technical
+fact. A report that "X said one thing to me and something different to
+someone else" is very often just one party's own interpretation of an
+ambiguous exchange — different phrasing of the question, timing, tone, or
+a simple account relayed secondhand through a third party — not a
+transcript-confirmed contradiction. Without the actual transcript or
+direct corroboration from both sides, do not write it up as an
+established fact about that person's reliability, and do not let it anchor
+an ongoing characterization in later documents ("already showed himself
+unreliable"). Two people holding conflicting impressions of the same
+interaction is the normal case, not evidence one of them is lying — record
+it, if at all, as an unverified single-party account, not a settled
+judgment about the source.
+
 Treat hidden or unclear project topology as a risk signal: unknown streams, unknown DC/PM ownership, unclear vendor chain, missing client path, or incomplete staffing visibility can cause wrong escalations, duplicated communication, missed stakeholders, or loss of project scope.
 
 Separate individual performance risk from project/stake risk. A person may perform well while the project is still high risk because of vendor-chain issues, client dissatisfaction, role value doubts, weak processes, or contract horizon.
