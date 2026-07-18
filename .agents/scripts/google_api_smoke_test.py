@@ -20,6 +20,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.metadata.readonly",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/calendar",
 ]
 
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
@@ -117,6 +118,7 @@ def build_services(creds):
         "drive": build("drive", "v3", credentials=creds),
         "sheets": build("sheets", "v4", credentials=creds),
         "docs": build("docs", "v1", credentials=creds),
+        "calendar": build("calendar", "v3", credentials=creds),
     }
 
 
