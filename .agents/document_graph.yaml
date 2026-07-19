@@ -70,11 +70,12 @@ sources:
         skills: [m2-status-meeting-intake]
         entry: [m2_input, action_items, evidence_log, _skill_invocations]
       single_project:
-        # One project's own meeting. No dedicated skill: route via the
-        # normal m2_input gate + action_items chain per m2-role-rules
-        # (Cascading Updates); person-level facts update individual docs
-        # directly, same as a strategy chat.
-        skills: []
+        # One project's own meeting. No source-specific intake skill exists
+        # (deliberately - no new judgment rules needed): load the shared
+        # role rules for the m2_input gate and the skill owning
+        # action_items. Person-level facts update individual docs directly,
+        # same as a strategy chat.
+        skills: [qa-management-roles, m2-timeline]
         entry: [m2_input, action_items, evidence_log, _skill_invocations]
   admin_note:
     skills: [m2-admin-note-intake]
@@ -94,8 +95,10 @@ sources:
     entry: [m1_risk_report, _people_registry, _skill_invocations]
   m2_conversation:
     # M2's own comments/answers/corrections given in conversation - a
-    # first-class source, not a side channel.
-    skills: []
+    # first-class source, not a side channel. No source-specific skill:
+    # shared role rules govern the m2_input gate; m2-timeline owns
+    # action_items.
+    skills: [qa-management-roles, m2-timeline]
     entry: [m2_input, action_items, evidence_log, _skill_invocations]
 
 documents:
@@ -254,6 +257,13 @@ documents:
       actually touched — it is the ground truth this closure check reads.
 
   _skill_invocations:
+    scope: workspace
+    append_only: true
+    downstream: []
+
+  _closure_outcomes:
+    # Per-edge closure resolutions (closure_outcomes.py): run_id, scope,
+    # edge, kind-validated outcome, reason, actor. Operational metadata.
     scope: workspace
     append_only: true
     downstream: []

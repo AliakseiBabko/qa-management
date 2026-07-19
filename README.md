@@ -382,6 +382,15 @@ These are what actually runs day to day, once a project's folder already exists:
   `_skill_invocations`, originals stay), run `check_cascade_closure.py` on
   the restored docs, then `commit_workspace_state.py` to record the
   post-rollback state.
+- `closure_outcomes.py` — persists per-edge cascade resolutions into the
+  workspace `_closure_outcomes` Sheet (`record --run-id R --source A
+  --target B --outcome X [--reason ...] [--project/--person/--variant]`,
+  plus `list`). Outcomes are validated against the edge's kind in
+  `document_graph.yaml` (direct→updated; judgment→updated/no_change+reason;
+  gated→gated+reason/updated; script→regenerated) and are scope-aware —
+  the same edge may resolve differently per project/person in one run.
+  `check_cascade_closure.py --run-id R` treats recorded edges as resolved,
+  making closure machine-verifiable instead of prose in a reply.
 - `prepare_retro.py` — read-only gatherer for the `qa-retro` improvement
   loop: finds the last `source_type=retro` row in `_skill_invocations`,
   prints every invocation row since it (flagging `feedback:` notes — the

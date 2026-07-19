@@ -27,6 +27,13 @@ content, commit messages), check that it contains none of:
 - any other detail that identifies a specific real person, team, or
   engagement
 
+Development-tool and API-provider names/domains (e.g. the AI coding
+agents named in Multi-Agent Convention below, Google Workspace APIs) are
+allowed when needed for technical documentation or commit attribution —
+including `Co-Authored-By` trailers. The prohibition covers real
+employer, client, engagement, employee, and other business identities,
+plus personal contact details.
+
 If a rule or example needs illustrating, use a placeholder
 (`<Person>`/`<Имя>`, `<Project>`, `<email>`) or describe the pattern in
 the abstract ("a real example seen on this kind of team looks like...")
@@ -102,9 +109,11 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
    - Just routed a source into project documents? —
      `.agents\scripts\check_cascade_closure.py --touched <docs>` (or
      `--from-log 1`) expands `.agents\document_graph.yaml` and flags every
-     downstream document not yet accounted for. Don't end an intake pass
-     with it still reporting OPEN items — resolve each as an update or an
-     explicit "no change needed".
+     downstream document not yet accounted for. Record each edge's
+     resolution with `closure_outcomes.py record --run-id <date>-<slug>
+     ... --outcome updated|no_change|gated|regenerated` (reason required
+     for no_change/gated), then re-run the closure check with
+     `--run-id` — it must report CLOSED before the pass ends.
    - Then record the pass in the data-side history:
      `.agents\scripts\commit_workspace_state.py -m "<skill>: <source>"` —
      exports the workspace's canonical documents into the local private
