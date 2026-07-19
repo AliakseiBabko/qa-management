@@ -306,10 +306,26 @@ def main() -> int:
     print("Exporting canonical documents (diff layer + restore layer)...")
     walk(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
 
+    # A doc that failed to export contributes nothing to `manifest`/`written`.
+    # Its previously-exported files survive (prune is skipped below), so its
+    # previous manifest entries must survive too - otherwise the files sit in
+    # the commit unrestorable. Carry over any old entry whose file still
+    # exists and wasn't re-exported this run.
+    if errors:
+        manifest_path = mirror / "_manifest.json"
+        if manifest_path.exists():
+            old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            carried = 0
+            for key, entry in old_manifest.items():
+                if key not in manifest and (mirror / key).exists():
+                    manifest[key] = entry
+                    carried += 1
+            if carried:
+                print(f"Carried {carried} manifest entr(ies) from failed-export documents forward.")
     manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
     write_if_changed(mirror / "_manifest.json", manifest_bytes)
-    # A doc that failed to export contributes nothing to `written`, so pruning
-    # after errors would delete its previously-good mirror files. Skip.
+    # Same reasoning for pruning: after errors it would delete the failed
+    # documents' previously-good files. Skip.
     removed = prune_stale(mirror, set(written)) if not errors else 0
     if errors:
         print("Prune skipped because of export errors - stale files (if any) survive until a clean run.")
@@ -326,7 +342,13 @@ def main() -> int:
         return 0
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     msg = args.message or f"workspace state {stamp}"
-    res = run_git(mirror, "commit", "-m", f"{msg}\n\nExported {stamp} by commit_workspace_state.py")
+    if errors:
+        msg += f" [PARTIAL: {len(errors)} export failure(s)]"
+        body = "\n".join(f"  failed: {e.splitlines()[0][:200]}" for e in errors)
+        res = run_git(mirror, "commit", "-m",
+                      f"{msg}\n\nExported {stamp} by commit_workspace_state.py\n{body}")
+    else:
+        res = run_git(mirror, "commit", "-m", f"{msg}\n\nExported {stamp} by commit_workspace_state.py")
     if res.returncode != 0:
         print(f"git commit failed: {res.stderr.strip()}")
         return 1
