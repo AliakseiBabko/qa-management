@@ -80,7 +80,7 @@ SKILL_INVOCATIONS_HEADER = [
 # silently at the point of use.
 SKILL_INVOCATION_SOURCE_TYPES = {
     "strategy_chat", "meeting_transcript", "m1_history", "m2_conversation",
-    "qa_1to1", "admin_note", "people_case_chat",
+    "qa_1to1", "admin_note", "people_case_chat", "retro",
 }
 
 

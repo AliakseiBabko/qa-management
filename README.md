@@ -329,6 +329,14 @@ These are what actually runs day to day, once a project's folder already exists:
   at the end of any intake that routed a source into project documents. A
   new document type or dependency means editing `document_graph.yaml` in
   the same commit as the skill that introduces it.
+- `prepare_retro.py` — read-only gatherer for the `qa-retro` improvement
+  loop: finds the last `source_type=retro` row in `_skill_invocations`,
+  prints every invocation row since it (flagging `feedback:` notes — the
+  captured user corrections that are the loop's primary input) plus repo
+  commits over the same window. Judgment (grouping, the once=trace /
+  twice+=propose-an-edit threshold, drafting diffs) stays with the
+  qa-retro skill; the retro logs its own `retro` row when done, which
+  becomes the next run's window start.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
   Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`

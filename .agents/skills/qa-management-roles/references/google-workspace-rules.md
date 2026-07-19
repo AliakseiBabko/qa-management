@@ -457,8 +457,11 @@ existing concept — check this list first): `strategy_chat`,
 `meeting_transcript`, `m1_history`, `m2_conversation`, `qa_1to1`,
 `admin_note`, `people_case_chat` (a person-specific incident chat under
 `02_Chats_and_Emails`, e.g. a leaving-case thread — distinct from a
-project-wide `strategy_chat`). If a genuinely new source shape appears, add
-it here rather than picking an ad hoc value silently at the point of use.
+project-wide `strategy_chat`), `retro` (a `qa-retro` improvement-loop
+pass over the log itself — its row is also the marker
+`prepare_retro.py` slices the next window from). If a genuinely new
+source shape appears, add it here rather than picking an ad hoc value
+silently at the point of use.
 
 ### `_skill_invocations`
 
@@ -484,6 +487,17 @@ names, e.g. `qa-1to1-analysis, m2-1to1-apply` — list every skill actually
 applied, not just the first one that seems to fit, same discipline as
 `evidence_log`'s `routed_to`), `Documents touched` (blank if none),
 `Notes`.
+
+`Notes` additionally carries the improvement loop's raw material: when
+the user corrects or overrides something during a pass (wording, routing,
+a judgment call), capture it in that pass's row as a note prefixed
+`feedback:` naming the target, e.g. `feedback: m2-1to1-apply — routed X
+only to individual_metrics, user also wanted m2_input`. Keep it abstract
+enough for pattern-matching (the skill/rule and the shape of the miss),
+one `feedback:` note per distinct correction. `qa-retro` groups these
+notes across passes and proposes a rule change once the same shape
+repeats — a correction that only lives in conversation history is
+invisible to that loop.
 
 ## Naming And Versioning
 
