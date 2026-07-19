@@ -503,6 +503,21 @@ notes across passes and proposes a rule change once the same shape
 repeats — a correction that only lives in conversation history is
 invisible to that loop.
 
+### `_closure_outcomes`
+
+Workspace-wide append-only Sheet at the Drive root: one row per resolved
+cascade edge per intake run — `Run ID`, `Timestamp`, `Project`, `Person`,
+`Route variant`, `Source node`, `Target node`, `Edge kind`, `Outcome`,
+`Reason`, `Actor`. Written via `closure_outcomes.py record` (never a raw
+Sheets write — it validates the outcome against the edge's kind in
+`document_graph.yaml`: `direct`→`updated`; `judgment`→`updated`/`no_change`
+(+reason); `gated`→`gated` (+reason)/`updated`; `script`→`regenerated`).
+The same edge may resolve differently for two projects/people in one run —
+that's what the scope columns are for. `check_cascade_closure.py --run-id`
+reads these rows, so "no change needed" becomes a recorded, checkable fact
+instead of a sentence in a chat reply. Until the intake queue mints
+canonical run ids, use `<date>-<source-slug>`.
+
 ## Naming And Versioning
 
 - Preserve existing skill naming patterns, but use Google file titles instead of local filenames.

@@ -106,13 +106,17 @@ def walk(
     conditional: bool,
     open_items: list[str],
     lines: list[str],
+    resolved: dict[tuple[str, str], str] | None = None,
 ) -> None:
     docs = graph["documents"]
     for edge in docs.get(node, {}).get("downstream") or []:
         target, kind = edge["to"], edge["kind"]
         indent = "    " * depth
         cond = "(if updated) " if conditional else ""
-        if target in touched:
+        outcome = (resolved or {}).get((node, target))
+        if outcome:
+            status = f"resolved: {outcome}"
+        elif target in touched:
             status = "touched"
         else:
             status = KIND_ACTION.get(kind, "CHECK")
@@ -128,8 +132,12 @@ def walk(
             lines.append(f"{indent}    - {' '.join(str(note).split())}")
         if target not in visited:
             visited.add(target)
+            # The target's own downstream is required only if the target
+            # actually changed - touched, or resolved as updated/regenerated.
+            # no_change/gated leave it conditional.
+            target_changed = target in touched or outcome in ("updated", "regenerated")
             walk(graph, target, touched, visited, depth + 1,
-                 conditional or target not in touched, open_items, lines)
+                 conditional or not target_changed, open_items, lines, resolved)
 
 
 def main() -> int:
@@ -137,7 +145,11 @@ def main() -> int:
     parser.add_argument("--touched", default="", help="comma-separated document names that were updated")
     parser.add_argument("--from-log", type=int, default=0, metavar="N",
                         help="also read the last N _skill_invocations rows' Documents touched")
-    parser.add_argument("--project", default=None, help="with --from-log: only rows for this project")
+    parser.add_argument("--project", default=None,
+                        help="with --from-log/--run-id: only rows for this project")
+    parser.add_argument("--run-id", default=None,
+                        help="treat edges with a recorded _closure_outcomes row for this run "
+                             "as resolved (see closure_outcomes.py)")
     args = parser.parse_args()
 
     if not args.touched and not args.from_log:
@@ -175,12 +187,22 @@ def main() -> int:
         print("No known documents in the touched set - nothing to expand.")
         return 1 if unknown else 0
 
+    resolved: dict[tuple[str, str], str] = {}
+    if args.run_id:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from closure_outcomes import fetch_outcomes
+        from pipeline_common import get_services
+        for rec in fetch_outcomes(get_services(), args.run_id, args.project or ""):
+            resolved[(rec["Source node"], rec["Target node"])] = rec["Outcome"]
+        print(f"Run {args.run_id}: {len(resolved)} recorded outcome(s)"
+              + (f" for project {args.project}" if args.project else "") + "\n")
+
     print(f"Touched: {', '.join(sorted(touched))}\n")
     open_items: list[str] = []
     lines: list[str] = []
     visited = set(touched)
     for node in sorted(touched):
-        walk(graph, node, touched, visited, 0, False, open_items, lines)
+        walk(graph, node, touched, visited, 0, False, open_items, lines, resolved)
 
     if lines:
         print("Cascade checklist (nested lines fire only if their parent gets updated):")
