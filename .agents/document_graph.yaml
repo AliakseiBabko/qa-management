@@ -92,6 +92,39 @@ documents:
           "Неизвестно" rows are clarification gaps; scan_open_questions.py
           surfaces them as action-item candidates.
 
+  qa_process_metrics:
+    # Core-5 process-metrics sheet (m2-project-qa-metrics-report scope).
+    scope: project
+    downstream:
+      - to: project_metrics
+        kind: judgment
+        note: Feeds the "Качество QA-процесса" conclusion when its rows change materially.
+
+  process_checklist:
+    # Per-project outsource QA process-maturity checklist (12 sections).
+    scope: project
+    downstream:
+      - to: project_metrics
+        kind: judgment
+        note: Same "Качество QA-процесса" feed as qa_process_metrics.
+
+  individual_metrics_internal:
+    # Internal-only per-person metrics; never shared outward.
+    scope: person
+    downstream:
+      - to: project_metrics
+        kind: judgment
+        note: Internal evidence feeding the "Вклад в проект" conclusion.
+
+  m2_people_1to1_file:
+    # Longitudinal append-only M2 1:1 record per person (m2-people-1to1-file).
+    scope: person
+    downstream:
+      - to: individual_metrics
+        kind: judgment
+      - to: individual_development_plan
+        kind: judgment
+
   m2_input:
     scope: project
     downstream:
