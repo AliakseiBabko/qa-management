@@ -23,8 +23,12 @@
 # Node names are the canonical document names used in evidence_log
 # `routed_to` and _skill_invocations `Documents touched`.
 
+# Keys are canonical source_type values (pipeline_common.
+# SKILL_INVOCATION_SOURCE_TYPES / google-workspace-rules.md) - validated by
+# validate_repo.py. `retro` deliberately has no route: it edits repo rules,
+# not workspace documents.
 sources:
-  1to1_transcript:
+  qa_1to1:
     skills: [qa-1to1-analysis, m2-1to1-apply]
     entry: [individual_metrics, individual_development_plan, m2_input,
             evidence_log, _skill_invocations]
@@ -38,13 +42,20 @@ sources:
   admin_note:
     skills: [m2-admin-note-intake]
     entry: [_people_registry, evidence_log, _skill_invocations]
-  source_doc:
-    skills: []   # routed per content; same chains apply once a document is touched
-    entry: [evidence_log, _skill_invocations]
-  m2_direct_input:
-    # M2's own comments/answers — a first-class source, not a side channel.
+  m1_history:
+    # Historical M1 documents (imported 1to1 history, prior-period records).
+    skills: [m1-people-1to1-file]
+    entry: [m1_1to1_file, _people_registry, evidence_log, _skill_invocations]
+  people_case_chat:
+    # Person-specific incident chat (e.g. a leaving case) - people-risk
+    # evidence first, distinct from a project-wide strategy chat.
+    skills: [m1-people-risk-report]
+    entry: [m1_risk_report, _people_registry, evidence_log, _skill_invocations]
+  m2_conversation:
+    # M2's own comments/answers/corrections given in conversation - a
+    # first-class source, not a side channel.
     skills: []
-    entry: [m2_input, evidence_log, _skill_invocations]
+    entry: [m2_input, action_items, evidence_log, _skill_invocations]
 
 documents:
   # ---- per-person (M2 project scope) ----
@@ -184,6 +195,12 @@ documents:
       - to: timeline_views
         kind: script
         script: refresh_all_timeline_views.py
+
+  _m1_pr_calendar:
+    # Generated PR-only view of _m1_timeline; never edited directly.
+    scope: workspace
+    generated: true
+    downstream: []
 
 # Documents produced on a calendar cadence, not per intake. Excluded from
 # per-intake closure checks; listed so the graph stays the complete map.
