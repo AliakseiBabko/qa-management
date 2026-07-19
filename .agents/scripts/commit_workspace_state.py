@@ -64,6 +64,11 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import socket
+
+# Some large Sheets exceed the default socket timeout reproducibly.
+socket.setdefaulttimeout(180)
+
 from pipeline_common import get_services
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
 
@@ -130,11 +135,12 @@ def export_bytes(drive, file_id: str, mime: str) -> bytes:
     return with_retry(lambda: drive.files().export(fileId=file_id, mimeType=mime).execute())
 
 
-def write_if_changed(path: Path, data: bytes) -> None:
+def write_if_changed(path: Path, data: bytes) -> bool:
     if path.exists() and path.read_bytes() == data:
-        return
+        return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+    return True
 
 
 def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
@@ -142,24 +148,12 @@ def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
     name = sanitize(item["name"])
     rel = f"{rel}/" if rel else ""
     written = []
-    # Preferred restore layer (needs Drive content access; 403 on
-    # manually-created files under drive.file scope).
-    try:
-        xlsx = export_bytes(services["drive"], item["id"], MIME_XLSX)
-        xlsx_rel = f"{rel}{name}.xlsx"
-        write_if_changed(out_dir / f"{name}.xlsx", xlsx)
-        manifest[xlsx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet"}
-        written.append(xlsx_rel)
-    except Exception as exc:
-        if not is_403(exc):
-            raise
-        warnings.append(f"{rel}{item['name']}: no Drive content access (drive.file scope) - "
-                        "values-only restore layer")
     # Diff layer (CSV per tab) + universal values restore layer - Sheets API,
     # works regardless of who created the file.
     meta = with_retry(lambda: services["sheets"].spreadsheets().get(
         spreadsheetId=item["id"], fields="sheets.properties.title").execute())
     all_values: dict[str, list] = {}
+    changed = False
     for tab in meta.get("sheets", []):
         title = tab["properties"]["title"]
         values = with_retry(lambda t=title: services["sheets"].spreadsheets().values().get(
@@ -167,14 +161,31 @@ def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
         all_values[title] = values
         buf = io.StringIO()
         csv.writer(buf, lineterminator="\n").writerows(values)
-        tab_rel = f"{rel}{name}.{sanitize(title)}.csv"
-        write_if_changed(out_dir / f"{name}.{sanitize(title)}.csv", buf.getvalue().encode("utf-8"))
-        written.append(tab_rel)
+        if write_if_changed(out_dir / f"{name}.{sanitize(title)}.csv", buf.getvalue().encode("utf-8")):
+            changed = True
+        written.append(f"{rel}{name}.{sanitize(title)}.csv")
     values_rel = f"{rel}{name}.values.json"
-    write_if_changed(out_dir / f"{name}.values.json",
-                     json.dumps(all_values, ensure_ascii=False, indent=1).encode("utf-8"))
+    if write_if_changed(out_dir / f"{name}.values.json",
+                        json.dumps(all_values, ensure_ascii=False, indent=1).encode("utf-8")):
+        changed = True
     manifest[values_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet-values"}
     written.append(values_rel)
+    # Preferred restore layer (needs Drive content access; 403 on
+    # manually-created files under drive.file scope). Google's binary export
+    # is not byte-stable, so only re-export when the content layer actually
+    # changed - otherwise every run would churn every binary into a commit.
+    xlsx_path = out_dir / f"{name}.xlsx"
+    xlsx_rel = f"{rel}{name}.xlsx"
+    try:
+        if changed or not xlsx_path.exists():
+            write_if_changed(xlsx_path, export_bytes(services["drive"], item["id"], MIME_XLSX))
+        manifest[xlsx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet"}
+        written.append(xlsx_rel)
+    except Exception as exc:
+        if not is_403(exc):
+            raise
+        warnings.append(f"{rel}{item['name']}: no Drive content access (drive.file scope) - "
+                        "values-only restore layer")
     return written
 
 
@@ -194,27 +205,30 @@ def export_doc(services, item: dict, out_dir: Path, rel: str, manifest: dict,
     rel = f"{rel}/" if rel else ""
     written = []
     try:
-        docx = export_bytes(services["drive"], item["id"], MIME_DOCX)
-        docx_rel = f"{rel}{name}.docx"
-        write_if_changed(out_dir / f"{name}.docx", docx)
-        manifest[docx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "document"}
-        written.append(docx_rel)
         try:
             text, ext = export_bytes(services["drive"], item["id"], "text/markdown"), "md"
-        except Exception:
+        except Exception as exc:
+            if is_403(exc):
+                raise
             text, ext = export_bytes(services["drive"], item["id"], "text/plain"), "txt"
-        md_rel = f"{rel}{name}.{ext}"
-        write_if_changed(out_dir / f"{name}.{ext}", text)
-        written.append(md_rel)
+        changed = write_if_changed(out_dir / f"{name}.{ext}", text)
+        written.append(f"{rel}{name}.{ext}")
+        # Binary restore layer only when the text layer changed (see
+        # export_sheet on byte-unstable exports).
+        docx_path = out_dir / f"{name}.docx"
+        if changed or not docx_path.exists():
+            write_if_changed(docx_path, export_bytes(services["drive"], item["id"], MIME_DOCX))
+        docx_rel = f"{rel}{name}.docx"
+        manifest[docx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "document"}
+        written.append(docx_rel)
     except Exception as exc:
         if not is_403(exc):
             raise
         warnings.append(f"{rel}{item['name']}: no Drive content access (drive.file scope) - "
                         "diff layer only via Docs API, NOT restorable")
-        txt_rel = f"{rel}{name}.txt"
         write_if_changed(out_dir / f"{name}.txt",
                          doc_plain_text(services, item["id"]).encode("utf-8"))
-        written.append(txt_rel)
+        written.append(f"{rel}{name}.txt")
     return written
 
 
