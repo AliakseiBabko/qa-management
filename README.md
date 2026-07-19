@@ -115,7 +115,7 @@ Each project folder follows this shape:
 20_M2_Project_Management/<Project>/
 ├─ project_risk.gsheet
 ├─ process_checklist.gsheet     # living outsource QA process-maturity checklist (12 sections)
-├─ project_development_plan.gsheet
+├─ project_development_plan.gdoc
 ├─ project_metrics.gsheet       # M2-only dashboard, see below — never shared with the team
 ├─ qa_process_metrics.gsheet    # engineer-filled, project-wide QA-process facts
 ├─ evidence_log.gsheet

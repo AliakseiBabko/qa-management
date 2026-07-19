@@ -152,17 +152,30 @@ def check_graph(source_types: set[str]) -> None:
     for p in periodic:
         if p in docs:
             fail(f"graph periodic entry {p!r} collides with a document node")
+    def check_route(stype: str, label: str, spec: dict) -> None:
+        for doc in (spec or {}).get("entry") or []:
+            if doc not in docs:
+                fail(f"graph source {stype!r}{label} entry {doc!r} is not a defined document node")
+        for skill in (spec or {}).get("skills") or []:
+            if not (SKILLS_DIR / skill / "SKILL.md").exists():
+                fail(f"graph source {stype!r}{label} names missing skill {skill!r}")
+
     for stype, spec in sources.items():
         if stype not in source_types:
             fail(f"graph source {stype!r} is not a canonical source_type "
                  f"(pipeline_common.SKILL_INVOCATION_SOURCE_TYPES: {sorted(source_types)})")
-        for doc in (spec or {}).get("entry") or []:
-            if doc not in docs:
-                fail(f"graph source {stype!r} entry {doc!r} is not a defined document node")
-        for skill in (spec or {}).get("skills") or []:
-            if not (SKILLS_DIR / skill / "SKILL.md").exists():
-                fail(f"graph source {stype!r} names missing skill {skill!r}")
-    for stype in sorted(source_types - set(sources) - {"retro"}):
+        spec = spec or {}
+        if "routes" in spec:
+            if "entry" in spec or "skills" in spec:
+                fail(f"graph source {stype!r} mixes routes: with flat skills/entry - pick one shape")
+            for variant, route in (spec["routes"] or {}).items():
+                check_route(stype, f" route {variant!r}", route)
+        else:
+            check_route(stype, "", spec)
+    # Types that legitimately have no route: retro edits repo rules, and the
+    # pre-classification labels only mark unprocessed intake rows.
+    unrouted_ok = {"retro", "raw_transcript", "raw_chat", "source_document"}
+    for stype in sorted(source_types - set(sources) - unrouted_ok):
         warn(f"canonical source_type {stype!r} has no sources: route in document_graph.yaml")
 
 
@@ -172,6 +185,35 @@ def check_source_types_documented(source_types: set[str]) -> None:
         if f"`{stype}`" not in rules:
             fail(f"source_type {stype!r} is in pipeline_common but not documented "
                  "in google-workspace-rules.md's canonical list")
+
+
+def check_source_type_literals(source_types: set[str]) -> None:
+    """Every source_type literal used at runtime (scripts) or instructed
+    (skills) must be canonical - this is exactly how `1to1_transcript` and
+    the raw intake labels drifted unnoticed."""
+    patterns = [
+        re.compile(r'source_type\s*=\s*"([a-z_]+)"'),        # python assignment
+        re.compile(r'"source_type":\s*"([a-z_]+)"'),          # python dict literal
+        re.compile(r'`source_type`\s*=\s*`([a-z_]+)`'),       # markdown instruction
+    ]
+    files = [p for p in SCRIPTS_DIR.glob("*.py") if p.name != "validate_repo.py"]
+    files += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/*.md"))
+    for f in files:
+        content = f.read_text(encoding="utf-8")
+        for pat in patterns:
+            for value in pat.findall(content):
+                if value not in source_types:
+                    fail(f"{f.relative_to(REPO)}: source_type literal {value!r} is not canonical "
+                         f"({sorted(source_types)})")
+
+
+def check_format_drift() -> None:
+    """Development plans are Google Docs (sync_m2_plans_to_docs.py); any
+    .gsheet mention of them is documentation drift."""
+    for name in ("AGENTS.md", "README.md"):
+        content = (REPO / name).read_text(encoding="utf-8")
+        for m in re.findall(r"\S*development_plan\.gsheet", content):
+            fail(f"{name}: {m} - development plans are Google Docs (.gdoc), not Sheets")
 
 
 def check_templates() -> None:
@@ -196,6 +238,8 @@ def main() -> int:
     check_scripts_vs_readme()
     check_graph(source_types)
     check_source_types_documented(source_types)
+    check_source_type_literals(source_types)
+    check_format_drift()
     check_templates()
 
     for w in warnings:

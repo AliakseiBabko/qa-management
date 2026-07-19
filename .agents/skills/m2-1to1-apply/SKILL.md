@@ -40,7 +40,7 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    `pipeline_common.add_answer()` rather than leaving the round stale. Only
    do this when the transcript genuinely settles the question, not when
    it's merely related.
-4. Log `evidence_log`: `source_type` = `1to1_transcript`, `routed_to`
+4. Log `evidence_log`: `source_type` = `qa_1to1`, `routed_to`
    listing every document actually touched (person-level and project-level
    both, when both changed).
 5. Close the cascade: run `.agents\scripts\check_cascade_closure.py

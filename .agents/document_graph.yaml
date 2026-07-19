@@ -25,32 +25,73 @@
 
 # Keys are canonical source_type values (pipeline_common.
 # SKILL_INVOCATION_SOURCE_TYPES / google-workspace-rules.md) - validated by
-# validate_repo.py. `retro` deliberately has no route: it edits repo rules,
-# not workspace documents.
+# validate_repo.py. `retro` deliberately has no route (it edits repo rules,
+# not workspace documents); the pre-classification types (`raw_transcript`,
+# `raw_chat`, `source_document`) have no route either - they only label
+# evidence_log rows written by prepare_intake_review.py before a source has
+# been classified into one of the types below.
+#
+# A source either has flat `skills`/`entry`, or `routes:` keyed by scope
+# variant when the same source_type legitimately fans out differently
+# (role for a 1:1, meeting shape for a transcript). The agent picks the
+# variant; the graph defines what each variant must touch.
 sources:
   qa_1to1:
-    skills: [qa-1to1-analysis, m2-1to1-apply]
-    entry: [individual_metrics, individual_development_plan, m2_input,
-            evidence_log, _skill_invocations]
+    routes:
+      m1:
+        # People-management half: longitudinal 1:1 record, risk sheet,
+        # follow-ups. M1-scoped sources log to _skill_invocations (and the
+        # records themselves); project evidence_log only if project-scoped.
+        skills: [qa-1to1-analysis, m1-people-1to1-file, m1-people-risk-report,
+                 m1-timeline]
+        entry: [m1_1to1_file, m1_risk_report, _m1_timeline, _skill_invocations]
+      m2:
+        skills: [qa-1to1-analysis, m2-1to1-apply, m2-people-1to1-file]
+        entry: [m2_people_1to1_file, individual_metrics,
+                individual_development_plan, m2_input, evidence_log,
+                _skill_invocations]
+      mixed:
+        # One shared qa-1to1-analysis pass, then both routes above; M1 and
+        # M2 conclusions stay separately labeled even from one transcript.
+        skills: [qa-1to1-analysis, m1-people-1to1-file, m1-people-risk-report,
+                 m1-timeline, m2-1to1-apply, m2-people-1to1-file]
+        entry: [m1_1to1_file, m1_risk_report, _m1_timeline,
+                m2_people_1to1_file, individual_metrics,
+                individual_development_plan, m2_input, evidence_log,
+                _skill_invocations]
   strategy_chat:
     skills: [m2-strategy-chat-analysis]
     entry: [_people_registry, individual_metrics, individual_development_plan,
             m2_input, evidence_log, _skill_invocations]
   meeting_transcript:
-    skills: [m2-status-meeting-intake]
-    entry: [m2_input, action_items, evidence_log, _skill_invocations]
+    routes:
+      multi_project:
+        # Status walkthrough covering several of M2's projects.
+        skills: [m2-status-meeting-intake]
+        entry: [m2_input, action_items, evidence_log, _skill_invocations]
+      single_project:
+        # One project's own meeting. No dedicated skill: route via the
+        # normal m2_input gate + action_items chain per m2-role-rules
+        # (Cascading Updates); person-level facts update individual docs
+        # directly, same as a strategy chat.
+        skills: []
+        entry: [m2_input, action_items, evidence_log, _skill_invocations]
   admin_note:
     skills: [m2-admin-note-intake]
     entry: [_people_registry, evidence_log, _skill_invocations]
   m1_history:
     # Historical M1 documents (imported 1to1 history, prior-period records).
+    # M1 scope: no project evidence_log unless the content is project-scoped;
+    # _skill_invocations plus the longitudinal record carry the trail.
     skills: [m1-people-1to1-file]
-    entry: [m1_1to1_file, _people_registry, evidence_log, _skill_invocations]
+    entry: [m1_1to1_file, _people_registry, _skill_invocations]
   people_case_chat:
     # Person-specific incident chat (e.g. a leaving case) - people-risk
-    # evidence first, distinct from a project-wide strategy chat.
+    # evidence first, distinct from a project-wide strategy chat. Same M1
+    # evidence rule as m1_history; add the project's evidence_log only when
+    # the case is genuinely project-scoped.
     skills: [m1-people-risk-report]
-    entry: [m1_risk_report, _people_registry, evidence_log, _skill_invocations]
+    entry: [m1_risk_report, _people_registry, _skill_invocations]
   m2_conversation:
     # M2's own comments/answers/corrections given in conversation - a
     # first-class source, not a side channel.
@@ -107,6 +148,13 @@ documents:
       - to: project_metrics
         kind: judgment
         note: Same "Качество QA-процесса" feed as qa_process_metrics.
+      - to: project_risk
+        kind: judgment
+        note: >-
+          A gap judged a real risk (not an acceptable trade-off) goes into
+          project_risk's "Риск QA process" column per the checklist skill's
+          own rule — direct column routing; broader risk-conclusion changes
+          still go through the m2_input gate like any other source.
 
   individual_metrics_internal:
     # Internal-only per-person metrics; never shared outward.
@@ -180,6 +228,12 @@ documents:
       - to: project_metrics
         kind: judgment
         note: Same propagation rule as above.
+      - to: _m1_pr_calendar
+        kind: script
+        script: refresh_m1_pr_calendar.py
+        note: >-
+          The PR calendar is computed from _people_registry's PR dates
+          (not from _m1_timeline) — refresh after registry PR-date edits.
 
   _project_registry:
     scope: workspace
@@ -222,9 +276,6 @@ documents:
   _m1_timeline:
     scope: workspace
     downstream:
-      - to: _m1_pr_calendar
-        kind: script
-        script: refresh_m1_pr_calendar.py
       - to: timeline_views
         kind: script
         script: refresh_all_timeline_views.py

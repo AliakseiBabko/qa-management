@@ -459,9 +459,13 @@ existing concept — check this list first): `strategy_chat`,
 `02_Chats_and_Emails`, e.g. a leaving-case thread — distinct from a
 project-wide `strategy_chat`), `retro` (a `qa-retro` improvement-loop
 pass over the log itself — its row is also the marker
-`prepare_retro.py` slices the next window from). If a genuinely new
-source shape appears, add it here rather than picking an ad hoc value
-silently at the point of use.
+`prepare_retro.py` slices the next window from). Three pre-classification
+values — `raw_transcript`, `raw_chat`, `source_document` — are written
+only by `prepare_intake_review.py` on newly-discovered files ("pending M2
+review"); once a source is actually processed, its rows use one of the
+real types above, never the raw label. If a genuinely new source shape
+appears, add it here rather than picking an ad hoc value silently at the
+point of use.
 
 ### `_skill_invocations`
 
