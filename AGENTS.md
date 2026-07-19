@@ -99,6 +99,12 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
      (`_strategy` chats specifically).
+   - Just routed a source into project documents? —
+     `.agents\scripts\check_cascade_closure.py --touched <docs>` (or
+     `--from-log 1`) expands `.agents\document_graph.yaml` and flags every
+     downstream document not yet accounted for. Don't end an intake pass
+     with it still reporting OPEN items — resolve each as an update or an
+     explicit "no change needed".
    - Writing a new one-off inspection/update script anyway? Reuse
      `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
      re-inlining `load_credentials`/`build_services` boilerplate.

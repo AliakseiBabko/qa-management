@@ -244,6 +244,16 @@ Leaving `project_metrics` or `_project_registry` stale after an
 supposed to be the one place to see the full picture, not one of several
 places that might be out of date.
 
+This fan-out (and the M1 chain) is encoded as data in
+`.agents/document_graph.yaml`; `.agents/scripts/check_cascade_closure.py`
+expands it into a checklist and flags downstream documents not yet
+accounted for. Run it at the end of any pass that touched these documents
+instead of re-deriving the chain from this prose — and keep the graph file
+in sync when a new document type or dependency is introduced (same commit
+as the skill that adds it). The script only computes *which* documents to
+visit; whether each one changes, and what to write, remains this file's
+judgment rules.
+
 ## Вклад в проект Calibration
 
 Don't default to Смешанный as a safe middle answer when the evidence is

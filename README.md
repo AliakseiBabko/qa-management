@@ -316,6 +316,19 @@ These are what actually runs day to day, once a project's folder already exists:
   manually produced a real bug once on a real project: appending answer
   content with the wrong one landed it before the empty answer heading and
   made `get_last_round_status()` wrongly read the round as still pending.
+- `check_cascade_closure.py` — deterministic half of the cascading-update
+  chain: reads `.agents/document_graph.yaml` (the machine-readable version
+  of `m2-role-rules.md`'s Cascading Updates / Project-Level Rollups fan-out)
+  and prints the downstream checklist for a set of touched documents —
+  `--touched individual_metrics,evidence_log` offline, or `--from-log N` to
+  check the last N `_skill_invocations` rows' `Documents touched`. Exit 1
+  while any downstream node is unaccounted for. It only computes *which*
+  documents to visit; whether each one actually changes (and what to write)
+  stays agent judgment — every open item must be resolved explicitly as
+  either an update or a stated "no change needed", never by silence. Run it
+  at the end of any intake that routed a source into project documents. A
+  new document type or dependency means editing `document_graph.yaml` in
+  the same commit as the skill that introduces it.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
   Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`

@@ -40,6 +40,11 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
    `source_type` list).
 6. Skip projects mentioned that belong to a different M2 - name-recognition
    only, per `aliases.md`.
+7. Per affected project, close the cascade: run
+   `.agents\scripts\check_cascade_closure.py --touched <routed_to list>`
+   and resolve every OPEN item (update, run the named script, or an
+   explicit "no change needed" with a reason) before declaring the intake
+   done.
 
 ## Guardrails
 

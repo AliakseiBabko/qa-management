@@ -1,0 +1,208 @@
+# Document dependency graph — the machine-readable version of the cascade
+# chains described in m2-role-rules.md (Cascading Updates, Project-Level
+# Rollups) and the individual skills. One place, so a script can compute
+# "what else must be checked after this change" instead of each agent
+# re-deriving the fan-out from prose.
+#
+# Consumed by .agents/scripts/check_cascade_closure.py. Edited by hand
+# whenever a new document type or dependency is introduced — adding a skill
+# that writes a new document means adding its node/edges here in the same
+# commit.
+#
+# Edge kinds:
+#   direct   — update the downstream document in the same pass; leaving it
+#              stale is a defect, not a judgment call.
+#   gated    — routes through an m2_input preliminary-analysis round; the
+#              downstream document must NOT be edited until the round's
+#              answer section is filled (stop condition, not a formality).
+#   judgment — an agent must look at the downstream document and decide
+#              "update" or explicitly "no change needed"; silence is not
+#              an allowed outcome.
+#   script   — regenerated wholesale by the named script; never hand-edited.
+#
+# Node names are the canonical document names used in evidence_log
+# `routed_to` and _skill_invocations `Documents touched`.
+
+sources:
+  1to1_transcript:
+    skills: [qa-1to1-analysis, m2-1to1-apply]
+    entry: [individual_metrics, individual_development_plan, m2_input,
+            evidence_log, _skill_invocations]
+  strategy_chat:
+    skills: [m2-strategy-chat-analysis]
+    entry: [_people_registry, individual_metrics, individual_development_plan,
+            m2_input, evidence_log, _skill_invocations]
+  meeting_transcript:
+    skills: [m2-status-meeting-intake]
+    entry: [m2_input, action_items, evidence_log, _skill_invocations]
+  admin_note:
+    skills: [m2-admin-note-intake]
+    entry: [_people_registry, evidence_log, _skill_invocations]
+  source_doc:
+    skills: []   # routed per content; same chains apply once a document is touched
+    entry: [evidence_log, _skill_invocations]
+  m2_direct_input:
+    # M2's own comments/answers — a first-class source, not a side channel.
+    skills: []
+    entry: [m2_input, evidence_log, _skill_invocations]
+
+documents:
+  # ---- per-person (M2 project scope) ----
+  individual_metrics:
+    scope: person
+    downstream:
+      - to: project_metrics
+        kind: direct
+        note: >-
+          Refresh the "Вклад в проект: <Имя>" row (and the aggregated team
+          row if the project has more than one person) in the same pass.
+
+  individual_development_plan:
+    scope: person
+    downstream:
+      - to: m2_input
+        kind: judgment
+        note: >-
+          Only if the change would alter a project_risk /
+          project_development_plan conclusion — then it goes in as a
+          question via pipeline_common.add_questions(), never straight
+          into those documents.
+
+  # ---- per-project (M2) ----
+  project_metrics:
+    scope: project
+    downstream:
+      - to: _project_registry
+        kind: direct
+        note: Refresh this project's row to match; a stale registry defeats the war-room view.
+      - to: action_items
+        kind: judgment
+        note: >-
+          "Неизвестно" rows are clarification gaps; scan_open_questions.py
+          surfaces them as action-item candidates.
+
+  m2_input:
+    scope: project
+    downstream:
+      - to: project_risk
+        kind: gated
+        note: >-
+          Rollup only after the latest round's "Ответ и общие соображения
+          M2" is filled. An empty answer freezes this edge — that is the
+          intended stop condition.
+      - to: project_development_plan
+        kind: gated
+        note: Same gate as project_risk.
+
+  project_risk:
+    scope: project
+    downstream:
+      - to: _project_registry
+        kind: direct
+      - to: action_items
+        kind: judgment
+        note: >-
+          "План действий" / "Следующий review" cells carry real owner+date;
+          scan_open_questions.py surfaces the ones not yet logged.
+
+  project_development_plan:
+    scope: project
+    downstream:
+      - to: action_items
+        kind: judgment
+
+  action_items:
+    scope: project
+    downstream:
+      - to: timeline_views
+        kind: script
+        script: refresh_all_timeline_views.py
+        note: >-
+          _timeline + "QA Management Timeline" Calendar +
+          _timeline_looker_view are all rebuilt by this one script; running
+          only refresh_timeline_registry.py leaves the other two stale
+          (has happened on a real item).
+
+  # ---- workspace-wide ----
+  _people_registry:
+    scope: workspace
+    downstream:
+      - to: individual_metrics
+        kind: judgment
+        note: >-
+          A corrected name/role/affiliation must be fixed in every document
+          that repeated it (Template Consistency rule) — individual docs,
+          project doc prose, aliases.md.
+      - to: project_metrics
+        kind: judgment
+        note: Same propagation rule as above.
+
+  _project_registry:
+    scope: workspace
+    downstream: []
+
+  timeline_views:
+    # Generated trio: _timeline, Google Calendar, _timeline_looker_view.
+    scope: workspace
+    generated: true
+    downstream: []
+
+  evidence_log:
+    scope: project
+    append_only: true
+    downstream: []
+    note: >-
+      Every intake writes one row; routed_to must list every document
+      actually touched — it is the ground truth this closure check reads.
+
+  _skill_invocations:
+    scope: workspace
+    append_only: true
+    downstream: []
+
+  # ---- M1 chain ----
+  m1_1to1_file:
+    scope: person
+    downstream:
+      - to: m1_risk_report
+        kind: judgment
+        note: Светофор рисков row for the person, if the 1:1 changed the risk picture.
+      - to: _m1_timeline
+        kind: judgment
+        note: Datable follow-ups from the 1:1.
+
+  m1_risk_report:
+    scope: workspace
+    downstream: []
+
+  _m1_timeline:
+    scope: workspace
+    downstream:
+      - to: _m1_pr_calendar
+        kind: script
+        script: refresh_m1_pr_calendar.py
+      - to: timeline_views
+        kind: script
+        script: refresh_all_timeline_views.py
+
+# Documents produced on a calendar cadence, not per intake. Excluded from
+# per-intake closure checks; listed so the graph stays the complete map.
+periodic:
+  - m1_monthly_report
+  - m2_monthly_report
+  - department_traffic_light
+  - status_reports
+  - okr
+  - salary_review_self_feedback
+  - self_review
+
+# Alternate spellings seen in routed_to / Documents touched, mapped to
+# canonical node names.
+aliases:
+  individual_plan: individual_development_plan
+  project_plan: project_development_plan
+  светофор_рисков: m1_risk_report
+  _timeline: timeline_views
+  _timeline_looker_view: timeline_views
+  calendar: timeline_views
+  1to1: m1_1to1_file
