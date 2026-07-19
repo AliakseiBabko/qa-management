@@ -149,6 +149,8 @@ Current canonical skills:
 | `m2-timeline` | M2 | Per-project `action_items` Google Sheet (events, deadlines, follow-ups) and the workspace-wide `_timeline` rollup, with CSV fallback | `.agents/skills/m2-timeline/SKILL.md` |
 | `m1-monthly-report` | M1 | Monthly M1 KPI/bonus Google Sheet, with CSV fallback, based on monthly report workbook structure and evidence-backed people-management data | `.agents/skills/m1-monthly-report/SKILL.md` |
 | `m2-monthly-report` | M2 | Monthly M2 KPI/bonus Google Sheet, with CSV fallback, based on monthly report example structure and evidence-backed project-management data | `.agents/skills/m2-monthly-report/SKILL.md` |
+| `qa-retro` | Common | Improvement-loop retro pass: turns repeated friction/feedback since the last retro (via `prepare_retro.py` over `_skill_invocations`) into proposed skill/reference/graph edits, presented as diffs for user review | `.agents/skills/qa-retro/SKILL.md` |
+| `repo-maintenance` | Common | Consistency checklist for any structural change to this repo (skill/script/template/document-type/dependency), keeping AGENTS.md, README, `document_graph.yaml`, and source-type lists in sync in the same commit | `.agents/skills/repo-maintenance/SKILL.md` |
 
 Load only the skill needed for the current outcome. Do not preload other role skills.
 
