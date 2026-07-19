@@ -115,6 +115,8 @@ def build_resolved(rows: list[dict], graph: dict) -> tuple[dict[tuple[str, str],
 
     resolved: dict[tuple[str, str], str] = {}
     warns: list[str] = []
+    from closure_outcomes import REASON_REQUIRED
+
     for rec in winners.values():
         source, target, outcome = rec["Source node"], rec["Target node"], rec["Outcome"]
         kind = graph_edge_kind(graph, source, target)
@@ -125,6 +127,10 @@ def build_resolved(rows: list[dict], graph: dict) -> tuple[dict[tuple[str, str],
         if outcome not in VALID_OUTCOMES.get(kind, set()):
             warns.append(f"stored outcome {outcome!r} for {source} -> {target} ignored: "
                          f"not valid for current edge kind {kind!r}")
+            continue
+        if outcome in REASON_REQUIRED and not rec.get("Reason", "").strip():
+            warns.append(f"stored outcome {outcome!r} for {source} -> {target} ignored: "
+                         "reason is required but empty (manual edit or historical row)")
             continue
         resolved[(source, target)] = outcome
     return resolved, warns

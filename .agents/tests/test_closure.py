@@ -31,10 +31,11 @@ def run_walk(graph, touched, resolved=None, strict=False):
     return open_items
 
 
-def rec(source, target, outcome, run="r1", project="", person="", variant=""):
+def rec(source, target, outcome, run="r1", project="", person="", variant="", reason="r"):
     return {"Run ID": run, "Project": project, "Person": person,
             "Route variant": variant, "Source node": source,
-            "Target node": target, "Outcome": outcome, "Edge kind": "?"}
+            "Target node": target, "Outcome": outcome, "Edge kind": "?",
+            "Reason": reason}
 
 
 DIAMOND = {"documents": {
@@ -113,6 +114,17 @@ class TestBuildResolved(unittest.TestCase):
         self.assertEqual(resolved, {})
         self.assertTrue(any("not valid for current edge kind" in w for w in warns))
 
+    def test_missing_required_reason_is_warned_and_ignored(self):
+        resolved, warns = build_resolved([rec("A", "T", "gated", reason="")], self.GRAPH)
+        self.assertEqual(resolved, {})
+        self.assertTrue(any("reason is required but empty" in w for w in warns))
+
+    def test_reason_present_is_accepted(self):
+        resolved, warns = build_resolved([rec("A", "T", "gated", reason="round pending")],
+                                         self.GRAPH)
+        self.assertEqual(resolved[("A", "T")], "gated")
+        self.assertEqual(warns, [])
+
 
 class TestScopeIsolation(unittest.TestCase):
     def test_other_project_never_matches(self):
@@ -133,6 +145,27 @@ class TestScopeIsolation(unittest.TestCase):
     def test_matching_scope_case_insensitive(self):
         self.assertTrue(row_matches_scope(rec("A", "T", "updated", project="p1"),
                                           "P1", "", ""))
+
+    def test_scoped_project_with_omitted_filter_never_matches(self):
+        self.assertFalse(row_matches_scope(rec("A", "T", "updated", project="P1"),
+                                           "", "", ""))
+
+    def test_scoped_person_with_omitted_filter_never_matches(self):
+        self.assertFalse(row_matches_scope(rec("A", "T", "updated", person="Alice"),
+                                           "", "", ""))
+
+    def test_scoped_variant_with_omitted_filter_never_matches(self):
+        self.assertFalse(row_matches_scope(rec("A", "T", "updated", variant="m1"),
+                                           "", "", ""))
+
+    def test_strict_check_without_scope_cannot_combine_scoped_outcomes(self):
+        # Two rows scoped to different people; a filterless strict check
+        # must see neither, so their outcomes can never merge into one run
+        # closure.
+        rows = [rec("A", "T", "updated", person="Alice"),
+                rec("A", "T", "updated", person="Bob")]
+        visible = [r for r in rows if row_matches_scope(r, "", "", "")]
+        self.assertEqual(visible, [])
 
 
 class TestOutcomeContract(unittest.TestCase):
