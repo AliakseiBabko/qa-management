@@ -15,9 +15,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Full `drive` (upgraded 2026-07-19 from `drive.file` + `drive.metadata.
+# readonly`, which it supersedes) so the mirror/rollback pipeline can export
+# and restore manually-created files too - under `drive.file`, 13 hand-made
+# Sheets (M1 1to1 files, Светофор рисков, "Copy of" sources) 403'd on
+# Drive-content calls and only had a values-only restore layer.
 SCOPES = [
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/drive.metadata.readonly",
+    "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/calendar",
