@@ -389,8 +389,16 @@ These are what actually runs day to day, once a project's folder already exists:
   `document_graph.yaml` (direct→updated; judgment→updated/no_change+reason;
   gated→gated+reason/updated; script→regenerated) and are scope-aware —
   the same edge may resolve differently per project/person in one run.
-  `check_cascade_closure.py --run-id R` treats recorded edges as resolved,
-  making closure machine-verifiable instead of prose in a reply.
+  Records must carry the scope their edge endpoints have (`--project` /
+  `--person` enforced against the graph's `scope:` fields).
+  `check_cascade_closure.py --run-id R` is **strict**: every required edge
+  needs a recorded outcome ("touched" alone no longer closes an edge),
+  outcomes are filtered to one scope at a time (`--project`/`--person`/
+  `--variant`; rows with empty scope fields apply anywhere, rows scoped
+  elsewhere never do), stored rows are revalidated against the current
+  graph on load, and for duplicate identities the latest row wins (so
+  `gated` can later become `updated` append-only). Pure logic is
+  unit-tested: `python -m unittest discover -s .agents/tests`.
 - `prepare_retro.py` — read-only gatherer for the `qa-retro` improvement
   loop: finds the last `source_type=retro` row in `_skill_invocations`,
   prints every invocation row since it (flagging `feedback:` notes — the

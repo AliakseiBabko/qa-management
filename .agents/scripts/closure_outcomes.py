@@ -62,14 +62,31 @@ VALID_OUTCOMES = {
 REASON_REQUIRED = {"no_change", "gated"}
 
 
-def edge_kind(source: str, target: str) -> str:
+def load_docs() -> dict:
     graph = yaml.safe_load(GRAPH_PATH.read_text(encoding="utf-8"))
-    docs = graph.get("documents") or {}
-    for edge in (docs.get(source) or {}).get("downstream") or []:
+    return graph.get("documents") or {}
+
+
+def edge_kind(source: str, target: str) -> str:
+    for edge in (load_docs().get(source) or {}).get("downstream") or []:
         if edge.get("to") == target:
             return edge["kind"]
     raise SystemExit(f"No edge {source} -> {target} in document_graph.yaml - "
                      "outcomes attach to graph edges; add the edge first if it's real.")
+
+
+def require_scope(source: str, target: str, project: str, person: str) -> None:
+    """A record must carry the scope its edge endpoints have: an edge touching
+    a project-scoped document is meaningless without knowing which project,
+    likewise person. Workspace-scoped endpoints require nothing."""
+    docs = load_docs()
+    scopes = {(docs.get(n) or {}).get("scope") for n in (source, target)}
+    if "project" in scopes and not project.strip():
+        raise SystemExit(f"{source} -> {target} touches a project-scoped document - "
+                         "--project is required.")
+    if "person" in scopes and not person.strip():
+        raise SystemExit(f"{source} -> {target} touches a person-scoped document - "
+                         "--person is required.")
 
 
 def validate(kind: str, outcome: str, reason: str) -> None:
@@ -81,25 +98,49 @@ def validate(kind: str, outcome: str, reason: str) -> None:
         raise SystemExit(f"Outcome {outcome!r} requires --reason (why no change / what gate).")
 
 
-def get_sheet(services):
-    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, create_sheet, find_sheet_in_folder
-    sheet = find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SHEET_NAME)
+def find_sheet(services):
+    """Read-only resolution: None if the sheet doesn't exist yet."""
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_sheet_in_folder
+    return find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SHEET_NAME)
+
+
+def get_or_create_sheet(services):
+    """Create-on-demand - used only by `record`; reads must never create."""
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, create_sheet
+    sheet = find_sheet(services)
     if sheet:
         return sheet
     return create_sheet(services, SHEET_NAME, ROOT_FOLDER_ID, [HEADER])
 
 
-def fetch_outcomes(services, run_id: str, project: str = "") -> list[dict]:
-    """All rows for a run (optionally one project's), as dicts keyed by HEADER."""
+def row_matches_scope(rec: dict, project: str, person: str, variant: str) -> bool:
+    """A row scoped to a different value never applies; a row whose scope
+    field is empty (workspace-scoped edge) applies to any scope. Pure -
+    unit-tested."""
+    for field, wanted in (("Project", project), ("Person", person), ("Route variant", variant)):
+        have = rec.get(field, "").strip()
+        if wanted and have and have.lower() != wanted.strip().lower():
+            return False
+    return True
+
+
+def fetch_outcomes(services, run_id: str, project: str = "", person: str = "",
+                   variant: str = "") -> list[dict]:
+    """All rows for a run within one scope, as dicts keyed by HEADER, in
+    sheet (append) order. Read-only: a missing sheet is just an empty
+    result, never created here."""
     from sync_m2_source_docs_to_sheets import read_sheet_values
-    rows = read_sheet_values(services, get_sheet(services)["id"])
+    sheet = find_sheet(services)
+    if not sheet:
+        return []
+    rows = read_sheet_values(services, sheet["id"])
     out = []
     for row in rows[1:]:
         padded = list(row) + [""] * (len(HEADER) - len(row))
         rec = dict(zip(HEADER, padded))
         if rec["Run ID"] != run_id:
             continue
-        if project and rec["Project"].strip().lower() != project.strip().lower():
+        if not row_matches_scope(rec, project, person, variant):
             continue
         out.append(rec)
     return out
@@ -125,12 +166,15 @@ def main() -> int:
     lst = sub.add_parser("list", help="list a run's outcomes")
     lst.add_argument("--run-id", required=True)
     lst.add_argument("--project", default="")
+    lst.add_argument("--person", default="")
+    lst.add_argument("--variant", default="")
 
     args = parser.parse_args()
 
     if args.cmd == "record":
         kind = edge_kind(args.source, args.target)
         validate(kind, args.outcome, args.reason)
+        require_scope(args.source, args.target, args.project, args.person)
         row = [args.run_id, dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
                args.project, args.person, args.variant,
                args.source, args.target, kind, args.outcome, args.reason, args.actor]
@@ -142,7 +186,7 @@ def main() -> int:
             return 0
         from pipeline_common import get_services
         services = get_services()
-        sheet = get_sheet(services)
+        sheet = get_or_create_sheet(services)
         services["sheets"].spreadsheets().values().append(
             spreadsheetId=sheet["id"], range="A1", valueInputOption="RAW",
             body={"values": [row]}).execute()
@@ -152,7 +196,7 @@ def main() -> int:
 
     from pipeline_common import get_services
     services = get_services()
-    rows = fetch_outcomes(services, args.run_id, args.project)
+    rows = fetch_outcomes(services, args.run_id, args.project, args.person, args.variant)
     if not rows:
         print(f"No outcomes recorded for run {args.run_id!r}.")
         return 1
