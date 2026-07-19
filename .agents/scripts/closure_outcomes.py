@@ -114,21 +114,28 @@ def get_or_create_sheet(services):
 
 
 def row_matches_scope(rec: dict, project: str, person: str, variant: str) -> bool:
-    """A row scoped to a different value never applies; a row whose scope
-    field is empty (workspace-scoped edge) applies to any scope. Pure -
-    unit-tested."""
+    """Strict scope matching for closure checking. An empty row scope field
+    (workspace-scoped edge) is a wildcard and matches any filter - but a
+    *scoped* row requires the corresponding explicit filter: an omitted
+    filter never means "all scopes", or outcomes from different scopes
+    would merge under one run again. Pure - unit-tested."""
     for field, wanted in (("Project", project), ("Person", person), ("Route variant", variant)):
         have = rec.get(field, "").strip()
-        if wanted and have and have.lower() != wanted.strip().lower():
+        wanted = (wanted or "").strip()
+        if have and not wanted:
+            return False
+        if have and have.casefold() != wanted.casefold():
             return False
     return True
 
 
 def fetch_outcomes(services, run_id: str, project: str = "", person: str = "",
-                   variant: str = "") -> list[dict]:
-    """All rows for a run within one scope, as dicts keyed by HEADER, in
-    sheet (append) order. Read-only: a missing sheet is just an empty
-    result, never created here."""
+                   variant: str = "", all_scopes: bool = False) -> list[dict]:
+    """All rows for a run, as dicts keyed by HEADER, in sheet (append)
+    order. By default strict single-scope matching (row_matches_scope);
+    `all_scopes=True` is the unfiltered listing mode for humans - the
+    strict closure checker must never use it. Read-only: a missing sheet
+    is just an empty result, never created here."""
     from sync_m2_source_docs_to_sheets import read_sheet_values
     sheet = find_sheet(services)
     if not sheet:
@@ -140,7 +147,7 @@ def fetch_outcomes(services, run_id: str, project: str = "", person: str = "",
         rec = dict(zip(HEADER, padded))
         if rec["Run ID"] != run_id:
             continue
-        if not row_matches_scope(rec, project, person, variant):
+        if not all_scopes and not row_matches_scope(rec, project, person, variant):
             continue
         out.append(rec)
     return out
@@ -196,7 +203,12 @@ def main() -> int:
 
     from pipeline_common import get_services
     services = get_services()
-    rows = fetch_outcomes(services, args.run_id, args.project, args.person, args.variant)
+    # Listing is for humans: with no scope args, show every scope of the run
+    # (unfiltered mode); with scope args, apply the same strict matcher the
+    # checker uses so what you list is what the checker would see.
+    unfiltered = not (args.project or args.person or args.variant)
+    rows = fetch_outcomes(services, args.run_id, args.project, args.person,
+                          args.variant, all_scopes=unfiltered)
     if not rows:
         print(f"No outcomes recorded for run {args.run_id!r}.")
         return 1
