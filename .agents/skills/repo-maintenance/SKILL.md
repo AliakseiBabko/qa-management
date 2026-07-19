@@ -64,6 +64,11 @@ commit as the change itself.
 
 ## Every Commit, Regardless Of Change Type
 
+- Run `.agents\scripts\validate_repo.py` - it is this checklist's
+  mechanical half automated (table/README/graph/source-type/template
+  sync) and must exit 0 before the commit. The judgment half (does the
+  description actually describe the skill, is the graph edge's kind
+  right) stays here.
 - Public-repo check: no real person/company/project name, contact
   detail, or verbatim first-party content - in files **or** the commit
   message. Run `.agents\scripts\check_sensitive_data.py` when the change
