@@ -102,6 +102,10 @@ editing an already-logged file in place makes new content invisible to it.
    `routed_to` ("pending M2 review") with every document actually touched,
    and extend `notes` to summarize what changed and what was left as an
    open question, on top of the date-range note the script wrote.
+6. Close the cascade: run `.agents\scripts\check_cascade_closure.py
+   --touched <routed_to list>` and resolve every OPEN item (update, run
+   the named script, or an explicit "no change needed" with a reason)
+   before declaring the intake done.
 
 ## Guardrails
 

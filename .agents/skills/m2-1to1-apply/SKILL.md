@@ -43,6 +43,10 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
 4. Log `evidence_log`: `source_type` = `1to1_transcript`, `routed_to`
    listing every document actually touched (person-level and project-level
    both, when both changed).
+5. Close the cascade: run `.agents\scripts\check_cascade_closure.py
+   --touched <routed_to list>`. Resolve every OPEN item it reports —
+   update the document, run the named script, or state "no change needed"
+   with a reason — before declaring the intake done.
 
 - A single finding can legitimately belong in more than one place at once
   - don't under-scope it to just the first document that seems to fit. A
