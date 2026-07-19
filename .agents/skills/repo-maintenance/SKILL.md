@@ -69,6 +69,10 @@ commit as the change itself.
   sync) and must exit 0 before the commit. The judgment half (does the
   description actually describe the skill, is the graph edge's kind
   right) stays here.
+- If the change touched closure/graph/queue logic, run the unit tests:
+  `python -m unittest discover -s .agents/tests` - they encode the
+  known false-closure paths (diamond traversal, scope isolation,
+  duplicate precedence, stale kinds) found in real review.
 - Public-repo check: no real person/company/project name, contact
   detail, or verbatim first-party content - in files **or** the commit
   message. Run `.agents\scripts\check_sensitive_data.py` when the change
