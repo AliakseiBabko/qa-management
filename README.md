@@ -316,6 +316,35 @@ These are what actually runs day to day, once a project's folder already exists:
   manually produced a real bug once on a real project: appending answer
   content with the wrong one landed it before the empty answer heading and
   made `get_last_round_status()` wrongly read the round as still pending.
+- `validate_repo.py` — mechanical consistency validation of this repo's
+  convention-mirrored files (the `repo-maintenance` checklist automated):
+  AGENTS.md skill table ↔ `.agents/skills/`, README ↔ `.agents/scripts/`,
+  `document_graph.yaml` node/alias/script/source integrity, source-type
+  lists in sync between `pipeline_common.py` and
+  `google-workspace-rules.md`, and `Templates/` references resolving. Exit
+  1 on drift; run before committing any structural change.
+- `refresh_all_timeline_views.py` — one command that rebuilds every
+  derived timeline view after an `action_items`/`_m1_timeline` edit:
+  `refresh_timeline_registry.py` (`_timeline`), `sync_timeline_to_calendar.py
+  --apply` (the "QA Management Timeline" Google Calendar), and
+  `refresh_timeline_looker_view.py` (`_timeline_looker_view`, feeding the
+  Data Studio report). Exists because running only one of the three left
+  stale views behind on a real item; always use this instead of the
+  individual scripts.
+- `sync_timeline_to_calendar.py` — projects `_timeline`/`_m1_timeline`
+  into the "QA Management Timeline" Google Calendar (regenerated wholesale;
+  never edit the calendar directly). Normally invoked via
+  `refresh_all_timeline_views.py`.
+- `refresh_timeline_looker_view.py` — rebuilds `_timeline_looker_view`,
+  the flattened Sheet the Looker Studio report reads. Normally invoked via
+  `refresh_all_timeline_views.py`.
+- `check_sensitive_data.py` — grep-based guard for AGENTS.md's
+  no-sensitive-data rule: scans added lines in the current git diff under
+  `.agents/` for real person/project names pulled live from
+  `_people_registry`/`_project_registry`. A cheap net, not proof of
+  safety — it only matches registered names as literal substrings; company
+  names, emails, and paraphrased content still need a human read. Run
+  manually before committing changes under `.agents/`.
 - `check_cascade_closure.py` — deterministic half of the cascading-update
   chain: reads `.agents/document_graph.yaml` (the machine-readable version
   of `m2-role-rules.md`'s Cascading Updates / Project-Level Rollups fan-out)
