@@ -121,14 +121,19 @@ def is_403(exc: Exception) -> bool:
 
 
 def with_retry(fn, attempts: int = 3):
-    """Retry transient failures (timeouts, 5xx); 403s are permanent, raise at once."""
+    """Retry transient failures (timeouts, 5xx); 403s are permanent, raise at
+    once. A 429 is the Sheets per-minute read quota (60/min/user) - short
+    backoff can't clear it, so wait out the window instead."""
     for i in range(attempts):
         try:
             return fn()
         except Exception as exc:
             if is_403(exc) or i == attempts - 1:
                 raise
-            time.sleep(2 * (i + 1))
+            if "429" in str(exc) or "RATE_LIMIT_EXCEEDED" in str(exc):
+                time.sleep(65)
+            else:
+                time.sleep(2 * (i + 1))
 
 
 def export_bytes(drive, file_id: str, mime: str) -> bytes:
@@ -303,7 +308,11 @@ def main() -> int:
 
     manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
     write_if_changed(mirror / "_manifest.json", manifest_bytes)
-    removed = prune_stale(mirror, set(written))
+    # A doc that failed to export contributes nothing to `written`, so pruning
+    # after errors would delete its previously-good mirror files. Skip.
+    removed = prune_stale(mirror, set(written)) if not errors else 0
+    if errors:
+        print("Prune skipped because of export errors - stale files (if any) survive until a clean run.")
     print(f"Exported {len(written)} files ({len(manifest)} restore-layer entries), "
           f"pruned {removed} stale.")
     for warn in warnings:
