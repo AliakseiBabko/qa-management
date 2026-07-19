@@ -105,6 +105,13 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      downstream document not yet accounted for. Don't end an intake pass
      with it still reporting OPEN items — resolve each as an update or an
      explicit "no change needed".
+   - Then record the pass in the data-side history:
+     `.agents\scripts\commit_workspace_state.py -m "<skill>: <source>"` —
+     exports the workspace's canonical documents into the local private
+     mirror repo (`~/Documents/qa-drive-mirror`, real data, never public)
+     and commits, so the whole pass can be diffed or rolled back as one
+     unit later (`rollback_from_mirror.py`). Harmless when nothing
+     changed.
    - Writing a new one-off inspection/update script anyway? Reuse
      `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
      re-inlining `load_credentials`/`build_services` boilerplate.

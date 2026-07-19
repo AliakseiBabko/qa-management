@@ -329,6 +329,30 @@ These are what actually runs day to day, once a project's folder already exists:
   at the end of any intake that routed a source into project documents. A
   new document type or dependency means editing `document_graph.yaml` in
   the same commit as the skill that introduces it.
+- `commit_workspace_state.py` — data-side git history: exports every
+  canonical Google Sheet/Doc under the Drive root (skipping `90_Archive`,
+  `01_Recordings`, and non-native files) into the local private mirror repo
+  (`~/Documents/qa-drive-mirror`, auto-initialized) and commits. Two layers
+  per document: diffable (CSV per Sheet tab, Markdown/text per Doc) and
+  restorable (`.xlsx`/`.docx`, plus `.values.json` for every Sheet — the
+  values-only layer works even for manually-created files the `drive.file`
+  scope can't export). `_manifest.json` maps restore-layer paths to live
+  file IDs. After each commit the full history is packed into a single-file
+  bundle at `90_Archive\_git_mirror_backups\mirror.bundle` on Drive
+  (disaster recovery: `git clone mirror.bundle`). Run with `-m` describing
+  the pass at the end of any pass that wrote canonical documents; a no-op
+  when nothing changed. One commit per pass = the whole cascade rolls back
+  as one unit. The mirror holds real names: never inside this public repo,
+  never a public remote.
+- `rollback_from_mirror.py` — restores live documents to a state recorded
+  in the mirror: `--history <path>` lists commits touching a document,
+  then `--commit <sha> --path <restore-layer file>` (dry-run; `--apply`
+  writes) pushes that commit's content back into the same live file ID —
+  `.xlsx`/`.docx` via Drive conversion, `.values.json` via the Sheets API.
+  A rollback is a change, not an erasure: log it (evidence_log +
+  `_skill_invocations`, originals stay), run `check_cascade_closure.py` on
+  the restored docs, then `commit_workspace_state.py` to record the
+  post-rollback state.
 - `prepare_retro.py` — read-only gatherer for the `qa-retro` improvement
   loop: finds the last `source_type=retro` row in `_skill_invocations`,
   prints every invocation row since it (flagging `feedback:` notes — the
