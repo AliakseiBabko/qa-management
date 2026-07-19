@@ -81,6 +81,10 @@ SKILL_INVOCATIONS_HEADER = [
 SKILL_INVOCATION_SOURCE_TYPES = {
     "strategy_chat", "meeting_transcript", "m1_history", "m2_conversation",
     "qa_1to1", "admin_note", "people_case_chat", "retro",
+    # Pre-classification labels written by prepare_intake_review.py on
+    # newly-discovered files ("pending M2 review" evidence rows). A source
+    # keeps one of these only until it's classified into a type above.
+    "raw_transcript", "raw_chat", "source_document",
 }
 
 

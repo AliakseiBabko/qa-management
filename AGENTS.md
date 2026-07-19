@@ -152,8 +152,8 @@ Current canonical skills:
 | `m2-project-process-checklist` | M2 | Living per-project outsource QA process-maturity checklist Google Sheet (12 sections), with CSV fallback, based on `Templates/аутсорс_чек_лист_qa.csv` | `.agents/skills/m2-project-process-checklist/SKILL.md` |
 | `m2-project-qa-metrics-report` | M2 | Project-level QA metrics Google Sheet, with CSV fallback | `.agents/skills/m2-project-qa-metrics-report/SKILL.md` |
 | `m2-individual-qa-metrics-report` | M2 | Individual QA metrics Google Sheet within project scope, with CSV fallback | `.agents/skills/m2-individual-qa-metrics-report/SKILL.md` |
-| `m2-project-development-plan` | M2 | Project-level development-plan Google Sheet, with CSV fallback | `.agents/skills/m2-project-development-plan/SKILL.md` |
-| `m2-individual-development-plan` | M2 | Individual development-plan Google Sheet within project scope, with CSV fallback | `.agents/skills/m2-individual-development-plan/SKILL.md` |
+| `m2-project-development-plan` | M2 | Project-level development-plan Google Doc (narrative, synced via `sync_m2_plans_to_docs.py`), with Markdown fallback | `.agents/skills/m2-project-development-plan/SKILL.md` |
+| `m2-individual-development-plan` | M2 | Individual development-plan Google Doc within project scope (employee-visible), with Markdown fallback | `.agents/skills/m2-individual-development-plan/SKILL.md` |
 | `m2-project-status-report` | M2 | Short chat-ready project status report for a requested period; regular saved reports use Google Docs with Markdown fallback | `.agents/skills/m2-project-status-report/SKILL.md` |
 | `m2-department-traffic-light` | M2 | Fills M2's own row block on the department's shared (foreign, not workspace-generated) "Auto staff. Светофор проектов" outstaff tracker from real source documents | `.agents/skills/m2-department-traffic-light/SKILL.md` |
 | `m2-timeline` | M2 | Per-project `action_items` Google Sheet (events, deadlines, follow-ups) and the workspace-wide `_timeline` rollup, with CSV fallback | `.agents/skills/m2-timeline/SKILL.md` |
@@ -193,11 +193,11 @@ its own folder under `20_M2_Project_Management`, for example:
 ```text
 20_M2_Project_Management/<Project>/
 ├─ project_risk.gsheet
-├─ project_development_plan.gsheet
+├─ project_development_plan.gdoc
 ├─ project_metrics.gsheet
 ├─ evidence_log.gsheet
 ├─ people/<Person>/
-│  ├─ individual_development_plan.gsheet
+│  ├─ individual_development_plan.gdoc
 │  └─ individual_metrics.gsheet
 ├─ status_reports/
 ├─ action_items.gsheet
