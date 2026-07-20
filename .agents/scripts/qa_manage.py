@@ -54,6 +54,11 @@ Commands (all support --json for machine-readable output):
     resolve-edge <run-id> --source A --target B --outcome X [--reason ...]
                                   records a closure outcome via
                                   closure_outcomes (shared validation)
+    add-scope <run-id> --project P --person X
+                                  declare a scope the analysis discovered;
+                                  explicit scope args elsewhere must name a
+                                  declared tuple (a typo cannot silently
+                                  create a scope)
     block <run-id> --reason "..." mark waiting on a gate/answer
     resume <run-id> [--continue]  exact unfinished stage + what remains;
                                   --continue reactivates a blocked run
@@ -62,9 +67,12 @@ Commands (all support --json for machine-readable output):
                                   per scope, a `run:<run-id>` token in
                                   _skill_invocations, and a clean mirror
                                   snapshot newer than the run's last
-                                  mutation (its SHA is persisted); then the
-                                  terminal queue state itself is exported
-                                  into the mirror as a follow-up commit
+                                  mutation (its SHA is persisted). The
+                                  intended terminal state is committed to
+                                  the mirror (verified, bundle refreshed)
+                                  BEFORE the final Drive transition; any
+                                  failure leaves the run retryable in
+                                  finalizing - never a false success
     fail <run-id> --reason "..."  give up explicitly (kept in history)
     historical <run-id> --evidence "..."
                                   terminal: processed before the queue
@@ -410,13 +418,24 @@ def get_run(rows: list[dict], run_id: str) -> dict:
 
 def resolve_scope_args(row: dict, project: str, person: str, cmd: str) -> tuple[str, str]:
     """Which (project, person) a scoped record belongs to. Explicit args
-    win; a single-scope run defaults to its one declared tuple; a run with
-    no declared scope is workspace-scoped ("", ""); a multi-scope run
-    REQUIRES explicit args - defaulting there would collapse the record
-    into a wildcard that satisfies every scope."""
-    if project or person:
-        return project.strip(), person.strip()
+    must name a DECLARED scope tuple (a typo would otherwise silently
+    create a new scope through entries/outcomes - use `add-scope` when
+    analysis legitimately discovers one); a single-scope run defaults to
+    its one declared tuple; a run with no declared scope is
+    workspace-scoped ("", ""); a multi-scope run REQUIRES explicit args -
+    defaulting there would collapse the record into a wildcard that
+    satisfies every scope."""
     scopes = parse_scopes_cell(row["Scopes"])
+    if project or person:
+        wanted = (project.strip(), person.strip())
+        declared = {(p.strip().casefold(), pe.strip().casefold()) for p, pe in scopes}
+        if (wanted[0].casefold(), wanted[1].casefold()) not in declared:
+            raise SystemExit(
+                f"{cmd}: scope {wanted} is not declared on run {row['Run ID']} "
+                f"(declared: {scopes or '[workspace]'}). If the analysis genuinely "
+                "surfaced a new scope, declare it first: qa_manage.py add-scope "
+                f"{row['Run ID']} --project ... --person ...")
+        return wanted
     if len(scopes) == 1:
         return scopes[0]
     if not scopes:
@@ -426,33 +445,70 @@ def resolve_scope_args(row: dict, project: str, person: str, cmd: str) -> tuple[
                      "attaches to one scope instead of becoming a wildcard.")
 
 
+def is_queue_only_dirt(porcelain: str) -> bool:
+    """True when every dirty path in the mirror belongs to the queue's own
+    export (a half-finished terminal commit): the finalizing recovery path
+    may proceed through such dirt, anything else is real dirt."""
+    lines = [line for line in porcelain.splitlines() if line.strip()]
+    if not lines:
+        return False
+    for line in lines:
+        path = line[3:].strip().strip('"')
+        name = path.replace("\\", "/").rsplit("/", 1)[-1]
+        if not (name.startswith(f"{QUEUE_SHEET}.") or name == "_manifest.json"):
+            return False
+    return True
+
+
 def mirror_git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(MIRROR), *args],
                           capture_output=True, text=True, encoding="utf-8")
 
 
-def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str,
-                           label: str) -> str:
-    """Capture a queue transition in the mirror: rewrite the queue's mirror
-    files (same names the full exporter uses, so its prune step recognizes
-    them), commit, and VERIFY the commit exists. Returns the commit SHA
-    ("" when there was nothing to commit); raises on any git failure so the
-    caller can leave the run in a retryable state instead of reporting a
-    success that didn't happen. Content-only follow-up - the verified
-    business snapshot keeps its own SHA."""
+def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: str) -> str:
+    """Commit the run's INTENDED terminal queue state to the mirror -
+    called before the final Drive transition, so the mirror always carries
+    the terminal representation the moment the run becomes terminal (and a
+    failure here leaves the run retryable in finalizing, never a false
+    success).
+
+    Idempotent: files are rewritten in place; if nothing changed and no
+    dirt is staged, the previously verified commit is located and its SHA
+    returned. Writes the diff+values restore layers (same names the full
+    exporter uses), updates _manifest.json, drops the now-stale queue xlsx
+    (the next full export's change gate regenerates a missing xlsx), and
+    refreshes the Drive bundle after committing - same guarantees as a
+    full export, minus the untouched other documents."""
     title = queue_tab_title(services, sheet)
-    values = [HEADER] + [[r.get(h, "") for h in HEADER] for r in rows]
+    values = [HEADER] + [[r.get(h, "") for h in HEADER] for r in terminal_rows]
     buf = io.StringIO()
     csv.writer(buf, lineterminator="\n").writerows(values)
     (MIRROR / f"{QUEUE_SHEET}.{title}.csv").write_text(buf.getvalue(), encoding="utf-8")
     (MIRROR / f"{QUEUE_SHEET}.values.json").write_text(
         json.dumps({title: values}, ensure_ascii=False, indent=1), encoding="utf-8")
+    manifest_path = MIRROR / "_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    manifest[f"{QUEUE_SHEET}.values.json"] = {"fileId": sheet["id"], "name": QUEUE_SHEET,
+                                              "kind": "spreadsheet-values"}
+    # The pre-terminal xlsx is stale the moment the terminal rows land; a
+    # missing xlsx is regenerated by the full exporter's change gate.
+    manifest.pop(f"{QUEUE_SHEET}.xlsx", None)
+    (MIRROR / f"{QUEUE_SHEET}.xlsx").unlink(missing_ok=True)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True),
+                             encoding="utf-8")
+
     res = mirror_git("add", "-A")
     if res.returncode != 0:
         raise SystemExit(f"mirror git add failed: {res.stderr.strip()}")
+    msg = f"queue: {run_id} completed [{run_id}]"
     if not mirror_git("status", "--porcelain").stdout.strip():
-        return ""
-    msg = f"queue: {run_id} {label} [{run_id}]"
+        # Nothing to commit - a previous attempt already landed it; verify.
+        for line in mirror_git("log", "-20", "--format=%H|%s").stdout.splitlines():
+            sha, _, subject = line.partition("|")
+            if subject.strip() == msg:
+                return sha
+        raise SystemExit("mirror is clean but no terminal queue commit for "
+                         f"{run_id} exists - inspect the mirror before retrying.")
     res = mirror_git("commit", "-m", msg)
     if res.returncode != 0:
         raise SystemExit(f"mirror commit failed: {res.stderr.strip() or res.stdout.strip()}")
@@ -461,6 +517,8 @@ def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str,
     if run_id not in subject:
         raise SystemExit(f"mirror HEAD {sha[:8]} is not the queue commit just made "
                          f"({subject!r}) - inspect the mirror before retrying.")
+    from commit_workspace_state import refresh_bundle
+    print(refresh_bundle(MIRROR))
     return sha
 
 
@@ -759,6 +817,31 @@ def cmd_resolve_edge(args) -> int:
     return 0
 
 
+def cmd_add_scope(args) -> int:
+    if not (args.project or args.person):
+        raise SystemExit("add-scope needs --project and/or --person.")
+
+    def mutate(row: dict) -> None:
+        if row["Status"] != "processing":
+            raise SystemExit(f"add-scope requires status=processing (is {row['Status']!r}).")
+        scopes = parse_scopes_cell(row["Scopes"])
+        new = (args.project.strip(), args.person.strip())
+        if new in scopes:
+            raise SystemExit(f"scope {new} is already declared on {row['Run ID']}.")
+        scopes.append(new)
+        row["Scopes"] = json.dumps(scopes, ensure_ascii=False)
+        row["Project"] = "; ".join(dict.fromkeys(p for p, _ in scopes if p))
+        row["Person"] = "; ".join(dict.fromkeys(p for _, p in scopes if p))
+
+    row = _update_run(args, mutate)
+    emit({"run_id": row["Run ID"], "scopes": parse_scopes_cell(row["Scopes"])},
+         args.json,
+         [row_brief(row),
+          f"  scopes now: {parse_scopes_cell(row['Scopes'])} - record-apply and "
+          "resolve-edge for the new scope need explicit --project/--person."])
+    return 0
+
+
 def cmd_block(args) -> int:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "blocked")
@@ -878,8 +961,14 @@ def cmd_complete(args) -> int:
                         "log_skill_invocation() with it in Notes")
 
     # 4. Clean mirror snapshot mentioning the run, not older than the run's
-    # last recorded mutation; its SHA is persisted on the row.
-    dirty = bool(mirror_git("status", "--porcelain").stdout.strip())
+    # last recorded mutation; its SHA is persisted on the row. In finalizing
+    # recovery, dirt confined to the queue's own export files is a
+    # half-finished terminal commit, not business dirt - the idempotent
+    # terminal export below handles it; anything else still blocks.
+    porcelain = mirror_git("status", "--porcelain").stdout
+    dirty = bool(porcelain.strip())
+    if dirty and row["Status"] == "finalizing" and is_queue_only_dirt(porcelain):
+        dirty = False
     log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
     log_entries = []
     for line in log_raw.splitlines():
@@ -902,33 +991,37 @@ def cmd_complete(args) -> int:
 
     # Verification passed. Two-phase terminal transition so a mirror
     # bookkeeping failure never yields a false success or a stuck terminal
-    # row: finalizing is written and exported first (verified commit),
-    # completed only after that commit exists; a failure at any point
-    # leaves the run in finalizing, and complete is re-runnable from there.
+    # row: (1) finalizing is written to Drive with the verified snapshot
+    # SHA; (2) the INTENDED terminal representation is committed to the
+    # mirror (idempotent, verified, bundle refreshed); (3) only after that
+    # commit exists does Drive get the completed state - with the very
+    # timestamps already in the mirror. A failure anywhere before (3)
+    # leaves the run in finalizing and complete re-runs from there; there
+    # is no post-terminal step left to fail.
     if row["Status"] == "processing":
         validate_transition(row["Status"], "finalizing")
         row["Status"], row["Snapshot"] = "finalizing", sha
         row["Last mutation"] = now()
         write_queue(services, sheet, rows)
-    export_queue_to_mirror(services, sheet, rows, args.run_id, "finalizing")
+
+    completed_ts = now()
+    terminal_rows = [dict(r) for r in rows]
+    terminal_row = next(r for r in terminal_rows if r["Run ID"] == args.run_id)
+    terminal_row.update({"Status": "completed", "Stage": "done",
+                         "Completed": completed_ts,
+                         "Snapshot": row["Snapshot"] or sha})
+    queue_sha = export_queue_terminal(services, sheet, terminal_rows, args.run_id)
 
     validate_transition("finalizing", "completed")
-    row["Status"], row["Stage"], row["Completed"] = "completed", "done", now()
-    row["Snapshot"] = row["Snapshot"] or sha
+    row.update({"Status": "completed", "Stage": "done", "Completed": completed_ts,
+                "Snapshot": row["Snapshot"] or sha})
     write_queue(services, sheet, rows)
-    try:
-        export_queue_to_mirror(services, sheet, rows, args.run_id, "completed")
-        terminal_note = "terminal queue state exported to the mirror."
-    except SystemExit as exc:
-        # Completion itself is verified and recorded; only the final
-        # bookkeeping commit failed - the next snapshot will carry it.
-        terminal_note = (f"WARNING: terminal-state mirror commit failed ({exc}); "
-                         "the next workspace snapshot will capture it.")
-    emit({"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"]},
-         args.json,
+    emit({"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"],
+          "terminal_commit": queue_sha}, args.json,
          [f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
-          f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified "
-          f"and recorded; {terminal_note}"])
+          f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified; "
+          f"terminal state committed to the mirror ({queue_sha[:8]}) before the Drive "
+          "transition."])
     return 0
 
 
@@ -976,6 +1069,11 @@ def main() -> int:
     p.add_argument("--variant", default="")
     p.add_argument("--actor", default="agent")
 
+    p = sub.add_parser("add-scope", help="declare a scope discovered during analysis")
+    p.add_argument("run_id")
+    p.add_argument("--project", default="")
+    p.add_argument("--person", default="")
+
     p = sub.add_parser("block", help="mark run waiting on a gate")
     p.add_argument("run_id")
     p.add_argument("--reason", required=True)
@@ -1002,6 +1100,7 @@ def main() -> int:
     return {"scan": cmd_scan, "status": cmd_status, "next": cmd_next,
             "start": cmd_start, "record-analysis": cmd_record_analysis,
             "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
+            "add-scope": cmd_add_scope,
             "block": cmd_block, "fail": cmd_fail, "historical": cmd_historical,
             "resume": cmd_resume, "complete": cmd_complete}[args.cmd](args)
 
