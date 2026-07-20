@@ -105,11 +105,14 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
    - Processing a new source? — the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>
-     --source-type ... [--variant/--project/--person]` → apply the listed
-     skills → `record-analysis` → `resolve-edge` per cascade edge →
-     `commit_workspace_state.py -m "...[<run-id>]"` → `complete`. Use
-     the queue's Run ID in `_skill_invocations` notes and the mirror
-     commit message — `complete` verifies both.
+     --source-type ... [--variant] [--scope "Project|Person" ...]` →
+     apply the listed skills → `record-analysis --summary` →
+     `record-apply` per scope (`--updated`/`--no-change`/
+     `--not-applicable`, reasons required) → `resolve-edge` per cascade
+     edge → `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
+     Put the exact token `run:<run-id>` in the `_skill_invocations`
+     Notes and the run id in the mirror commit message — `complete`
+     verifies both, plus per-scope closure and snapshot freshness.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`

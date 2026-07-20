@@ -14,40 +14,61 @@ State model (per run, in the workspace `_intake_queue` Sheet):
         '-------------+----------------> processing <-> blocked
                                              |
                                              v
-                                     completed | failed
+                              completed | failed | historical
 
     stages within processing: analysis -> apply -> closure
 
+`historical` is the terminal state for sources that were already processed
+before the queue existed (with evidence) - being pre-queue is not a
+processing failure. `failed` may be corrected to `historical` when
+migration evidence turns up.
+
+Source identity is (path, content hash): a changed file at a known path is
+rediscovered as a new run (noting what it supersedes); identical content at
+a new path is recorded as a duplicate rather than silently skipped.
+
 Commands (all support --json for machine-readable output):
 
-    scan                          discover new source files (hash-idempotent;
-                                  the only write scan performs is appending
+    scan                          discover new/changed source files (the
+                                  only write scan performs is appending
                                   newly discovered rows)
     status                        queue overview (read-only)
     next                          the single most actionable run + what the
                                   graph says about it (read-only)
-    start <run-id> --source-type T [--variant V] [--project P] [--person X]
+    start <run-id> --source-type T [--variant V]
+          [--project P --person X] [--scope "P|X" ...]
                                   agent-supplied classification; validates
-                                  type/variant against the graph and scope
-                                  against the route's entry documents -
-                                  missing required scope => needs_scope,
-                                  never a silent default
-    record-analysis <run-id> --summary "..." --touched d1,d2
-                                  short operational summary (never analysis
-                                  bodies) + which documents were written
+                                  type/variant against the graph. Scopes are
+                                  explicit (project, person) tuples - never
+                                  a Cartesian product, never defaulted
+                                  silently (missing scope => needs_scope)
+    record-analysis <run-id> --summary "..."
+                                  short operational summary of the analysis
+                                  (never analysis bodies); stage -> apply
+    record-apply <run-id> [--project P --person X]
+          --updated d1,d2 [--no-change "d3=reason;d4=reason"]
+          [--not-applicable "d5=reason"]
+                                  per-scope outcome for every route entry
+                                  document; only updated entries seed the
+                                  cascade; stage -> closure
     resolve-edge <run-id> --source A --target B --outcome X [--reason ...]
                                   records a closure outcome via
-                                  closure_outcomes (shared validation, no
-                                  duplication), tagged with the run's scope
+                                  closure_outcomes (shared validation)
     block <run-id> --reason "..." mark waiting on a gate/answer
     resume <run-id> [--continue]  exact unfinished stage + what remains;
                                   --continue reactivates a blocked run
-    complete <run-id>             verification gate: route entry documents
-                                  all touched, strict closure per every
-                                  scope seen in the run, _skill_invocations
-                                  row present, mirror snapshot tagged with
-                                  the run id - only then completed
+    complete <run-id>             verification gate: every entry document
+                                  has a per-scope outcome, strict closure
+                                  per scope, a `run:<run-id>` token in
+                                  _skill_invocations, and a clean mirror
+                                  snapshot newer than the run's last
+                                  mutation (its SHA is persisted); then the
+                                  terminal queue state itself is exported
+                                  into the mirror as a follow-up commit
     fail <run-id> --reason "..."  give up explicitly (kept in history)
+    historical <run-id> --evidence "..."
+                                  terminal: processed before the queue
+                                  existed; evidence required
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -56,9 +77,12 @@ transcripts and analysis content never enter the queue.
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
 import hashlib
+import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -71,6 +95,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 GRAPH_PATH = Path(__file__).resolve().parent.parent / "document_graph.yaml"
 DATA_ROOT = Path(r"G:\My Drive\QA_Management")
+MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
 SCAN_DIRS = [
     "02_Transcripts_Inbox",
     r"00_Source_Docs\01_Meeting_Transcripts",
@@ -81,21 +106,27 @@ SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
 
 QUEUE_SHEET = "_intake_queue"
 HEADER = ["Run ID", "Source", "Source hash", "Source type", "Route variant",
-          "Project", "Person", "Status", "Stage", "Skills", "Touched",
-          "Discovered", "Started", "Completed", "Reason", "Summary"]
+          "Project", "Person", "Scopes", "Status", "Stage", "Skills",
+          "Entries", "Discovered", "Started", "Completed", "Snapshot",
+          "Reason", "Summary"]
 
 STATES = {"discovered", "needs_scope", "ready", "processing", "blocked",
-          "completed", "failed"}
+          "completed", "failed", "historical"}
 TRANSITIONS = {
-    "discovered": {"needs_scope", "ready", "processing", "failed"},
-    "needs_scope": {"ready", "processing", "failed"},
-    "ready": {"processing", "failed"},
-    "processing": {"blocked", "completed", "failed"},
-    "blocked": {"processing", "failed"},
+    "discovered": {"needs_scope", "ready", "processing", "failed", "historical"},
+    "needs_scope": {"ready", "processing", "failed", "historical"},
+    "ready": {"processing", "failed", "historical"},
+    "processing": {"blocked", "completed", "failed", "historical"},
+    "blocked": {"processing", "failed", "historical"},
     "completed": set(),
-    "failed": set(),
+    # A failed mark may later turn out to be pre-queue history - correcting
+    # the record is allowed; nothing else leaves a terminal state.
+    "failed": {"historical"},
+    "historical": set(),
 }
 STAGES = ["analysis", "apply", "closure", "done"]
+ENTRY_OUTCOMES = {"updated", "no_change", "not_applicable"}
+ENTRY_REASON_REQUIRED = {"no_change", "not_applicable"}
 
 # Mechanical folder -> pre-classification label (agent refines via start).
 FOLDER_PRECLASS = {
@@ -108,6 +139,13 @@ FOLDER_PRECLASS = {
 
 def now() -> str:
     return dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def parse_ts(text: str) -> float:
+    try:
+        return dt.datetime.strptime(text.strip(), "%Y-%m-%d %H:%M").timestamp()
+    except ValueError:
+        return 0.0
 
 
 # ---------- pure helpers (unit-tested) ----------
@@ -125,6 +163,20 @@ def mint_run_id(source_path: str, source_hash: str, date: str | None = None) -> 
     slug = "".join(c if c.isalnum() else "-" for c in stem)
     slug = "-".join(p for p in slug.split("-") if p)[:40]
     return f"{date or dt.date.today().strftime('%Y%m%d')}-{slug}-{source_hash[:6]}"
+
+
+def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
+                     by_path: dict[str, str], by_hash: dict[str, str]) -> tuple[str, str]:
+    """Identity is (path, hash). Returns (action, related_run_id):
+    skip (exact pair known), changed (known path, new content - supersedes),
+    duplicate (known content at a new path), or new."""
+    if (rel, digest) in by_pair:
+        return "skip", ""
+    if rel in by_path:
+        return "changed", by_path[rel]
+    if digest in by_hash:
+        return "duplicate", by_hash[digest]
+    return "new", ""
 
 
 def resolve_route(graph: dict, source_type: str, variant: str) -> dict:
@@ -155,21 +207,117 @@ def needed_scopes(graph: dict, entry_docs: list[str]) -> set[str]:
     return {(docs.get(d) or {}).get("scope") for d in entry_docs} & {"project", "person"}
 
 
-def enumerate_run_scopes(outcome_rows: list[dict], row: dict) -> list[tuple[str, str, str]]:
-    """Every (project, person, variant) scope the run touched: declared on
-    the queue row (comma-separated multi-values allowed) plus every scope
-    seen in recorded outcomes. Each is strict-closure-checked separately."""
-    scopes: set[tuple[str, str, str]] = set()
-    projects = [p.strip() for p in row.get("Project", "").split(",") if p.strip()] or [""]
-    persons = [p.strip() for p in row.get("Person", "").split(",") if p.strip()] or [""]
-    variant = row.get("Route variant", "").strip()
-    for proj in projects:
-        for pers in persons:
-            scopes.add((proj, pers, variant))
+def scope_key(project: str, person: str) -> str:
+    return f"{project.strip()}|{person.strip()}"
+
+
+def parse_scopes_cell(cell: str) -> list[tuple[str, str]]:
+    """Explicit (project, person) tuples - never a cross product."""
+    if not cell.strip():
+        return []
+    return [tuple(s) for s in json.loads(cell)]
+
+
+def parse_entries_cell(cell: str) -> dict[str, dict[str, list[str]]]:
+    """{scope_key: {doc: [outcome, reason]}}."""
+    return json.loads(cell) if cell.strip() else {}
+
+
+def scope_component_matches(stored: str, wanted: str) -> bool:
+    stored, wanted = stored.strip(), wanted.strip()
+    if not stored:
+        return True          # workspace-level record applies to any scope
+    if not wanted:
+        return False         # scoped record needs the explicit scope
+    return stored.casefold() == wanted.casefold()
+
+
+def entries_for_scope(entries: dict[str, dict[str, list[str]]],
+                      project: str, person: str) -> dict[str, list[str]]:
+    """Entry outcomes applying to one (project, person) scope - same
+    wildcard rule as closure rows: empty stored component matches any,
+    a scoped record never matches a different or omitted scope."""
+    out: dict[str, list[str]] = {}
+    for key, docs in entries.items():
+        sp, _, spe = key.partition("|")
+        if scope_component_matches(sp, project) and scope_component_matches(spe, person):
+            out.update(docs)
+    return out
+
+
+def validate_entry_outcomes(route_entry: list[str],
+                            scoped: dict[str, list[str]]) -> list[str]:
+    """Every route entry document needs an outcome; reasons are mandatory
+    for no_change/not_applicable. Returns problem strings."""
+    problems = []
+    for doc in route_entry:
+        rec = scoped.get(doc)
+        if rec is None:
+            problems.append(f"entry document {doc!r} has no recorded outcome "
+                            "(record-apply --updated/--no-change/--not-applicable)")
+            continue
+        outcome, reason = rec[0], rec[1] if len(rec) > 1 else ""
+        if outcome not in ENTRY_OUTCOMES:
+            problems.append(f"entry document {doc!r}: unknown outcome {outcome!r}")
+        elif outcome in ENTRY_REASON_REQUIRED and not reason.strip():
+            problems.append(f"entry document {doc!r}: {outcome} requires a reason")
+    return problems
+
+
+def seeds_for_scope(scoped: dict[str, list[str]]) -> set[str]:
+    """Only actually-updated documents seed the cascade."""
+    return {doc for doc, rec in scoped.items() if rec and rec[0] == "updated"}
+
+
+def parse_outcome_args(updated: str, no_change: str, not_applicable: str) -> dict[str, list[str]]:
+    """CLI lists -> {doc: [outcome, reason]}. Reasoned lists are
+    ';'-separated 'doc=reason' pairs (reasons may contain commas)."""
+    out: dict[str, list[str]] = {}
+    for doc in (d.strip() for d in updated.split(",") if d.strip()):
+        out[doc] = ["updated", ""]
+    for label, blob in (("no_change", no_change), ("not_applicable", not_applicable)):
+        for pair in (p.strip() for p in blob.split(";") if p.strip()):
+            doc, eq, reason = pair.partition("=")
+            if not eq or not reason.strip():
+                raise SystemExit(f"--{label.replace('_', '-')} items need 'doc=reason' "
+                                 f"(got {pair!r})")
+            out[doc.strip()] = [label, reason.strip()]
+    return out
+
+
+def enumerate_run_scopes(outcome_rows: list[dict], scopes: list[tuple[str, str]],
+                         entries: dict[str, dict], variant: str) -> list[tuple[str, str, str]]:
+    """Every (project, person, variant) scope the run declared or actually
+    used - explicit tuples only, no combination is invented."""
+    result: set[tuple[str, str, str]] = set()
+    for proj, pers in scopes:
+        result.add((proj.strip(), pers.strip(), variant.strip()))
+    for key in entries:
+        sp, _, spe = key.partition("|")
+        result.add((sp.strip(), spe.strip(), variant.strip()))
     for rec in outcome_rows:
-        scopes.add((rec.get("Project", "").strip(), rec.get("Person", "").strip(),
+        result.add((rec.get("Project", "").strip(), rec.get("Person", "").strip(),
                     rec.get("Route variant", "").strip()))
-    return sorted(scopes)
+    return sorted(result)
+
+
+def check_snapshot(log_entries: list[tuple[str, float, str]], run_id: str,
+                   last_mutation_ts: float, dirty: bool) -> tuple[str, str]:
+    """Verify a mirror snapshot for the run: (sha, "") on success, else
+    ("", problem). A qualifying commit mentions the run id and is not older
+    than the run's last recorded mutation; the mirror must be clean."""
+    if dirty:
+        return "", "mirror worktree is dirty - run commit_workspace_state.py first"
+    candidates = [(sha, ts) for sha, ts, subject in log_entries if run_id in subject]
+    if not candidates:
+        return "", (f"no mirror commit mentions {run_id} - run "
+                    f"commit_workspace_state.py -m \"<skill>: <source> [{run_id}]\"")
+    sha, ts = max(candidates, key=lambda c: c[1])
+    # Minute-precision timestamps on both sides - allow the same minute.
+    if ts + 60 < last_mutation_ts:
+        return "", (f"mirror commit {sha[:8]} mentioning {run_id} predates the run's "
+                    "last mutation - re-run commit_workspace_state.py")
+    return sha, ""
 
 
 # ---------- queue sheet I/O ----------
@@ -197,19 +345,24 @@ def get_or_create_queue(services):
 
 
 def read_queue(services, sheet) -> list[dict]:
+    """Rows as dicts keyed by the CURRENT header - mapped via the sheet's
+    own header row, so a schema migration (new columns) reads old rows
+    correctly instead of zipping values against the wrong names."""
     from sync_m2_source_docs_to_sheets import read_sheet_values
     rows = read_sheet_values(services, sheet["id"])
+    if not rows:
+        return []
+    sheet_header = rows[0]
     out = []
     for row in rows[1:]:
-        padded = list(row) + [""] * (len(HEADER) - len(row))
-        out.append(dict(zip(HEADER, padded)))
+        by_old = dict(zip(sheet_header, list(row) + [""] * (len(sheet_header) - len(row))))
+        out.append({h: by_old.get(h, "") for h in HEADER})
     return out
 
 
 def write_queue(services, sheet, rows: list[dict]) -> None:
     from pipeline_common import reformat_sheet
-    title = services["sheets"].spreadsheets().get(
-        spreadsheetId=sheet["id"]).execute()["sheets"][0]["properties"]["title"]
+    title = queue_tab_title(services, sheet)
     values = [HEADER] + [[r.get(h, "") for h in HEADER] for r in rows]
     services["sheets"].spreadsheets().values().clear(
         spreadsheetId=sheet["id"], range=f"'{title}'").execute()
@@ -219,11 +372,45 @@ def write_queue(services, sheet, rows: list[dict]) -> None:
     reformat_sheet(services, sheet["id"], QUEUE_SHEET)
 
 
+def queue_tab_title(services, sheet) -> str:
+    return services["sheets"].spreadsheets().get(
+        spreadsheetId=sheet["id"]).execute()["sheets"][0]["properties"]["title"]
+
+
 def get_run(rows: list[dict], run_id: str) -> dict:
     for row in rows:
         if row["Run ID"] == run_id:
             return row
     raise SystemExit(f"No queue row with Run ID {run_id!r} - see qa_manage.py status.")
+
+
+def single_scope(row: dict) -> tuple[str, str]:
+    scopes = parse_scopes_cell(row["Scopes"])
+    if len(scopes) == 1:
+        return scopes[0]
+    return "", ""
+
+
+def mirror_git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(MIRROR), *args],
+                          capture_output=True, text=True, encoding="utf-8")
+
+
+def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str) -> None:
+    """Capture the terminal queue transition in the mirror: rewrite the
+    queue's mirror files (same names the full exporter uses, so its prune
+    step recognizes them) and commit. Content-only follow-up - the verified
+    business snapshot keeps its own SHA."""
+    title = queue_tab_title(services, sheet)
+    values = [HEADER] + [[r.get(h, "") for h in HEADER] for r in rows]
+    buf = io.StringIO()
+    csv.writer(buf, lineterminator="\n").writerows(values)
+    (MIRROR / f"{QUEUE_SHEET}.{title}.csv").write_text(buf.getvalue(), encoding="utf-8")
+    (MIRROR / f"{QUEUE_SHEET}.values.json").write_text(
+        json.dumps({title: values}, ensure_ascii=False, indent=1), encoding="utf-8")
+    mirror_git("add", "-A")
+    if mirror_git("status", "--porcelain").stdout.strip():
+        mirror_git("commit", "-m", f"queue: {run_id} completed [{run_id}]")
 
 
 # ---------- output ----------
@@ -244,7 +431,7 @@ def row_brief(row: dict) -> str:
             + (f"({row['Route variant']})" if row["Route variant"] else "")
             + (f"  {scope}" if scope else "")
             + (f"  reason: {row['Reason']}" if row["Reason"] and
-               row["Status"] in ("blocked", "needs_scope", "failed") else ""))
+               row["Status"] in ("blocked", "needs_scope", "failed", "historical") else ""))
 
 
 # ---------- commands ----------
@@ -253,8 +440,9 @@ def cmd_scan(args) -> int:
     services = get_services_cached()
     sheet = get_or_create_queue(services)
     rows = read_queue(services, sheet)
-    known_hashes = {r["Source hash"] for r in rows if r["Source hash"]}
-    known_sources = {r["Source"] for r in rows}
+    by_pair = {(r["Source"], r["Source hash"]) for r in rows}
+    by_path = {r["Source"]: r["Run ID"] for r in rows}
+    by_hash = {r["Source hash"]: r["Run ID"] for r in rows if r["Source hash"]}
 
     discovered = []
     for rel_dir in SCAN_DIRS:
@@ -266,24 +454,33 @@ def cmd_scan(args) -> int:
                 continue
             digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
             rel = str(path.relative_to(DATA_ROOT))
-            if digest in known_hashes or rel in known_sources:
+            action, related = discovery_action(rel, digest, by_pair, by_path, by_hash)
+            if action == "skip":
                 continue
             preclass = FOLDER_PRECLASS.get(path.parent.name,
                                            FOLDER_PRECLASS.get(Path(rel_dir).name, "source_document"))
+            reason = {"changed": f"content changed - supersedes {related}",
+                      "duplicate": f"duplicate content of {related}",
+                      "new": ""}[action]
             row = dict.fromkeys(HEADER, "")
             row.update({"Run ID": mint_run_id(rel, digest), "Source": rel,
                         "Source hash": digest, "Source type": preclass,
-                        "Status": "discovered", "Discovered": now()})
+                        "Status": "discovered", "Discovered": now(),
+                        "Reason": reason})
             discovered.append(row)
-            known_hashes.add(digest)
+            by_pair.add((rel, digest))
+            by_path[rel] = row["Run ID"]
+            by_hash.setdefault(digest, row["Run ID"])
 
     if discovered:
         write_queue(services, sheet, rows + discovered)
     payload = {"discovered": [{"run_id": r["Run ID"], "source": r["Source"],
-                               "preclass": r["Source type"]} for r in discovered]}
+                               "preclass": r["Source type"], "note": r["Reason"]}
+                              for r in discovered]}
     emit(payload, args.json,
          [f"{len(discovered)} new source(s) discovered:"] +
-         [f"  {r['Run ID']}  {r['Source']}  ({r['Source type']})" for r in discovered]
+         [f"  {r['Run ID']}  {r['Source']}  ({r['Source type']})"
+          + (f"  [{r['Reason']}]" if r["Reason"] else "") for r in discovered]
          if discovered else ["No new sources."])
     return 0
 
@@ -292,12 +489,13 @@ def cmd_status(args) -> int:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
-    open_rows = [r for r in rows if r["Status"] not in ("completed", "failed")]
+    terminal = ("completed", "failed", "historical")
+    open_rows = [r for r in rows if r["Status"] not in terminal]
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["Status"]] = counts.get(r["Status"], 0) + 1
     payload = {"counts": counts, "open": [{h.lower().replace(" ", "_"): r[h] for h in HEADER
-                                          if h != "Summary"} for r in open_rows]}
+                                          if h not in ("Summary", "Entries")} for r in open_rows]}
     emit(payload, args.json,
          [f"Queue: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) if counts
           else "Queue is empty (run scan first)."] +
@@ -323,8 +521,8 @@ def cmd_next(args) -> int:
     lines = [row_brief(pick), f"  source: {pick['Source']}"]
     info: dict = {"run_id": pick["Run ID"], "status": pick["Status"], "stage": pick["Stage"],
                   "source": pick["Source"], "source_type": pick["Source type"],
-                  "variant": pick["Route variant"], "project": pick["Project"],
-                  "person": pick["Person"]}
+                  "variant": pick["Route variant"],
+                  "scopes": parse_scopes_cell(pick["Scopes"])}
     graph = load_graph()
     if pick["Status"] == "discovered":
         spec = (graph.get("sources") or {}).get(pick["Source type"])
@@ -352,7 +550,7 @@ def cmd_next(args) -> int:
     return 0
 
 
-def _update_run(args, mutate) -> tuple[dict, list[dict], object, object]:
+def _update_run(args, mutate) -> dict:
     services = get_services_cached()
     sheet = find_queue(services)
     if not sheet:
@@ -361,7 +559,7 @@ def _update_run(args, mutate) -> tuple[dict, list[dict], object, object]:
     row = get_run(rows, args.run_id)
     mutate(row)
     write_queue(services, sheet, rows)
-    return row, rows, services, sheet
+    return row
 
 
 def cmd_start(args) -> int:
@@ -374,61 +572,103 @@ def cmd_start(args) -> int:
     entry = route.get("entry") or []
     need = needed_scopes(graph, entry)
 
+    scopes: list[tuple[str, str]] = []
+    for blob in args.scope or []:
+        proj, sep, pers = blob.partition("|")
+        if not sep:
+            raise SystemExit(f"--scope takes 'project|person' (got {blob!r}); "
+                             "either side may be empty when not applicable")
+        scopes.append((proj.strip(), pers.strip()))
+    if args.project or args.person:
+        scopes.append((args.project.strip(), args.person.strip()))
+    # de-dup, preserve order
+    scopes = list(dict.fromkeys(scopes))
+
     def mutate(row: dict) -> None:
         row["Source type"] = args.source_type
         row["Route variant"] = args.variant or ""
-        row["Project"] = args.project or row["Project"]
-        row["Person"] = args.person or row["Person"]
+        row["Scopes"] = json.dumps(scopes, ensure_ascii=False) if scopes else ""
+        row["Project"] = "; ".join(dict.fromkeys(p for p, _ in scopes if p))
+        row["Person"] = "; ".join(dict.fromkeys(p for _, p in scopes if p))
         row["Skills"] = ", ".join(route.get("skills") or [])
-        missing = [s for s in sorted(need)
-                   if not row["Project" if s == "project" else "Person"].strip()]
+        missing = sorted(
+            s for s in need
+            if not scopes or any(not (proj if s == "project" else pers).strip()
+                                 for proj, pers in scopes))
         if missing:
             validate_transition(row["Status"], "needs_scope")
             row["Status"] = "needs_scope"
             row["Reason"] = (f"route entry documents are {'/'.join(missing)}-scoped - "
-                             f"re-run start with --{' and --'.join(missing)} "
-                             "(never defaulted silently)")
+                             "every --scope tuple (or --project/--person) must carry "
+                             f"{'/'.join(missing)} (never defaulted silently)")
         else:
             validate_transition(row["Status"], "processing")
             row["Status"], row["Stage"] = "processing", "analysis"
             row["Started"], row["Reason"] = now(), ""
 
-    row, *_ = _update_run(args, mutate)
+    row = _update_run(args, mutate)
     emit({"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
-          "skills": row["Skills"], "entry": entry, "reason": row["Reason"]},
+          "skills": row["Skills"], "entry": entry, "scopes": scopes,
+          "reason": row["Reason"]},
          args.json,
          [row_brief(row)] +
          ([f"  load skills: {row['Skills'] or '(shared rules per graph note)'}",
-           f"  entry documents to update: {', '.join(entry)}"]
+           f"  entry documents to update: {', '.join(entry)}",
+           f"  scopes: {scopes}"]
           if row["Status"] == "processing" else [f"  {row['Reason']}"]))
     return 0 if row["Status"] == "processing" else 1
 
 
 def cmd_record_analysis(args) -> int:
-    from check_cascade_closure import build_alias_map, normalize
-    graph = load_graph()
-    alias_map = build_alias_map(graph)
-    touched, unknown = [], []
-    for name in (t.strip() for t in args.touched.split(",") if t.strip()):
-        canon = normalize(name, alias_map)
-        (touched if canon else unknown).append(canon or name)
-    if unknown:
-        raise SystemExit(f"Unknown touched document(s): {', '.join(unknown)} - "
-                         "use canonical graph node names (or add aliases).")
-
     def mutate(row: dict) -> None:
         if row["Status"] != "processing":
             raise SystemExit(f"record-analysis requires status=processing (is {row['Status']!r}).")
-        row["Stage"] = "closure"
-        row["Touched"] = ", ".join(sorted(set(touched) |
-                                          {t for t in row["Touched"].split(", ") if t}))
+        if row["Stage"] not in ("analysis", ""):
+            raise SystemExit(f"record-analysis belongs to the analysis stage "
+                             f"(run is at {row['Stage']!r}).")
+        row["Stage"] = "apply"
         row["Summary"] = (row["Summary"] + " | " if row["Summary"] else "") + args.summary.strip()
 
-    row, *_ = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "stage": row["Stage"], "touched": row["Touched"]},
-         args.json,
-         [row_brief(row), f"  touched: {row['Touched']}",
-          "  next: resolve every edge (resolve-edge), then complete."])
+    row = _update_run(args, mutate)
+    emit({"run_id": row["Run ID"], "stage": row["Stage"]}, args.json,
+         [row_brief(row),
+          "  next: apply the documents, then record-apply per scope."])
+    return 0
+
+
+def cmd_record_apply(args) -> int:
+    from check_cascade_closure import build_alias_map, normalize
+    graph = load_graph()
+    alias_map = build_alias_map(graph)
+    outcomes = parse_outcome_args(args.updated, args.no_change, args.not_applicable)
+    if not outcomes:
+        raise SystemExit("record-apply needs at least one of --updated/--no-change/--not-applicable")
+    canon_outcomes: dict[str, list[str]] = {}
+    for doc, rec in outcomes.items():
+        canon = normalize(doc, alias_map)
+        if canon is None:
+            raise SystemExit(f"Unknown document {doc!r} - use canonical graph node names.")
+        canon_outcomes[canon] = rec
+
+    def mutate(row: dict) -> None:
+        if row["Status"] != "processing":
+            raise SystemExit(f"record-apply requires status=processing (is {row['Status']!r}).")
+        if row["Stage"] == "analysis":
+            raise SystemExit("record-analysis first - the analysis stage hasn't been recorded.")
+        project, person = args.project, args.person
+        if not project and not person:
+            project, person = single_scope(row)
+        entries = parse_entries_cell(row["Entries"])
+        key = scope_key(project, person)
+        entries.setdefault(key, {}).update(canon_outcomes)
+        row["Entries"] = json.dumps(entries, ensure_ascii=False)
+        row["Stage"] = "closure"
+
+    row = _update_run(args, mutate)
+    emit({"run_id": row["Run ID"], "stage": row["Stage"],
+          "entries": parse_entries_cell(row["Entries"])}, args.json,
+         [row_brief(row),
+          "  next: resolve every cascade edge (resolve-edge), snapshot, complete."])
     return 0
 
 
@@ -441,8 +681,9 @@ def cmd_resolve_edge(args) -> int:
     if row["Status"] != "processing":
         raise SystemExit(f"resolve-edge requires status=processing (is {row['Status']!r}).")
 
-    project = args.project or row["Project"] if "," not in row["Project"] else args.project or ""
-    person = args.person or row["Person"] if "," not in row["Person"] else args.person or ""
+    project, person = args.project, args.person
+    if not project and not person:
+        project, person = single_scope(row)
     variant = args.variant or row["Route variant"]
     kind = co.edge_kind(args.source, args.target)
     co.validate(kind, args.outcome, args.reason)
@@ -454,10 +695,12 @@ def cmd_resolve_edge(args) -> int:
                           args.source, args.target, kind, args.outcome,
                           args.reason, args.actor]]}).execute()
     emit({"run_id": args.run_id, "edge": f"{args.source}->{args.target}",
-          "kind": kind, "outcome": args.outcome},
+          "kind": kind, "outcome": args.outcome,
+          "scope": [project, person, variant]},
          args.json,
          [f"Recorded: {args.source} -> {args.target} [{kind}] = {args.outcome}"
-          + (f" ({args.reason})" if args.reason else "")])
+          + (f" ({args.reason})" if args.reason else "")
+          + (f"  @{project}/{person}" if project or person else "")])
     return 0
 
 
@@ -465,7 +708,7 @@ def cmd_block(args) -> int:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "blocked")
         row["Status"], row["Reason"] = "blocked", args.reason
-    row, *_ = _update_run(args, mutate)
+    row = _update_run(args, mutate)
     emit({"run_id": row["Run ID"], "status": "blocked", "reason": row["Reason"]},
          args.json, [row_brief(row)])
     return 0
@@ -475,8 +718,19 @@ def cmd_fail(args) -> int:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "failed")
         row["Status"], row["Reason"] = "failed", args.reason
-    row, *_ = _update_run(args, mutate)
+    row = _update_run(args, mutate)
     emit({"run_id": row["Run ID"], "status": "failed"}, args.json, [row_brief(row)])
+    return 0
+
+
+def cmd_historical(args) -> int:
+    def mutate(row: dict) -> None:
+        validate_transition(row["Status"], "historical")
+        row["Status"] = "historical"
+        row["Reason"] = f"pre-queue history: {args.evidence}"
+    row = _update_run(args, mutate)
+    emit({"run_id": row["Run ID"], "status": "historical", "evidence": args.evidence},
+         args.json, [row_brief(row)])
     return 0
 
 
@@ -488,7 +742,9 @@ def cmd_resume(args) -> int:
 
     from closure_outcomes import fetch_outcomes
     outcome_rows = fetch_outcomes(services, args.run_id, all_scopes=True)
-    scopes = enumerate_run_scopes(outcome_rows, row)
+    entries = parse_entries_cell(row["Entries"])
+    scopes = enumerate_run_scopes(outcome_rows, parse_scopes_cell(row["Scopes"]),
+                                  entries, row["Route variant"])
 
     if args.cont:
         if row["Status"] != "blocked":
@@ -499,19 +755,18 @@ def cmd_resume(args) -> int:
 
     lines = [row_brief(row),
              f"  source: {row['Source']}",
-             f"  touched so far: {row['Touched'] or '(none recorded)'}",
-             f"  outcomes recorded: {len(outcome_rows)} across {len(scopes)} scope(s)",
-             f"  unfinished stage: {row['Stage'] or row['Status']} - completed writes are "
-             "recorded above; do not repeat them, continue from here."]
+             f"  entry outcomes recorded: "
+             + (json.dumps(entries, ensure_ascii=False) if entries else "(none)"),
+             f"  cascade outcomes recorded: {len(outcome_rows)} across {len(scopes)} scope(s)",
+             f"  unfinished stage: {row['Stage'] or row['Status']} - everything recorded "
+             "above is done; do not repeat those writes, continue from here."]
     emit({"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
-          "touched": row["Touched"], "outcomes": len(outcome_rows),
+          "entries": entries, "outcomes": len(outcome_rows),
           "scopes": [list(s) for s in scopes]}, args.json, lines)
     return 0
 
 
 def cmd_complete(args) -> int:
-    import subprocess
-
     from check_cascade_closure import build_resolved, walk
     from closure_outcomes import fetch_outcomes
     from sync_m2_source_docs_to_sheets import read_sheet_values
@@ -525,48 +780,58 @@ def cmd_complete(args) -> int:
 
     graph = load_graph()
     problems: list[str] = []
-
-    # 1. Route entry documents must all be claimed as touched.
     route = resolve_route(graph, row["Source type"], row["Route variant"])
-    touched = {t for t in (x.strip() for x in row["Touched"].split(",")) if t}
-    for doc in route.get("entry") or []:
-        if doc not in touched:
-            problems.append(f"entry document {doc!r} not in Touched "
-                            "(record-analysis --touched, or explain via fail/block)")
-
-    # 2. Strict closure per scope - one check per (project, person, variant).
+    entry_docs = route.get("entry") or []
+    entries = parse_entries_cell(row["Entries"])
     all_rows = fetch_outcomes(services, args.run_id, all_scopes=True)
-    for proj, pers, variant in enumerate_run_scopes(all_rows, row):
-        scoped = fetch_outcomes(services, args.run_id, proj, pers, variant)
-        resolved, warns = build_resolved(scoped, graph)
-        problems.extend(f"scope ({proj or '-'}, {pers or '-'}, {variant or '-'}): {w}"
-                        for w in warns)
+    scopes = enumerate_run_scopes(all_rows, parse_scopes_cell(row["Scopes"]),
+                                  entries, row["Route variant"])
+
+    # 1+2. Per scope: every entry document has a valid outcome; cascade from
+    # the actually-updated ones must be strictly closed for that scope.
+    last_outcome_ts = parse_ts(row["Started"])
+    for proj, pers, variant in scopes:
+        label = f"scope ({proj or '-'}, {pers or '-'}, {variant or '-'})"
+        scoped_entries = entries_for_scope(entries, proj, pers)
+        problems.extend(f"{label}: {p}"
+                        for p in validate_entry_outcomes(entry_docs, scoped_entries))
+        seeds = seeds_for_scope(scoped_entries)
+        scoped_rows = fetch_outcomes(services, args.run_id, proj, pers, variant)
+        for rec in scoped_rows:
+            last_outcome_ts = max(last_outcome_ts, parse_ts(rec.get("Timestamp", "")))
+        resolved, warns = build_resolved(scoped_rows, graph)
+        problems.extend(f"{label}: {w}" for w in warns)
         open_items: list[str] = []
         lines: list[str] = []
-        visited_req = set(touched)
-        for node in sorted(touched):
-            walk(graph, node, touched, visited_req, set(), 0, False, True,
+        visited_req = set(seeds)
+        for node in sorted(seeds):
+            walk(graph, node, seeds, visited_req, set(), 0, False, True,
                  resolved, open_items, lines)
-        for item in open_items:
-            problems.append(f"scope ({proj or '-'}, {pers or '-'}, {variant or '-'}): "
-                            f"unresolved edge {item}")
+        problems.extend(f"{label}: unresolved edge {item}" for item in open_items)
 
-    # 3. A _skill_invocations row must reference this run.
+    # 3. A _skill_invocations row must carry the exact run token.
     from pipeline_common import get_skill_invocations_sheet
+    token = f"run:{args.run_id}"
     inv_rows = read_sheet_values(services, get_skill_invocations_sheet(services)["id"])
-    if not any(args.run_id in " | ".join(r) or row["Source"] in " | ".join(r)
-               for r in inv_rows[1:]):
-        problems.append(f"no _skill_invocations row references run {args.run_id} "
-                        f"or source {row['Source']} - log_skill_invocation() with the "
-                        "run id in Notes")
+    if not any(token in " | ".join(r) for r in inv_rows[1:]):
+        problems.append(f"no _skill_invocations row carries the token '{token}' - "
+                        "log_skill_invocation() with it in Notes")
 
-    # 4. Mirror snapshot tagged with the run id.
-    mirror = Path.home() / "Documents" / "qa-drive-mirror"
-    log = subprocess.run(["git", "-C", str(mirror), "log", "-10", "--format=%s"],
-                         capture_output=True, text=True, encoding="utf-8").stdout
-    if args.run_id not in log:
-        problems.append(f"no mirror commit mentions {args.run_id} - run "
-                        f"commit_workspace_state.py -m \"<skill>: <source> [{args.run_id}]\"")
+    # 4. Clean mirror snapshot mentioning the run, not older than the run's
+    # last recorded mutation; its SHA is persisted on the row.
+    dirty = bool(mirror_git("status", "--porcelain").stdout.strip())
+    log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
+    log_entries = []
+    for line in log_raw.splitlines():
+        sha, _, rest = line.partition("|")
+        ts, _, subject = rest.partition("|")
+        try:
+            log_entries.append((sha, float(ts), subject))
+        except ValueError:
+            continue
+    sha, snap_problem = check_snapshot(log_entries, args.run_id, last_outcome_ts, dirty)
+    if snap_problem:
+        problems.append(snap_problem)
 
     if problems:
         emit({"run_id": args.run_id, "completed": False, "problems": problems},
@@ -575,11 +840,17 @@ def cmd_complete(args) -> int:
              [f"  - {p}" for p in problems])
         return 1
 
+    validate_transition(row["Status"], "completed")
     row["Status"], row["Stage"], row["Completed"] = "completed", "done", now()
+    row["Snapshot"] = sha
     write_queue(services, sheet, rows)
-    emit({"run_id": args.run_id, "completed": True}, args.json,
-         [f"{args.run_id} completed: entry docs touched, closure strict-CLOSED per scope, "
-          "invocation logged, mirror snapshot tagged."])
+    # Capture the terminal transition itself in the mirror (follow-up
+    # commit; the verified business snapshot keeps its recorded SHA).
+    export_queue_to_mirror(services, sheet, rows, args.run_id)
+    emit({"run_id": args.run_id, "completed": True, "snapshot": sha}, args.json,
+         [f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
+          f"scope, invocation token present, snapshot {sha[:8]} verified and recorded; "
+          "terminal queue state exported to the mirror."])
     return 0
 
 
@@ -588,7 +859,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("scan", help="discover new source files")
+    sub.add_parser("scan", help="discover new/changed source files")
     sub.add_parser("status", help="queue overview")
     sub.add_parser("next", help="most actionable run")
 
@@ -598,11 +869,23 @@ def main() -> int:
     p.add_argument("--variant", default="")
     p.add_argument("--project", default="")
     p.add_argument("--person", default="")
+    p.add_argument("--scope", action="append", default=[],
+                   metavar="PROJECT|PERSON",
+                   help="explicit scope tuple; repeat for multi-scope runs")
 
-    p = sub.add_parser("record-analysis", help="summary + touched documents")
+    p = sub.add_parser("record-analysis", help="analysis summary (stage -> apply)")
     p.add_argument("run_id")
     p.add_argument("--summary", required=True)
-    p.add_argument("--touched", required=True)
+
+    p = sub.add_parser("record-apply", help="per-scope entry outcomes (stage -> closure)")
+    p.add_argument("run_id")
+    p.add_argument("--project", default="")
+    p.add_argument("--person", default="")
+    p.add_argument("--updated", default="", help="comma-separated documents actually written")
+    p.add_argument("--no-change", dest="no_change", default="",
+                   help="';'-separated doc=reason pairs")
+    p.add_argument("--not-applicable", dest="not_applicable", default="",
+                   help="';'-separated doc=reason pairs")
 
     p = sub.add_parser("resolve-edge", help="record one closure outcome")
     p.add_argument("run_id")
@@ -623,6 +906,12 @@ def main() -> int:
     p.add_argument("run_id")
     p.add_argument("--reason", required=True)
 
+    p = sub.add_parser("historical", help="terminal: processed before the queue existed")
+    p.add_argument("run_id")
+    p.add_argument("--evidence", required=True,
+                   help="where the pre-queue processing is recorded "
+                        "(_skill_invocations date, evidence_log row, ...)")
+
     p = sub.add_parser("resume", help="unfinished stage + what remains")
     p.add_argument("run_id")
     p.add_argument("--continue", dest="cont", action="store_true",
@@ -634,9 +923,9 @@ def main() -> int:
     args = parser.parse_args()
     return {"scan": cmd_scan, "status": cmd_status, "next": cmd_next,
             "start": cmd_start, "record-analysis": cmd_record_analysis,
-            "resolve-edge": cmd_resolve_edge, "block": cmd_block,
-            "fail": cmd_fail, "resume": cmd_resume,
-            "complete": cmd_complete}[args.cmd](args)
+            "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
+            "block": cmd_block, "fail": cmd_fail, "historical": cmd_historical,
+            "resume": cmd_resume, "complete": cmd_complete}[args.cmd](args)
 
 
 if __name__ == "__main__":

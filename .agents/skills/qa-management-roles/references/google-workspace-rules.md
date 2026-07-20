@@ -492,6 +492,12 @@ applied, not just the first one that seems to fit, same discipline as
 `evidence_log`'s `routed_to`), `Documents touched` (blank if none),
 `Notes`.
 
+When the processing pass belongs to an intake-queue run (`qa_manage.py`),
+`Notes` must also carry the exact run token `run:<run-id>` — `complete`
+verifies the token's presence, and substring/source-path matching is
+deliberately not accepted (an old invocation row for the same source must
+not satisfy a new run).
+
 `Notes` additionally carries the improvement loop's raw material: when
 the user corrects or overrides something during a pass (wording, routing,
 a judgment call), capture it in that pass's row as a note prefixed
@@ -522,18 +528,29 @@ canonical run ids, use `<date>-<source-slug>`.
 
 Workspace-wide Sheet at the Drive root: one row per intake run, managed
 only through `qa_manage.py` (scan/next/start/record-analysis/resolve-edge/
-block/resume/complete/fail) — never edited by hand, and unlike the
-append-only logs its rows are updated in place as a run moves through
-`discovered → needs_scope/ready → processing (analysis→apply→closure) →
-completed/failed`, with `blocked` as a parking state. `scan` discovers new
-source files idempotently by content hash; `start` records the agent's
-classification and refuses to default a missing project/person scope
-(`needs_scope` instead); `complete` is a verification gate (entry
-documents touched, strict closure per scope, `_skill_invocations` row,
-mirror snapshot tagged with the run id). Rows hold operational metadata
-and short summaries only — never transcript content or analysis bodies.
-The queue's `Run ID` is the canonical run id used in `_closure_outcomes`,
-`_skill_invocations` notes, and mirror commit messages.
+record-apply/resolve-edge/block/resume/complete/fail/historical) — never
+edited by hand, and unlike the append-only logs its rows are updated in
+place as a run moves through `discovered → needs_scope/ready → processing
+(analysis→apply→closure) → completed/failed/historical`, with `blocked` as
+a parking state. `historical` is the terminal state for sources processed
+before the queue existed (evidence required — pre-queue history is not a
+failure); `failed` may be corrected to `historical` when migration
+evidence turns up. Source identity is (path, content hash): changed
+content at a known path is rediscovered as a superseding run, identical
+content at a new path is recorded as a duplicate. `start` records the
+agent's classification with explicit (project, person) scope tuples —
+never a Cartesian product, never a silent default (`needs_scope` instead).
+`record-apply` records a per-scope outcome for every route entry document
+(`updated` / `no_change`+reason / `not_applicable`+reason); only updated
+entries seed the cascade. `complete` is a verification gate: entry
+outcomes valid per scope, strict closure per scope, the exact
+`run:<run-id>` token in `_skill_invocations`, and a clean mirror snapshot
+not older than the run's last mutation — its SHA is persisted on the row,
+and the terminal queue state itself is exported to the mirror as a
+follow-up commit. Rows hold operational metadata and short summaries only
+— never transcript content or analysis bodies. The queue's `Run ID` is
+the canonical run id used in `_closure_outcomes`, `_skill_invocations`
+notes, and mirror commit messages.
 
 ## Naming And Versioning
 
