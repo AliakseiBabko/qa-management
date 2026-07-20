@@ -24,15 +24,6 @@ def source_text_requirement(row: dict) -> str:
         return "not_applicable"
     return "optional"
 
-def source_text_requirement(row: dict) -> str:
-    src_type = row.get("Source type", "")
-    ext = Path(row.get("Source", "")).suffix.casefold()
-    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
-        if ext in {".txt", ".md", ".docx"}:
-            return "required"
-    if src_type in {"admin_note", "m2_conversation"}:
-        return "not_applicable"
-    return "optional"
 
 # We do NOT import qa_manage here at module load.
 from mirror_common import assert_private_mirror
@@ -208,11 +199,15 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
     exact_path = data_root / norm_q_path
     if exact_path.is_file():
         try:
-            if any(exact_path.resolve().is_relative_to((data_root / r).resolve()) for r in SOURCE_TEXT_SEARCH_ROOTS):
-                b = exact_path.read_bytes()
-                h = get_full_sha256(b)
-                if h.startswith(q_hash):
-                    return exact_path, h, b
+            for root_rel in SOURCE_TEXT_SEARCH_ROOTS:
+                approved = (data_root / root_rel).resolve()
+                if not approved.is_relative_to(data_root_res):
+                    continue
+                if exact_path.resolve().is_relative_to(approved):
+                    b = exact_path.read_bytes()
+                    h = get_full_sha256(b)
+                    if h.startswith(q_hash):
+                        return exact_path, h, b
         except Exception:
             pass
 
@@ -224,13 +219,17 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
         if not search_dir.is_dir():
             continue
 
+        approved = search_dir.resolve()
+        if not approved.is_relative_to(data_root_res):
+            continue
+
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
                 try:
                     if candidate.suffix.casefold() not in ALLOWED_EXTENSIONS:
                         continue
-                    if not candidate.resolve().is_relative_to(search_dir.resolve()):
+                    if not candidate.resolve().is_relative_to(approved):
                         continue
                     b = candidate.read_bytes()
                     h = get_full_sha256(b)
@@ -251,11 +250,9 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
     if len(candidates) == 1:
         return candidates[0], full_hash, candidates[0].read_bytes()
 
-    original_name = Path(norm_q_path).name.casefold()
-    def score_candidate(p: Path) -> Tuple[int, str, str]:
-        score = 0 if p.name.casefold() == original_name else 1
+    def score_candidate(p: Path) -> Tuple[str, str]:
         rel_posix = p.relative_to(data_root).as_posix()
-        return (score, rel_posix.casefold(), rel_posix)
+        return (rel_posix.casefold(), rel_posix)
 
     candidates.sort(key=score_candidate)
     chosen = candidates[0]
@@ -266,7 +263,7 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
     import re
     if not isinstance(full_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", full_sha256):
         raise ExtractionError(f"Invalid full_hash: {full_sha256}")
-        
+
     data_root_res = data_root.resolve()
     matches = []
 
@@ -275,13 +272,17 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
         if not search_dir.is_dir():
             continue
 
+        approved = search_dir.resolve()
+        if not approved.is_relative_to(data_root_res):
+            continue
+
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
                 try:
                     if candidate.suffix.casefold() not in ALLOWED_EXTENSIONS:
                         continue
-                    if not candidate.resolve().is_relative_to(search_dir.resolve()):
+                    if not candidate.resolve().is_relative_to(approved):
                         continue
                     b = candidate.read_bytes()
                     h = get_full_sha256(b)
@@ -574,10 +575,6 @@ def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> Non
     warnings = []
     errors = []
     protected = set()
-    
-    # Needs to be imported inside or passed in since it's now exported correctly
-    from qa_manage import source_text_requirement
-    
     for row in queue_rows:
         key = f"{row.get('Run ID', '')}:v1"
         existing = old_manifest.get(key)

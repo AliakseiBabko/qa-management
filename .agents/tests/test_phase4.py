@@ -86,10 +86,8 @@ class TestPhase4(unittest.TestCase):
 
         out = docx_to_text_v1(b.getvalue())
 
-        # "Outer cell 1" should appear exactly once.
-        self.assertEqual(out.count("Outer cell 1"), 1)
-        self.assertEqual(out.count("Inner cell 1"), 1)
-        self.assertTrue("Inner cell 1\tInner cell 2" in out)
+        expected = "Before table\nOuter cell 1\nInner cell 1\tInner cell 2\nAfter table\n"
+        self.assertEqual(out, expected)
 
     def test_cmd_start_v1_assignment(self):
         # Mock queue services for cmd_start
@@ -215,7 +213,7 @@ class TestPhase4(unittest.TestCase):
                     self.log = []
                     self.graph = {}
                     self.inv_rows = [["header"], ["run:run-snap"]]
-            
+
             # Test evaluate_run using it implicitly
             res = qa_manage.evaluate_run(DummyCtx(row))
             self.assertEqual(res.snapshot_problem, "")
@@ -231,7 +229,7 @@ class TestPhase4(unittest.TestCase):
             errs = qa_manage.check_source_text_snapshot(deleted_sha, row)
             self.assertGreater(len(errs), 0)
             self.assertTrue(any("Missing or unreadable blob" in e for e in errs))
-            
+
             res2 = qa_manage.evaluate_run(DummyCtx(row))
             self.assertNotEqual(res2.snapshot_problem, "")
             self.assertTrue("Missing or unreadable blob" in res2.snapshot_problem)
@@ -288,25 +286,54 @@ class TestPhase4(unittest.TestCase):
             export_source_text.get_full_sha256 = orig_hash
 
     def test_pruning_orchestration(self):
-        # Provide a malformed manifest initially
+        import commit_workspace_state
+        import json
+
         manifest_path = self.mirror / "_source_text_manifest.json"
-        manifest_path.write_text('{"bad_key": {}}', encoding="utf-8")
 
-        row = {
-            "Run ID": "run-prune",
-            "Status": "needs_scope",
-            "Source type": "qa_1to1",
-            "Source": "02_Transcripts_Inbox/dummy.txt",
-            "Source hash": "0000000000000000",
-            "Source text version": "1"
+        dummy_data = {
+            "test_run_1:v1": {
+                "source_path": "00_Source_Docs/01_Meeting_Transcripts/f1.txt",
+                "queue_source_hash": "a"*16,
+                "source_sha256": "a"*64,
+                "text_sha256": "b"*64,
+                "text_path": f"_source_text/blobs/v1/b{'b'*63}.txt",
+                "extractor_profile": "utf8_text_v1"
+            }
         }
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps(dummy_data) + "\n", encoding="utf-8")
 
-        protected, errs, warns = export_source_text.export([row], self.data_root, self.mirror)
-        self.assertGreater(len(errs), 0)
-        self.assertTrue(any("Manifest read error" in e for e in errs))
+        restore_manifest = self.mirror / "_manifest.json"
+        restore_manifest.write_text('{"dummy_restore_file.txt": {"id": "123"}}', encoding="utf-8")
+        (self.mirror / "dummy_restore_file.txt").write_bytes(b"dummy content")
 
-        # Assert manifest wasn't overwritten
-        self.assertEqual(manifest_path.read_text(encoding="utf-8"), '{"bad_key": {}}')
+        stale_blob = self.mirror / f"_source_text/blobs/v1/b{'b'*63}.txt"
+        stale_blob.parent.mkdir(parents=True, exist_ok=True)
+        stale_blob.write_bytes(b"old")
+
+        stale_blob2 = self.mirror / f"_source_text/blobs/v1/c{'c'*63}.txt"
+        stale_blob2.write_bytes(b"stale")
+
+        # We invoke orchestrate_export but mock the read_queue_fn to raise an Exception
+        def failing_read_queue(services, queue_id):
+            raise Exception("orchestrated error")
+
+        written, manifest, removed, warnings, errors = commit_workspace_state.orchestrate_export(
+            None, self.mirror, self.data_root,
+            lambda *args: None,
+            lambda rows, droot, mir: (set(), [], []),
+            lambda services: "dummy",
+            failing_read_queue
+        )
+        self.assertEqual(removed, 0)
+        self.assertTrue(any("orchestrated error" in str(e) for e in errors))
+        self.assertIn("dummy_restore_file.txt", manifest)
+        self.assertTrue(stale_blob2.exists(), "stale blob should survive error")
+        self.assertTrue(stale_blob.exists())
+        # old manifest should remain untouched on disk
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+        self.assertIn("test_run_1:v1", manifest_text)
 
     def test_json_parsing(self):
         # Run export_source_text as subprocess with bad args
