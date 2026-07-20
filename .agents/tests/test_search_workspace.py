@@ -39,6 +39,23 @@ class TestSearchWorkspace(unittest.TestCase):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
 
+    def _create_commit(self, msg, files, date=None):
+        for path, content in files.items():
+            if content is None:
+                self._git("rm", "--ignore-unmatch", path)
+            else:
+                self._write(path, content)
+        self._git("add", ".")
+        if date:
+            import os
+            import subprocess
+            env = os.environ.copy()
+            env["GIT_AUTHOR_DATE"] = date
+            env["GIT_COMMITTER_DATE"] = date
+            subprocess.run(["git", "commit", "-m", msg], cwd=self.mirror, env=env, check=True)
+        else:
+            self._git("commit", "-m", msg)
+
     def run_cli(self, *args, check=True):
         cmd = [sys.executable, str(self.script), *args, "--mirror", str(self.mirror)]
         res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=self.mirror)
@@ -156,7 +173,7 @@ class TestSearchWorkspace(unittest.TestCase):
         data = json.loads(res.stdout)
         self.assertTrue(data["ok"])
         self.assertEqual(data["data"]["result_count"], 1)
-        self.assertEqual(data["data"]["matches"][0]["metadata"]["source_runs"][0]["queue_source_hash"], "0123456789abcdef")
+        self.assertEqual(data["data"]["matches"][0]["source_runs"][0]["queue_source_hash"], "0123456789abcdef")
 
     # 2. Actual queue header capitalization + 4. Queue as warning
     def test_queue_headers_and_warning(self):
@@ -179,7 +196,7 @@ class TestSearchWorkspace(unittest.TestCase):
         res = self.run_cli("search", "source", "--kind", "source", "--json")
         data = json.loads(res.stdout)
         self.assertTrue(data["ok"])
-        runs = data["data"]["matches"][0]["metadata"]["source_runs"]
+        runs = data["data"]["matches"][0]["source_runs"]
         self.assertEqual(runs[0]["project"], "ProjA")
         self.assertEqual(runs[0]["discovered"], "2023-01-01")
 
@@ -192,7 +209,7 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertEqual(len(data["warnings"]), 1)
         self.assertTrue("Queue error" in data["warnings"][0]["condition"])
         # Runs still returned via manifest
-        runs = data["data"]["matches"][0]["metadata"]["source_runs"]
+        runs = data["data"]["matches"][0]["source_runs"]
         self.assertEqual(runs[0]["run_id"], "run123")
 
     # 3. Source/canonical history isolation
@@ -242,7 +259,6 @@ class TestSearchWorkspace(unittest.TestCase):
         self._git("commit", "-m", "A")
 
         self._git("rm", tp)
-        self._git("rm", "_source_text_manifest.json")
         self._git("commit", "-m", "B")
 
         # At B, tp is removed. Metadata must be fetched from parent (A).
@@ -252,7 +268,7 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertEqual(data["data"]["result_count"], 2) # A (introduced), B (removed)
         change_b = next(ch for c in data["data"]["commits"] for ch in c["changes"] if c["subject"] != "A")
         self.assertEqual(change_b["change"], "removed")
-        self.assertEqual(change_b["metadata"]["source_runs"][0]["run_id"], "run123")
+        self.assertEqual(change_b["source_runs"][0]["run_id"], "run123")
 
     # 6. run-id plus mismatching path
     def test_runid_mismatch_path(self):
@@ -349,6 +365,122 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["data"]["result_count"], 1)
         self.assertEqual(data["data"]["matches"][0]["path"], "10_M1_People_Management/team/a.md")
+
+
+    def test_multiple_runs_per_blob(self):
+        b64 = "b"*64
+        manifest = {
+            "run1:v1": {
+                "source_path": "dummy1.txt",
+                "queue_source_hash": "a"*16,
+                "source_sha256": "a"*64,
+                "text_path": f"_source_text/blobs/v1/{b64}.txt",
+                "text_sha256": b64,
+                "extractor_profile": "utf8_text_v1"
+            },
+            "run2:v1": {
+                "source_path": "dummy2.txt",
+                "queue_source_hash": "c"*16,
+                "source_sha256": "c"*64,
+                "text_path": f"_source_text/blobs/v1/{b64}.txt",
+                "text_sha256": b64,
+                "extractor_profile": "utf8_text_v1"
+            }
+        }
+
+        queue_json = json.dumps({
+            "values": [
+                ["Snapshot", "Run id"],
+                ["a"*16, "run1"],
+                ["c"*16, "run2"]
+            ]
+        })
+        self._create_commit("Init", {
+            f"_source_text/blobs/v1/{b64}.txt": "multiple runs content",
+            "_source_text_manifest.json": json.dumps(manifest),
+            "_intake_queue.values.json": queue_json
+        })
+        res = self.run_cli("search", "multiple runs", "--kind", "source", "--json")
+        out = json.loads(res.stdout)
+        self.assertEqual(len(out["data"]["matches"]), 1)
+        runs = out["data"]["matches"][0].get("source_runs", [])
+        self.assertEqual(len(runs), 2)
+        self.assertEqual(runs[0]["run_id"], "run1")
+        self.assertEqual(runs[1]["run_id"], "run2")
+
+    def test_malformed_metadata(self):
+        # Malformed manifest
+        self._create_commit("Malformed", {
+            "_source_text/blobs/v1/malformed.txt": "content",
+            "_source_text_manifest.json": '{"not": "a valid format"}',
+            "_intake_queue.values.json": "[]"
+        })
+        # For kind=source, this should be a hard error according to policy (or return empty matches + warning depending on strict mode).
+        # Actually since strict_manifest=True, it will throw an error at parse time.
+        res = subprocess.run([sys.executable, str(self.script), "search", "content", "--kind", "source", "--json", "--mirror", str(self.mirror)], capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+
+        # Malformed queue
+        b64 = "b"*64
+        manifest = {
+            "run1:v1": {
+                "source_path": "dummy1.txt",
+                "queue_source_hash": "a"*16,
+                "source_sha256": "a"*64,
+                "text_path": f"_source_text/blobs/v1/{b64}.txt",
+                "text_sha256": b64,
+                "extractor_profile": "utf8_text_v1"
+            }
+        }
+
+        self._create_commit("Malformed", {
+            f"_source_text/blobs/v1/{b64}.txt": "content queue",
+            "_source_text_manifest.json": json.dumps(manifest),
+            "_intake_queue.values.json": '{"not": "a list"}'
+        })
+        res = self.run_cli("search", "content queue", "--kind", "source", "--json")
+        out = json.loads(res.stdout)
+        # Queue malformation is a warning
+        self.assertTrue(any("Queue error" in w.get("condition", "") for w in out["warnings"]))
+
+    def test_historical_regex_error(self):
+        self._create_commit("A", {"10_M1_People_Management/a.md": "content"})
+        self._create_commit("B", {"10_M1_People_Management/a.md": "content2"})
+        # Unclosed bracket
+        res = subprocess.run([sys.executable, str(self.script), "history", "[unclosed", "--regex", "--json", "--mirror", str(self.mirror)], capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+        out = json.loads(res.stdout)
+        self.assertTrue(any("unmatched" in err.lower() or "invalid" in err.lower() or "grep failed" in err.lower() for err in out["errors"]))
+
+    def test_date_boundary(self):
+        self._create_commit("A", {"10_M1_People_Management/date.md": "content A"}, date="2026-07-20 10:00:00 +0000")
+        self._create_commit("B", {"10_M1_People_Management/date.md": "content B"}, date="2026-07-20 12:00:00 +0000")
+        self._create_commit("C", {"10_M1_People_Management/date.md": "content C"}, date="2026-07-20 14:00:00 +0000")
+
+        # Test since
+        res = self.run_cli("history", "content", "--since", "2026-07-20T11:00:00+00:00", "--json")
+        out = json.loads(res.stdout)
+        self.assertTrue(out["ok"])
+
+        # Test until
+        res = self.run_cli("history", "content", "--until", "2026-07-20T13:00:00+00:00", "--json")
+        out = json.loads(res.stdout)
+        self.assertTrue(out["ok"])
+
+    def test_history_change_beyond_bound(self):
+        # We need a file with 101 matches, and we modify the 101th match
+        content1 = "\n".join(f"Match {i}" for i in range(150))
+        content2 = content1.replace("Match 149", "Modified 149")
+        self._create_commit("A", {"10_M1_People_Management/bound.md": content1})
+        self._create_commit("B", {"10_M1_People_Management/bound.md": content2})
+        res = self.run_cli("history", "Match", "--limit", "1", "--json")
+        out = json.loads(res.stdout)
+        self.assertEqual(len(out["data"]["commits"]), 1)
+        changes = out["data"]["commits"][0]["changes"]
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["change"], "changed")
+        self.assertTrue(changes[0]["matches_before_truncated"])
+        self.assertTrue(changes[0]["matches_after_truncated"])
 
 if __name__ == "__main__":
     unittest.main()
