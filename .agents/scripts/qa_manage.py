@@ -1325,11 +1325,11 @@ def main() -> int:
                    metavar="PROJECT|PERSON",
                    help="explicit scope tuple; repeat for multi-scope runs")
 
-    p = sub.add_parser("record-analysis", help="analysis summary (stage -> apply, parents=[parent])")
+    p = sub.add_parser("record-analysis", help="analysis summary (stage -> apply)", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--summary", required=True)
 
-    p = sub.add_parser("record-apply", help="per-scope entry outcomes (stage -> closure, parents=[parent])")
+    p = sub.add_parser("record-apply", help="per-scope entry outcomes (stage -> closure)", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--project", default="")
     p.add_argument("--person", default="")

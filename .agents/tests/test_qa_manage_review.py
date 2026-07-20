@@ -12,9 +12,8 @@ class TestEvaluateRun(unittest.TestCase):
         self.mock_graph = {
             "sources": {
                 "raw_transcript": {
-                    "entry": ["10_M1_People_Management/<Person>/individual_development_plan.gdoc"],
                     "routes": {
-                        "m1": {"skills": ["s1"]},
+                        "m1": {"skills": ["s1"], "entry": ["10_M1_People_Management/<Person>/individual_development_plan.gdoc"]},
                         "m2": {"skills": ["s2"]}
                     }
                 }
@@ -169,10 +168,16 @@ class TestEvaluateRun(unittest.TestCase):
         ctx.graph = self.mock_graph
         ctx.all_rows = [
             {"Source": "10_M1_People_Management/Alice/individual_development_plan.gdoc",
-             "Target": "_m1_timeline.csv", "Outcome": "invalid_outcome", "Person": "Alice",
+             "Target": "_m1_timeline.csv", "Outcome": "updated", "Person": "Alice",
              "Project": "", "Route variant": "m1", "Timestamp": "2023-10-01T10:06:00Z",
              "Source node": "10_M1_People_Management/<Person>/individual_development_plan.gdoc",
              "Target node": "_m1_timeline.csv",
+             "Run ID": "test-run"},
+            {"Source": "10_M1_People_Management/Alice/individual_development_plan.gdoc",
+             "Target": "non_existent.csv", "Outcome": "updated", "Person": "Alice",
+             "Project": "", "Route variant": "m1", "Timestamp": "2023-10-01T10:06:00Z",
+             "Source node": "10_M1_People_Management/<Person>/individual_development_plan.gdoc",
+             "Target node": "non_existent.csv",
              "Run ID": "test-run"}
         ]
         ctx.inv_rows = [["Headers"], ["... run:test-run ..."]]
@@ -183,7 +188,20 @@ class TestEvaluateRun(unittest.TestCase):
             res = qa_manage.evaluate_run(ctx)
 
         self.assertFalse(res.ready_for_completion)
+        self.assertEqual(len(res.unresolved_edges), 0)
         self.assertTrue(len(res.warnings) > 0)
+
+        args = MagicMock()
+        args.run_id = "test-run"
+        mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
+        with patch("qa_manage.get_services_cached", return_value=mock_services), \
+             patch("qa_manage.load_review_context", return_value=ctx), \
+             patch("qa_manage.evaluate_run", return_value=res), \
+             patch("qa_manage.find_queue", return_value={"id": "mock_id"}), \
+             patch("qa_manage.get_run", return_value=ctx.row):
+            cmd_res = qa_manage.cmd_complete(args)
+            self.assertFalse(cmd_res.ok)
+            self.assertTrue(any("non_existent.csv" in p for p in cmd_res.data["problems"]))
 
     def test_recommended_actions(self):
         # Discovered -> start
@@ -202,6 +220,43 @@ class TestEvaluateRun(unittest.TestCase):
         self.assertEqual(qa_manage.get_recommended_action("processing", "closure", True), "complete")
         # Processing Closure (not ready) -> resolve unmet requirements
         self.assertEqual(qa_manage.get_recommended_action("processing", "closure", False), "resolve unmet requirements")
+
+
+    def test_cmd_review_read_only(self):
+        ctx = MagicMock()
+        ctx.row = {
+            "Run ID": "test-run", "Status": "processing", "Stage": "closure",
+            "Scopes": '[["", "Alice"]]', "Source type": "raw_transcript",
+            "Route variant": "m1", "Source": "doc", "Source hash": "hash",
+            "Entries": '{"|Alice": {"10_M1_People_Management/<Person>/individual_development_plan.gdoc": ["updated", ""]}}',
+            "Started": "2023-10-01T10:00:00Z", "Last mutation": "2023-10-01T10:05:00Z"
+        }
+        ctx.graph = self.mock_graph
+        ctx.all_rows = []
+        ctx.inv_rows = [["Headers"], ["... run:test-run ..."]]
+        ctx.dirty = False
+        ctx.log_entries = [{"run": "test-run", "sha": "12345678"}]
+
+        args = MagicMock()
+        args.run_id = "test-run"
+        mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
+        with patch("qa_manage.get_services_cached", return_value=mock_services), \
+             patch("qa_manage.load_review_context", return_value=ctx), \
+             patch("qa_manage.check_snapshot", return_value=("12345678", "")):
+            res = qa_manage.cmd_review(args)
+
+        self.assertTrue(res.ok)
+        self.assertEqual(res.data["run_id"], "test-run")
+        self.assertEqual(res.data["status"], "processing")
+        self.assertFalse(res.data["ready_for_completion"])
+
+    def test_recommended_actions_extended(self):
+        self.assertEqual(qa_manage.get_recommended_action("needs_scope", "", False), "start")
+        self.assertEqual(qa_manage.get_recommended_action("finalizing", "", False), "retry complete")
+        self.assertEqual(qa_manage.get_recommended_action("finalizing", "", True), "complete")
+        self.assertEqual(qa_manage.get_recommended_action("failed", "", False), "none")
+        self.assertEqual(qa_manage.get_recommended_action("historical", "", False), "none")
+        self.assertEqual(qa_manage.get_recommended_action("ignored", "", False), "none")
 
 if __name__ == "__main__":
     unittest.main()
