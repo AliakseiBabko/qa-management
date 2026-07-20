@@ -103,6 +103,16 @@ import contextlib
 import traceback
 from dataclasses import dataclass, field
 
+@dataclass
+class EvaluationResult:
+    ready_for_completion: bool
+    entry_problems: list[str]
+    unresolved_edges: list[str]
+    warnings: list[str]
+    snapshot_sha: str
+    snapshot_problem: str
+    invocation_present: bool
+
 import yaml
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -588,18 +598,21 @@ class CommandResult:
     exit_code: int = 0
 
 
+def build_json_envelope(ok: bool, command: str, data: dict, warnings: list[str], errors: list[str]) -> dict:
+    return {
+        "schema_version": 1,
+        "ok": ok,
+        "command": command,
+        "data": data,
+        "warnings": warnings,
+        "errors": errors
+    }
+
 class JsonArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         if "--json" in sys.argv:
             cmd = next((arg for arg in sys.argv[1:] if not arg.startswith("-")), "unknown")
-            envelope = {
-                "schema_version": 1,
-                "ok": False,
-                "command": cmd,
-                "data": {},
-                "warnings": [],
-                "errors": [message]
-            }
+            envelope = build_json_envelope(False, cmd, {}, [], [message])
             print(json.dumps(envelope, ensure_ascii=False, indent=1))
             sys.exit(1)
         else:
@@ -813,16 +826,19 @@ def cmd_start(args) -> int:
             row["Started"], row["Reason"] = now(), ""
 
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
-          "skills": row["Skills"], "entry": entry, "scopes": scopes,
-          "reason": row["Reason"]},
-         args.json,
-         [row_brief(row)] +
+    ok = row["Status"] == "processing"
+    return CommandResult(
+        ok=ok,
+        data={"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
+              "skills": row["Skills"], "entry": entry, "scopes": scopes,
+              "reason": row["Reason"]},
+        human_lines=[row_brief(row)] +
          ([f"  load skills: {row['Skills'] or '(shared rules per graph note)'}",
            f"  entry documents to update: {', '.join(entry)}",
            f"  scopes: {scopes}"]
-          if row["Status"] == "processing" else [f"  {row['Reason']}"]))
-    return 0 if row["Status"] == "processing" else 1
+          if ok else [f"  {row['Reason']}"]),
+        exit_code=0 if ok else 1
+    )
 
 
 def cmd_record_analysis(args) -> int:
@@ -904,14 +920,16 @@ def cmd_resolve_edge(args) -> int:
                           args.reason, args.actor]]}).execute()
     row["Last mutation"] = now()
     write_queue(services, sheet, rows)
-    emit({"run_id": args.run_id, "edge": f"{args.source}->{args.target}",
-          "kind": kind, "outcome": args.outcome,
-          "scope": [project, person, variant]},
-         args.json,
-         [f"Recorded: {args.source} -> {args.target} [{kind}] = {args.outcome}"
-          + (f" ({args.reason})" if args.reason else "")
-          + (f"  @{project}/{person}" if project or person else "")])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": args.run_id, "edge": f"{args.source}->{args.target}",
+              "kind": kind, "outcome": args.outcome,
+              "scope": [project, person, variant]},
+        human_lines=[f"Recorded: {args.source} -> {args.target} [{kind}] = {args.outcome}"
+                     + (f" ({args.reason})" if args.reason else "")
+                     + (f"  @{project}/{person}" if project or person else "")],
+        exit_code=0
+    )
 
 
 def cmd_add_scope(args) -> int:
@@ -1056,14 +1074,14 @@ def load_review_context(services, run_id: str) -> ReviewContext:
     from closure_outcomes import fetch_outcomes
     from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_sheet_in_folder, read_sheet_values
     from pipeline_common import SKILL_INVOCATIONS_SHEET
-    
+
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
     row = get_run(rows, run_id)
     graph = load_graph()
-    
+
     all_rows = fetch_outcomes(services, run_id, all_scopes=True)
-    
+
     inv_sheet = find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SKILL_INVOCATIONS_SHEET)
     inv_rows = read_sheet_values(services, inv_sheet["id"]) if inv_sheet else []
 
@@ -1071,7 +1089,7 @@ def load_review_context(services, run_id: str) -> ReviewContext:
     dirty = bool(porcelain.strip())
     if dirty and row["Status"] == "finalizing" and is_queue_only_dirt(porcelain):
         dirty = False
-    
+
     log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
     log_entries = []
     for line in log_raw.splitlines():
@@ -1081,20 +1099,22 @@ def load_review_context(services, run_id: str) -> ReviewContext:
             log_entries.append((sha, float(ts), subject))
         except ValueError:
             continue
-            
+
     return ReviewContext(row, graph, all_rows, inv_rows, dirty, log_entries)
 
-def evaluate_run(ctx: ReviewContext) -> tuple[list[str], str]:
+def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
     from check_cascade_closure import build_resolved, walk
+    from closure_outcomes import row_matches_scope
     row = ctx.row
     graph = ctx.graph
-    
-    if row["Status"] not in ("processing", "finalizing"):
-        return [f"status is {row['Status']!r} (must be processing or finalizing)"], ""
-    if row["Status"] == "processing" and row["Stage"] != "closure":
-        return [f"stage is {row['Stage'] or 'analysis'!r} (must be closure) - record-analysis and record-apply must run first, even for workspace-only routes."], ""
 
-    problems: list[str] = []
+    res = EvaluationResult(False, [], [], [], "", "", False)
+
+    if row["Status"] not in ("processing", "finalizing"):
+        res.entry_problems.append(f"status is {row['Status']!r} (must be processing or finalizing)")
+    elif row["Status"] == "processing" and row["Stage"] != "closure":
+        res.entry_problems.append(f"stage is {row['Stage'] or 'analysis'!r} (must be closure) - record-analysis and record-apply must run first, even for workspace-only routes.")
+
     route = resolve_route(graph, row["Source type"], row["Route variant"])
     entry_docs = route.get("entry") or []
     entries = parse_entries_cell(row["Entries"])
@@ -1105,42 +1125,69 @@ def evaluate_run(ctx: ReviewContext) -> tuple[list[str], str]:
     for proj, pers, variant in scopes:
         label = f"scope ({proj or '-'!s}, {pers or '-'!s}, {variant or '-'!s})"
         scoped_entries = entries_for_scope(entries, proj, pers)
-        problems.extend(f"{label}: {p}" for p in validate_entry_outcomes(entry_docs, scoped_entries))
+        res.entry_problems.extend(f"{label}: {p}" for p in validate_entry_outcomes(entry_docs, scoped_entries))
         seeds = seeds_for_scope(scoped_entries)
-        scoped_rows = [r for r in ctx.all_rows if r["Project"] == proj and r["Person"] == pers and r["Variant"] == variant]
+        scoped_rows = [r for r in ctx.all_rows if row_matches_scope(r, proj, pers, variant)]
         for rec in scoped_rows:
             last_outcome_ts = max(last_outcome_ts, parse_ts(rec.get("Timestamp", "")))
         resolved, warns = build_resolved(scoped_rows, graph)
-        problems.extend(f"{label}: {w}" for w in warns)
+        res.warnings.extend(f"{label}: {w}" for w in warns)
         open_items: list[str] = []
         lines: list[str] = []
         visited_req = set(seeds)
         for node in sorted(seeds):
             walk(graph, node, seeds, visited_req, set(), 0, False, True,
                  resolved, open_items, lines)
-        problems.extend(f"{label}: unresolved edge {item}" for item in open_items)
+        res.unresolved_edges.extend(f"{label}: unresolved edge {item}" for item in open_items)
 
     token = f"run:{row['Run ID']}"
-    if not any(token in " | ".join(r) for r in ctx.inv_rows[1:]):
-        problems.append(f"no _skill_invocations row carries the token '{token}' - "
-                        "log_skill_invocation() with it in Notes")
+    if any(token in " | ".join(r) for r in ctx.inv_rows[1:]):
+        res.invocation_present = True
 
     sha, snap_problem = check_snapshot(ctx.log_entries, row["Run ID"], last_outcome_ts, ctx.dirty)
-    if snap_problem:
-        problems.append(snap_problem)
+    res.snapshot_sha = sha
+    res.snapshot_problem = snap_problem
 
-    return problems, sha
+    res.ready_for_completion = (not res.entry_problems and not res.unresolved_edges
+                                and res.invocation_present and not res.snapshot_problem)
+    return res
 
 
 def cmd_review(args) -> int:
     services = get_services_cached()
     ctx = load_review_context(services, args.run_id)
-    problems, sha = evaluate_run(ctx)
+    eval_res = evaluate_run(ctx)
+    row = ctx.row
+    try:
+        route = resolve_route(ctx.graph, row["Source type"], row["Route variant"])
+    except SystemExit:
+        route = {}
+
+    all_problems = eval_res.entry_problems + eval_res.unresolved_edges + ([eval_res.snapshot_problem] if eval_res.snapshot_problem else []) + (["Missing invocation token"] if not eval_res.invocation_present else [])
+
     return CommandResult(
-        ok=not problems,
-        data={"run_id": args.run_id, "problems": problems},
+        ok=True,
+        data={
+            "run_id": args.run_id,
+            "source": row["Source"],
+            "source_hash": row["Source hash"],
+            "status": row["Status"],
+            "stage": row["Stage"],
+            "scopes": parse_scopes_cell(row["Scopes"]),
+            "skills": route.get("skills", []),
+            "entries": parse_entries_cell(row["Entries"]),
+            "outcomes": ctx.all_rows,
+            "unresolved_edges": eval_res.unresolved_edges,
+            "snapshot_sha": eval_res.snapshot_sha,
+            "snapshot_problem": eval_res.snapshot_problem,
+            "invocation_present": eval_res.invocation_present,
+            "mirror_cleanliness": not ctx.dirty,
+            "ready_for_completion": eval_res.ready_for_completion,
+            "recommended_action": "Run complete" if eval_res.ready_for_completion else "Resolve unmet requirements"
+        },
+        warnings=eval_res.warnings,
         human_lines=[f"Review for {args.run_id}:"] + (
-            [f"  - {p}" for p in problems] if problems else ["  All clear. Ready for complete."]
+            [f"  - {p}" for p in all_problems] if not eval_res.ready_for_completion else ["  All clear. Ready for complete."]
         ),
         exit_code=0
     )
@@ -1150,23 +1197,15 @@ def cmd_complete(args) -> int:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
-    
+
     ctx = load_review_context(services, args.run_id)
-    problems, sha = evaluate_run(ctx)
-    
+    eval_res = evaluate_run(ctx)
+    sha = eval_res.snapshot_sha
+
     row = get_run(rows, args.run_id)
 
-    if problems:
-        return CommandResult(
-            ok=False,
-            data={"run_id": args.run_id, "completed": False, "problems": problems},
-            errors=["Run is not ready for completion"],
-            human_lines=[f"NOT completed - {len(problems)} unmet requirement(s):"] +
-                        [f"  - {p}" for p in problems],
-            exit_code=1
-        )
-
-    if problems:
+    if not eval_res.ready_for_completion:
+        problems = eval_res.entry_problems + eval_res.unresolved_edges + ([eval_res.snapshot_problem] if eval_res.snapshot_problem else []) + (["Missing invocation token"] if not eval_res.invocation_present else [])
         return CommandResult(
             ok=False,
             data={"run_id": args.run_id, "completed": False, "problems": problems},
@@ -1204,7 +1243,7 @@ def cmd_complete(args) -> int:
     terminal_row.update({"Status": "completed", "Stage": "done",
                          "Completed": completed_ts,
                          "Snapshot": row["Snapshot"] or sha})
-    queue_sha = export_queue_terminal(services, sheet, terminal_rows, args.run_id)
+    queue_sha, warnings = export_queue_terminal(services, sheet, terminal_rows, args.run_id)
 
     validate_transition("finalizing", "completed")
     row.update({"Status": "completed", "Stage": "done", "Completed": completed_ts,
@@ -1336,21 +1375,14 @@ def main() -> int:
             if args.debug:
                 traceback.print_exc()
             else:
-                print(f"Internal error: {exc}", file=sys.stderr)
+                print(f"Internal error: {type(exc).__name__}", file=sys.stderr)
             result = CommandResult(ok=False, errors=["Internal error"], exit_code=1)
 
     if not isinstance(result, CommandResult):
         # Fallback if something returned an int
         result = CommandResult(ok=(result == 0), exit_code=result)
 
-    envelope = {
-        "schema_version": 1,
-        "ok": result.ok,
-        "command": args.cmd,
-        "data": result.data,
-        "warnings": result.warnings,
-        "errors": result.errors
-    }
+    envelope = build_json_envelope(result.ok, args.cmd, result.data, result.warnings, result.errors)
     print(json.dumps(envelope, ensure_ascii=False, indent=1))
     return result.exit_code
 

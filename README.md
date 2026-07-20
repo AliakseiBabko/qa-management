@@ -424,7 +424,7 @@ These are what actually runs day to day, once a project's folder already exists:
   course homework folders) are also excluded from `scan` via
   `SCAN_EXCLUDE`. All commands support `--json` for a strict programmatic contract:
   stdout is suppressed during execution, and exactly one JSON envelope containing
-  the command status, exit code, structured data, and human-readable lines is
+  the command status, structured data, warnings, and errors is
   emitted at the end. Transitions are validated against an explicit table
   (unit-tested in `.agents/tests`). The `review <run-id>` command provides a
   read-only evaluation of a run's closure/completion readiness (missing invocation
