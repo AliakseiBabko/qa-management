@@ -289,6 +289,7 @@ class TestSearchWorkspace(unittest.TestCase):
 
     # 7. Exact-limit truncation
     def test_exact_limit(self):
+        # 1. Test 3 matches with limit 2 (should truncate)
         self._write("10_M1_People_Management/a.md", "content\ncontent\ncontent")
         self._git("add", ".")
         self._git("commit", "-m", "A")
@@ -298,6 +299,17 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertTrue(data["data"]["truncated"])
         self.assertEqual(data["data"]["result_count"], 2)
+
+        # 2. Test 2 matches with limit 2 (should NOT truncate)
+        self._write("10_M1_People_Management/b.md", "def\ndef")
+        self._git("add", ".")
+        self._git("commit", "-m", "B")
+        
+        res2 = self.run_cli("search", "def", "--limit", "2", "--json")
+        data2 = json.loads(res2.stdout)
+        self.assertTrue(data2["ok"])
+        self.assertFalse(data2["data"]["truncated"])
+        self.assertEqual(data2["data"]["result_count"], 2)
 
     # 8. Deterministic ordering
     def test_deterministic_ordering(self):
