@@ -207,15 +207,16 @@ class TestPhase4(unittest.TestCase):
             errs = qa_manage.check_source_text_snapshot(sha, row)
             self.assertEqual(len(errs), 0)
 
-            class DummyCtx:
-                def __init__(self, r):
-                    self.row = r
-                    self.log = []
-                    self.graph = {}
-                    self.inv_rows = [["header"], ["run:run-snap"]]
+            ctx = qa_manage.ReviewContext(
+                row=row,
+                graph={},
+                all_rows=[],
+                inv_rows=[["header"], ["run:run-snap"]],
+                dirty=False,
+                log_entries=[],
+            )
 
-            # Test evaluate_run using it implicitly
-            res = qa_manage.evaluate_run(DummyCtx(row))
+            res = qa_manage.evaluate_run(ctx)
             self.assertEqual(res.snapshot_problem, "")
 
             # Delete the blob from tree
@@ -230,7 +231,7 @@ class TestPhase4(unittest.TestCase):
             self.assertGreater(len(errs), 0)
             self.assertTrue(any("Missing or unreadable blob" in e for e in errs))
 
-            res2 = qa_manage.evaluate_run(DummyCtx(row))
+            res2 = qa_manage.evaluate_run(ctx)
             self.assertNotEqual(res2.snapshot_problem, "")
             self.assertTrue("Missing or unreadable blob" in res2.snapshot_problem)
 

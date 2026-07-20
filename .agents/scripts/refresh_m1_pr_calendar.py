@@ -58,7 +58,7 @@ def compute_row(name_ru: str, name_en: str, hire: dt.date | None, last_pr: dt.da
     person = name_ru or name_en
     window_open, window_close, basis = expected_pr_window(hire, last_pr)
 
-    if window_open is None:
+    if window_open is None or window_close is None:
         return [person, "нет данных", "", "", "", "Нет данных", "Нужна «Дата трудоустройства» в _people_registry"]
 
     anchor = last_pr if last_pr is not None else hire

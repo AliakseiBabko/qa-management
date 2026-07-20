@@ -100,9 +100,22 @@ def sanitize(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip().rstrip(".")
 
 
-def run_git(mirror: Path, *args: str) -> subprocess.CompletedProcess:
+def run_git(mirror: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(mirror), *args],
                           capture_output=True, text=True, encoding="utf-8")
+
+
+def refresh_bundle(mirror: Path) -> str:
+    """Pack the mirror's full history into the Drive recovery bundle."""
+    try:
+        BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
+        bundle = BUNDLE_DIR / "mirror.bundle"
+        res = mirror_git(mirror, "bundle", "create", str(bundle), "--all")
+        if res.returncode == 0:
+            return f"Bundle backup refreshed: {bundle}"
+        return f"Bundle backup FAILED (history is still safe locally): {res.stderr.strip()}"
+    except OSError as exc:
+        return f"Bundle backup FAILED (history is still safe locally): {exc}"
 
 
 def list_children(drive, folder_id: str) -> list[dict]:
@@ -384,3 +397,7 @@ def main() -> int:
     if not args.no_bundle:
         print(refresh_bundle(mirror))
     return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -2,11 +2,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-def mirror_git(mirror: Path, *args: str) -> subprocess.CompletedProcess:
+def mirror_git(mirror: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(mirror), *args],
                           capture_output=True, text=True, encoding="utf-8")
 
-def mirror_git_bytes(mirror: Path, *args: str) -> subprocess.CompletedProcess:
+def mirror_git_bytes(mirror: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(["git", "-C", str(mirror), *args],
                           capture_output=True)
 
