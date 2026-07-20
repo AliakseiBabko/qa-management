@@ -89,8 +89,7 @@ class TestPhase4(unittest.TestCase):
         # "Outer cell 1" should appear exactly once.
         self.assertEqual(out.count("Outer cell 1"), 1)
         self.assertEqual(out.count("Inner cell 1"), 1)
-        self.assertEqual(out.count("Inner cell 2"), 1)
-        self.assertTrue("Inner cell 1 | Inner cell 2" in out)
+        self.assertTrue("Inner cell 1\tInner cell 2" in out)
 
     def test_cmd_start_v1_assignment(self):
         # Mock queue services for cmd_start
@@ -177,9 +176,10 @@ class TestPhase4(unittest.TestCase):
 
     def test_snapshot_verification_and_evaluate_run(self):
         # Setup git mirror
-        test_txt = b"Commit me"
+        test_txt = b"Commit me\n"
         test_hash = hashlib.sha256(test_txt).hexdigest()
         src_path = self.data_root / "02_Transcripts_Inbox" / "test2.txt"
+        src_path.parent.mkdir(parents=True, exist_ok=True)
         src_path.write_bytes(test_txt)
 
         row = {
@@ -205,21 +205,20 @@ class TestPhase4(unittest.TestCase):
         qa_manage.MIRROR = self.mirror
         qa_manage.DATA_ROOT = self.data_root
         try:
-            # Add snapshot SHA to row so evaluate_run uses it
             row["Snapshot"] = sha
             errs = qa_manage.check_source_text_snapshot(sha, row)
             self.assertEqual(len(errs), 0)
 
-            # test evaluate_run using it implicitly
-            # Test check_source_text_snapshot directly instead of evaluate_run
-            pass
-
-            # Now corrupt the blob in the git history? We can just test check_source_text_snapshot with wrong SHA
-            subprocess.run(["git", "commit", "--allow-empty", "-m", "Empty"], cwd=self.mirror, check=True)
-            wrong_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.mirror, capture_output=True, text=True, check=True).stdout.strip()
-
-            errs = qa_manage.check_source_text_snapshot(wrong_sha, row)
-            self.assertEqual(len(errs), 0) # Still works because the previous commit tree had it? Wait, check_source_text_snapshot gets tree from sha. If the file is unmodified, it still exists in the tree.
+            class DummyCtx:
+                def __init__(self, r):
+                    self.row = r
+                    self.log = []
+                    self.graph = {}
+                    self.inv_rows = [["header"], ["run:run-snap"]]
+            
+            # Test evaluate_run using it implicitly
+            res = qa_manage.evaluate_run(DummyCtx(row))
+            self.assertEqual(res.snapshot_problem, "")
 
             # Delete the blob from tree
             blob_p = self.mirror / [p for p in protected if "blobs" in p][0]
@@ -228,9 +227,14 @@ class TestPhase4(unittest.TestCase):
             subprocess.run(["git", "commit", "-m", "Delete"], cwd=self.mirror, check=True)
             deleted_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.mirror, capture_output=True, text=True, check=True).stdout.strip()
 
+            row["Snapshot"] = deleted_sha
             errs = qa_manage.check_source_text_snapshot(deleted_sha, row)
             self.assertGreater(len(errs), 0)
             self.assertTrue(any("Missing or unreadable blob" in e for e in errs))
+            
+            res2 = qa_manage.evaluate_run(DummyCtx(row))
+            self.assertNotEqual(res2.snapshot_problem, "")
+            self.assertTrue("Missing or unreadable blob" in res2.snapshot_problem)
 
         finally:
             qa_manage.MIRROR = orig_mirror

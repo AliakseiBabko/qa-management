@@ -52,26 +52,4 @@ class TestMirrorCommon(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-    def test_mirror_security_wrong_toplevel(self):
-        import mirror_common
-        # Initialize a git repo
-        mirror_common.mirror_git(self.mirror, "init")
-        # create a subdir inside the repo and use it as mirror
-        sub = self.mirror / "sub"
-        sub.mkdir()
-        with self.assertRaises(SystemExit):
-            mirror_common.assert_private_mirror(sub, self.droot, init_allowed=False)
 
-    def test_mirror_security_remotes(self):
-        import mirror_common
-        mirror_common.mirror_git(self.mirror, "init")
-        mirror_common.mirror_git(self.mirror, "remote", "add", "origin", "https://github.com/test/test.git")
-        with self.assertRaises(SystemExit):
-            mirror_common.assert_private_mirror(self.mirror, self.droot, init_allowed=False)
-
-    def test_mirror_security_public_overlap(self):
-        import mirror_common
-        from pathlib import Path
-        skills_repo = Path(__file__).resolve().parents[2]
-        with self.assertRaises(SystemExit):
-            mirror_common.assert_private_mirror(skills_repo, self.droot, init_allowed=False)

@@ -24,6 +24,16 @@ def source_text_requirement(row: dict) -> str:
         return "not_applicable"
     return "optional"
 
+def source_text_requirement(row: dict) -> str:
+    src_type = row.get("Source type", "")
+    ext = Path(row.get("Source", "")).suffix.casefold()
+    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
+        if ext in {".txt", ".md", ".docx"}:
+            return "required"
+    if src_type in {"admin_note", "m2_conversation"}:
+        return "not_applicable"
+    return "optional"
+
 # We do NOT import qa_manage here at module load.
 from mirror_common import assert_private_mirror
 
@@ -138,42 +148,38 @@ def docx_to_text_v1(raw_bytes: bytes) -> str:
                 if body is None:
                     raise ExtractionError("No body tag found")
 
-                def walk_doc(node):
-                    tag = node.tag.split('}')[-1] if '}' in node.tag else node.tag
-                    if tag == "p":
-                        para_text = extract_paragraph(node)
-                        parts.append(para_text)
-                    elif tag == "tbl":
-                        for row in list(node):
-                            rtag = row.tag.split('}')[-1] if '}' in row.tag else row.tag
-                            if rtag != "tr":
-                                walk_doc(row)
-                                continue
-                            row_cells = []
-                            for cell in list(row):
-                                ctag = cell.tag.split('}')[-1] if '}' in cell.tag else cell.tag
-                                if ctag != "tc":
-                                    walk_doc(cell)
-                                    continue
+                def extract_table(tbl) -> str:
+                    rows = []
+                    for child in list(tbl):
+                        ctag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                        if ctag == "tr":
+                            rows.append(extract_row(child))
+                    return "\n".join(rows)
 
-                                cell_parts = []
-                                # Only process direct children for this cell's text
-                                for cchild in list(cell):
-                                    cchild_tag = cchild.tag.split('}')[-1] if '}' in cchild.tag else cchild.tag
-                                    if cchild_tag == "p":
-                                        cell_parts.append(extract_paragraph(cchild))
-                                    else:
-                                        # Recurse for nested tables inside cells
-                                        walk_doc(cchild)
-                                row_cells.append(" ".join(cell_parts))
-                            if row_cells:
-                                parts.append(" | ".join(row_cells))
-                    else:
-                        for child in list(node):
-                            walk_doc(child)
+                def extract_row(row) -> str:
+                    cells = []
+                    for child in list(row):
+                        ctag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                        if ctag == "tc":
+                            cells.append(extract_cell(child))
+                    return "\t".join(cells)
+
+                def extract_cell(cell) -> str:
+                    cell_parts = []
+                    for child in list(cell):
+                        ctag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                        if ctag == "p":
+                            cell_parts.append(extract_paragraph(child))
+                        elif ctag == "tbl":
+                            cell_parts.append(extract_table(child))
+                    return "\n".join(cell_parts)
 
                 for child in list(body):
-                    walk_doc(child)
+                    ctag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                    if ctag == "p":
+                        parts.append(extract_paragraph(child))
+                    elif ctag == "tbl":
+                        parts.append(extract_table(child))
 
     except zipfile.BadZipFile:
         raise ExtractionError("Not a valid ZIP/DOCX file")
@@ -202,7 +208,7 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
     exact_path = data_root / norm_q_path
     if exact_path.is_file():
         try:
-            if exact_path.resolve().is_relative_to(data_root_res):
+            if any(exact_path.resolve().is_relative_to((data_root / r).resolve()) for r in SOURCE_TEXT_SEARCH_ROOTS):
                 b = exact_path.read_bytes()
                 h = get_full_sha256(b)
                 if h.startswith(q_hash):
@@ -217,17 +223,14 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
         search_dir = data_root / root_rel
         if not search_dir.is_dir():
             continue
-        try:
-            if not search_dir.resolve().is_relative_to(data_root_res):
-                continue
-        except Exception:
-            continue
 
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
                 try:
-                    if not candidate.resolve().is_relative_to(data_root_res):
+                    if candidate.suffix.casefold() not in ALLOWED_EXTENSIONS:
+                        continue
+                    if not candidate.resolve().is_relative_to(search_dir.resolve()):
                         continue
                     b = candidate.read_bytes()
                     h = get_full_sha256(b)
@@ -249,9 +252,10 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
         return candidates[0], full_hash, candidates[0].read_bytes()
 
     original_name = Path(norm_q_path).name.casefold()
-    def score_candidate(p: Path) -> Tuple[int, str]:
+    def score_candidate(p: Path) -> Tuple[int, str, str]:
         score = 0 if p.name.casefold() == original_name else 1
-        return (score, p.as_posix().casefold())
+        rel_posix = p.relative_to(data_root).as_posix()
+        return (score, rel_posix.casefold(), rel_posix)
 
     candidates.sort(key=score_candidate)
     chosen = candidates[0]
@@ -259,6 +263,10 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
 
 def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, bytes]:
     """Search approved roots exclusively for exact 64-char equivalence, disregarding basenames."""
+    import re
+    if not isinstance(full_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", full_sha256):
+        raise ExtractionError(f"Invalid full_hash: {full_sha256}")
+        
     data_root_res = data_root.resolve()
     matches = []
 
@@ -266,17 +274,14 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
         search_dir = data_root / root_rel
         if not search_dir.is_dir():
             continue
-        try:
-            if not search_dir.resolve().is_relative_to(data_root_res):
-                continue
-        except Exception:
-            continue
 
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
                 try:
-                    if not candidate.resolve().is_relative_to(data_root_res):
+                    if candidate.suffix.casefold() not in ALLOWED_EXTENSIONS:
+                        continue
+                    if not candidate.resolve().is_relative_to(search_dir.resolve()):
                         continue
                     b = candidate.read_bytes()
                     h = get_full_sha256(b)
@@ -288,7 +293,7 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
     if not matches:
         raise ExtractionError(f"Could not resolve file matching exact hash {full_sha256}")
 
-    matches.sort(key=lambda x: x[0].as_posix().casefold())
+    matches.sort(key=lambda x: (x[0].relative_to(data_root).as_posix().casefold(), x[0].relative_to(data_root).as_posix()))
     return matches[0]
 
 def verify_manifest_entry(row: Dict[str, Any], manifest_entry: Dict[str, Any], blob_loader, raw_source_resolver=None) -> List[str]:
@@ -569,11 +574,20 @@ def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> Non
     warnings = []
     errors = []
     protected = set()
+    
+    # Needs to be imported inside or passed in since it's now exported correctly
+    from qa_manage import source_text_requirement
+    
     for row in queue_rows:
         key = f"{row.get('Run ID', '')}:v1"
         existing = old_manifest.get(key)
 
         is_v1 = (str(row.get("Source text version", "")).strip() == "1")
+        req = source_text_requirement(row)
+
+        if is_v1 and req != "required":
+            errors.append(f"{row.get('Run ID', '')}: Source text version is 1 but requirement is {req}")
+
         if existing:
             def blob_loader(p):
                 return (mirror / p).read_bytes()
@@ -589,7 +603,7 @@ def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> Non
         else:
             state = row.get("Status", "")
             if is_v1 and state in ("needs_scope", "processing", "blocked", "finalizing", "completed"):
-                if source_text_requirement(row) == "required":
+                if req == "required":
                     errors.append(f"{row.get('Run ID', '')}: missing mandatory v1 manifest entry")
 
     if is_json:
