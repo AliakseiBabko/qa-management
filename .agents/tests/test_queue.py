@@ -16,8 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from qa_manage import (STATES, TRANSITIONS, check_snapshot, discovery_action,
                        entries_for_scope, enumerate_run_scopes, mint_run_id,
                        needed_scopes, parse_outcome_args, resolve_route,
-                       seeds_for_scope, validate_entry_outcomes,
-                       validate_transition)
+                       resolve_scope_args, seeds_for_scope,
+                       validate_entry_outcomes, validate_transition)
 
 GRAPH = {
     "documents": {
@@ -31,6 +31,8 @@ GRAPH = {
             "m1": {"skills": ["s1"], "entry": ["pers_doc"]},
             "m2": {"skills": ["s2"], "entry": ["proj_doc", "pers_doc"]},
         }},
+        "ws_person_type": {"skills": [], "entry": ["ws_doc"],
+                           "scope_required": ["person"]},
     },
 }
 
@@ -39,9 +41,10 @@ class TestTransitions(unittest.TestCase):
     def test_happy_path(self):
         for a, b in [("discovered", "processing"), ("discovered", "needs_scope"),
                      ("needs_scope", "processing"), ("processing", "blocked"),
-                     ("blocked", "processing"), ("processing", "completed"),
+                     ("blocked", "processing"),
                      ("processing", "failed"), ("discovered", "historical"),
-                     ("failed", "historical")]:
+                     ("failed", "historical"), ("processing", "finalizing"),
+                     ("finalizing", "completed"), ("finalizing", "failed")]:
             validate_transition(a, b)  # must not raise
 
     def test_completed_and_historical_are_terminal(self):
@@ -57,8 +60,9 @@ class TestTransitions(unittest.TestCase):
                 validate_transition("failed", target)
 
     def test_cannot_skip_to_completed(self):
-        with self.assertRaises(SystemExit):
-            validate_transition("discovered", "completed")
+        for source in ("discovered", "ready", "processing"):
+            with self.assertRaises(SystemExit):
+                validate_transition(source, "completed")
 
     def test_every_transition_target_is_a_state(self):
         for source, targets in TRANSITIONS.items():
@@ -95,12 +99,23 @@ class TestMintRunId(unittest.TestCase):
     def test_deterministic_and_slugged(self):
         rid = mint_run_id(r"02_Transcripts_Inbox\Aslan 1to1 2026-07-17.txt",
                           "abcdef0123456789", date="20260719")
-        self.assertEqual(rid, "20260719-aslan-1to1-2026-07-17-abcdef")
+        self.assertTrue(rid.startswith("20260719-aslan-1to1-2026-07-17-abcdef"))
+        self.assertEqual(rid, mint_run_id(r"02_Transcripts_Inbox\Aslan 1to1 2026-07-17.txt",
+                                          "abcdef0123456789", date="20260719"))
 
     def test_hash_suffix_disambiguates_same_name(self):
         a = mint_run_id("x/meeting.txt", "aaaa111122223333", date="20260719")
         b = mint_run_id("y/meeting.txt", "bbbb111122223333", date="20260719")
         self.assertNotEqual(a, b)
+
+    def test_identical_content_same_filename_different_dirs_is_unique(self):
+        a = mint_run_id("x/meeting.txt", "aaaa111122223333", date="20260719")
+        b = mint_run_id("y/meeting.txt", "aaaa111122223333", date="20260719")
+        self.assertNotEqual(a, b)
+
+    def test_path_normalization_keeps_id_stable(self):
+        self.assertEqual(mint_run_id(r"x\meeting.txt", "aaaa111122223333", date="20260719"),
+                         mint_run_id("x/meeting.txt", "aaaa111122223333", date="20260719"))
 
 
 class TestResolveRoute(unittest.TestCase):
@@ -130,11 +145,15 @@ class TestResolveRoute(unittest.TestCase):
 
 class TestNeededScopes(unittest.TestCase):
     def test_project_and_person_detected(self):
-        self.assertEqual(needed_scopes(GRAPH, ["proj_doc", "pers_doc"]),
+        self.assertEqual(needed_scopes(GRAPH, {"entry": ["proj_doc", "pers_doc"]}),
                          {"project", "person"})
 
     def test_workspace_needs_nothing(self):
-        self.assertEqual(needed_scopes(GRAPH, ["ws_doc"]), set())
+        self.assertEqual(needed_scopes(GRAPH, {"entry": ["ws_doc"]}), set())
+
+    def test_scope_required_overrides_workspace_entries(self):
+        self.assertEqual(needed_scopes(GRAPH, GRAPH["sources"]["ws_person_type"]),
+                         {"person"})
 
 
 class TestEnumerateRunScopes(unittest.TestCase):
@@ -155,8 +174,10 @@ class TestEnumerateRunScopes(unittest.TestCase):
         self.assertIn(("P2", "Bob", "m1"), scopes)
         self.assertIn(("P3", "Carol", ""), scopes)
 
-    def test_no_declared_scope_yields_nothing_invented(self):
-        self.assertEqual(enumerate_run_scopes([], [], {}, ""), [])
+    def test_no_scope_anywhere_defaults_to_workspace_scope(self):
+        # Never empty: complete must always have at least one scope to check.
+        self.assertEqual(enumerate_run_scopes([], [], {}, ""), [("", "", "")])
+        self.assertEqual(enumerate_run_scopes([], [], {}, "v"), [("", "", "v")])
 
 
 class TestEntriesForScope(unittest.TestCase):
@@ -184,6 +205,37 @@ class TestEntriesForScope(unittest.TestCase):
     def test_seeds_are_only_updated_entries(self):
         self.assertEqual(seeds_for_scope(entries_for_scope(self.ENTRIES, "P2", "Bob")),
                          {"ws_doc"})
+
+    def test_specific_outcome_beats_wildcard_regardless_of_order(self):
+        specific_first = {"P1|Alice": {"doc": ["updated", ""]},
+                          "|": {"doc": ["no_change", "wildcard"]}}
+        wildcard_first = {"|": {"doc": ["no_change", "wildcard"]},
+                          "P1|Alice": {"doc": ["updated", ""]}}
+        for entries in (specific_first, wildcard_first):
+            scoped = entries_for_scope(entries, "P1", "Alice")
+            self.assertEqual(scoped["doc"], ["updated", ""])
+
+
+class TestResolveScopeArgs(unittest.TestCase):
+    def row(self, scopes):
+        import json
+        return {"Run ID": "r1", "Scopes": json.dumps(scopes) if scopes else ""}
+
+    def test_explicit_args_win(self):
+        self.assertEqual(resolve_scope_args(self.row([["P1", "A"], ["P2", "B"]]),
+                                            "P2", "B", "x"), ("P2", "B"))
+
+    def test_single_scope_defaults(self):
+        self.assertEqual(resolve_scope_args(self.row([["P1", "A"]]), "", "", "x"),
+                         ("P1", "A"))
+
+    def test_no_scope_is_workspace(self):
+        self.assertEqual(resolve_scope_args(self.row([]), "", "", "x"), ("", ""))
+
+    def test_multi_scope_without_args_is_rejected(self):
+        # Defaulting here would store a wildcard record satisfying every scope.
+        with self.assertRaises(SystemExit):
+            resolve_scope_args(self.row([["P1", "A"], ["P2", "B"]]), "", "", "x")
 
 
 class TestEntryOutcomeValidation(unittest.TestCase):

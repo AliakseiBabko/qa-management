@@ -84,15 +84,19 @@ sources:
     # Historical M1 documents (imported 1to1 history, prior-period records).
     # M1 scope: no project evidence_log unless the content is project-scoped;
     # _skill_invocations plus the longitudinal record carry the trail.
+    # Person-centric regardless of entry-document scopes.
     skills: [m1-people-1to1-file]
     entry: [m1_1to1_file, _people_registry, _skill_invocations]
+    scope_required: [person]
   people_case_chat:
     # Person-specific incident chat (e.g. a leaving case) - people-risk
     # evidence first, distinct from a project-wide strategy chat. Same M1
     # evidence rule as m1_history; add the project's evidence_log only when
-    # the case is genuinely project-scoped.
+    # the case is genuinely project-scoped. Person-centric regardless of
+    # entry-document scopes.
     skills: [m1-people-risk-report]
     entry: [m1_risk_report, _people_registry, _skill_invocations]
+    scope_required: [person]
   m2_conversation:
     # M2's own comments/answers/corrections given in conversation - a
     # first-class source, not a side channel. No source-specific skill:
