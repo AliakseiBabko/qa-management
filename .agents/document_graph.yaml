@@ -268,6 +268,13 @@ documents:
     append_only: true
     downstream: []
 
+  _intake_queue:
+    # Run state machine rows (qa_manage.py): source hash, classification,
+    # status/stage, short summaries. Operational metadata; rows are updated
+    # in place as a run progresses (not append-only).
+    scope: workspace
+    downstream: []
+
   # ---- M1 chain ----
   m1_1to1_file:
     scope: person

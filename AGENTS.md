@@ -102,10 +102,19 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `--registries`. Read-only, safe to run anytime, creates nothing. Add
      `--summary` for a cheap one-liner per project (People count, risk
      level, last evidence_log date) to triage before pulling a full dump.
+   - Processing a new source? — the intake workflow runs through
+     `.agents\scripts\qa_manage.py` (state machine; you keep the
+     judgment): `scan` → `next` → read the source → `start <run-id>
+     --source-type ... [--variant/--project/--person]` → apply the listed
+     skills → `record-analysis` → `resolve-edge` per cascade edge →
+     `commit_workspace_state.py -m "...[<run-id>]"` → `complete`. Use
+     the queue's Run ID in `_skill_invocations` notes and the mirror
+     commit message — `complete` verifies both.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
-     (`_strategy` chats specifically).
+     (`_strategy` chats specifically) — or `qa_manage.py scan`, which
+     also creates queue rows.
    - Just routed a source into project documents? —
      `.agents\scripts\check_cascade_closure.py --touched <docs>` (or
      `--from-log 1`) expands `.agents\document_graph.yaml` and flags every

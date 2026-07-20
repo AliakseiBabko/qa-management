@@ -382,6 +382,22 @@ These are what actually runs day to day, once a project's folder already exists:
   `_skill_invocations`, originals stay), run `check_cascade_closure.py` on
   the restored docs, then `commit_workspace_state.py` to record the
   post-rollback state.
+- `qa_manage.py` — intake queue and run state machine (the durable-state
+  layer; the agent keeps all judgment). `scan` discovers new source files
+  into the workspace `_intake_queue` Sheet idempotently (content hash);
+  `next`/`status` are read-only; `start <run-id>` records the agent's
+  classification, validated against the graph (canonical source_type,
+  route variant, and scope required by the route's entry documents —
+  missing scope becomes `needs_scope`, never a silent default);
+  `record-analysis` stores a short summary + touched documents;
+  `resolve-edge` records closure outcomes via `closure_outcomes`'s shared
+  validation; `block`/`resume [--continue]` handle gates and report the
+  exact unfinished stage; `complete` is a verification gate — route entry
+  documents all touched, strict closure per every (project, person,
+  variant) scope in the run, a `_skill_invocations` row referencing the
+  run, and a mirror snapshot tagged with the run id — only then
+  `completed`. All commands support `--json`. State transitions are
+  validated against an explicit table (unit-tested in `.agents/tests`).
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,
