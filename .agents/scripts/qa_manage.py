@@ -217,6 +217,27 @@ def resolve_route(graph: dict, source_type: str, variant: str) -> dict:
     return spec
 
 
+def missing_scope_fields(need: set[str], project: str, person: str) -> list[str]:
+    """Which of the route's required scope fields this tuple fails to
+    carry. Shared by start and add-scope so a later-added scope can't
+    bypass the validation start enforces."""
+    return sorted(s for s in need
+                  if not (project if s == "project" else person).strip())
+
+
+def dedup_scopes(scopes: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Order-preserving, case-insensitive dedup (first spelling wins) -
+    membership checks are casefold, so dedup must be too."""
+    seen: set[tuple[str, str]] = set()
+    out: list[tuple[str, str]] = []
+    for proj, pers in scopes:
+        key = (proj.strip().casefold(), pers.strip().casefold())
+        if key not in seen:
+            seen.add(key)
+            out.append((proj.strip(), pers.strip()))
+    return out
+
+
 def needed_scopes(graph: dict, route: dict) -> set[str]:
     """Which scope fields the route demands: derived from its entry
     documents' graph scope, plus the route's own explicit `scope_required`
@@ -502,10 +523,14 @@ def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: st
         raise SystemExit(f"mirror git add failed: {res.stderr.strip()}")
     msg = f"queue: {run_id} completed [{run_id}]"
     if not mirror_git("status", "--porcelain").stdout.strip():
-        # Nothing to commit - a previous attempt already landed it; verify.
+        # Nothing to commit - a previous attempt already landed it; verify,
+        # and refresh the bundle too (the earlier attempt may have crashed
+        # between its commit and its bundle refresh).
         for line in mirror_git("log", "-20", "--format=%H|%s").stdout.splitlines():
             sha, _, subject = line.partition("|")
             if subject.strip() == msg:
+                from commit_workspace_state import refresh_bundle
+                print(refresh_bundle(MIRROR))
                 return sha
         raise SystemExit("mirror is clean but no terminal queue commit for "
                          f"{run_id} exists - inspect the mirror before retrying.")
@@ -696,8 +721,7 @@ def cmd_start(args) -> int:
         scopes.append((proj.strip(), pers.strip()))
     if args.project or args.person:
         scopes.append((args.project.strip(), args.person.strip()))
-    # de-dup, preserve order
-    scopes = list(dict.fromkeys(scopes))
+    scopes = dedup_scopes(scopes)
 
     def mutate(row: dict) -> None:
         row["Source type"] = args.source_type
@@ -706,10 +730,11 @@ def cmd_start(args) -> int:
         row["Project"] = "; ".join(dict.fromkeys(p for p, _ in scopes if p))
         row["Person"] = "; ".join(dict.fromkeys(p for _, p in scopes if p))
         row["Skills"] = ", ".join(route.get("skills") or [])
-        missing = sorted(
-            s for s in need
-            if not scopes or any(not (proj if s == "project" else pers).strip()
-                                 for proj, pers in scopes))
+        if scopes:
+            missing = sorted({m for proj, pers in scopes
+                              for m in missing_scope_fields(need, proj, pers)})
+        else:
+            missing = sorted(need)
         if missing:
             validate_transition(row["Status"], "needs_scope")
             row["Status"] = "needs_scope"
@@ -820,14 +845,25 @@ def cmd_resolve_edge(args) -> int:
 def cmd_add_scope(args) -> int:
     if not (args.project or args.person):
         raise SystemExit("add-scope needs --project and/or --person.")
+    graph = load_graph()
 
     def mutate(row: dict) -> None:
         if row["Status"] != "processing":
             raise SystemExit(f"add-scope requires status=processing (is {row['Status']!r}).")
+        # Same validation start enforces - a later-declared scope must carry
+        # every field the route requires, or a project-only/person-only
+        # tuple would sneak past start's gate.
+        route = resolve_route(graph, row["Source type"], row["Route variant"])
+        missing = missing_scope_fields(needed_scopes(graph, route),
+                                       args.project, args.person)
+        if missing:
+            raise SystemExit(f"add-scope: this route requires {'/'.join(missing)} - "
+                             f"the new scope must carry --{' and --'.join(missing)}.")
         scopes = parse_scopes_cell(row["Scopes"])
         new = (args.project.strip(), args.person.strip())
-        if new in scopes:
-            raise SystemExit(f"scope {new} is already declared on {row['Run ID']}.")
+        if len(dedup_scopes(scopes + [new])) == len(scopes):
+            raise SystemExit(f"scope {new} is already declared on {row['Run ID']} "
+                             "(case-insensitive).")
         scopes.append(new)
         row["Scopes"] = json.dumps(scopes, ensure_ascii=False)
         row["Project"] = "; ".join(dict.fromkeys(p for p, _ in scopes if p))
@@ -1000,11 +1036,18 @@ def cmd_complete(args) -> int:
     # is no post-terminal step left to fail.
     if row["Status"] == "processing":
         validate_transition(row["Status"], "finalizing")
+        # The intended completion timestamp is fixed here and reused on
+        # every retry - otherwise a retry in a later minute would produce a
+        # second, differing terminal commit instead of recognizing the one
+        # already landed. Last mutation is deliberately NOT bumped: this
+        # transition is the queue's own bookkeeping, not a business
+        # mutation, and bumping it would make the already-verified snapshot
+        # look stale on every retry.
         row["Status"], row["Snapshot"] = "finalizing", sha
-        row["Last mutation"] = now()
+        row["Completed"] = now()
         write_queue(services, sheet, rows)
 
-    completed_ts = now()
+    completed_ts = row["Completed"] or now()
     terminal_rows = [dict(r) for r in rows]
     terminal_row = next(r for r in terminal_rows if r["Run ID"] == args.run_id)
     terminal_row.update({"Status": "completed", "Stage": "done",

@@ -13,9 +13,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from qa_manage import (STATES, TRANSITIONS, check_snapshot, discovery_action,
-                       entries_for_scope, enumerate_run_scopes,
-                       is_queue_only_dirt, mint_run_id, needed_scopes,
+from qa_manage import (STATES, TRANSITIONS, check_snapshot, dedup_scopes,
+                       discovery_action, entries_for_scope,
+                       enumerate_run_scopes, is_queue_only_dirt, mint_run_id,
+                       missing_scope_fields, needed_scopes,
                        parse_outcome_args, resolve_route, resolve_scope_args,
                        seeds_for_scope, validate_entry_outcomes,
                        validate_transition)
@@ -155,6 +156,32 @@ class TestNeededScopes(unittest.TestCase):
     def test_scope_required_overrides_workspace_entries(self):
         self.assertEqual(needed_scopes(GRAPH, GRAPH["sources"]["ws_person_type"]),
                          {"person"})
+
+
+class TestMissingScopeFields(unittest.TestCase):
+    def test_partial_tuple_fails_route_requirements(self):
+        # The add-scope bypass: a project-only tuple on a route that
+        # requires both must be rejected the same way start rejects it.
+        self.assertEqual(missing_scope_fields({"project", "person"}, "P1", ""),
+                         ["person"])
+        self.assertEqual(missing_scope_fields({"project", "person"}, "", "Alice"),
+                         ["project"])
+
+    def test_complete_tuple_passes(self):
+        self.assertEqual(missing_scope_fields({"project", "person"}, "P1", "Alice"), [])
+
+    def test_no_requirements_pass_anything(self):
+        self.assertEqual(missing_scope_fields(set(), "", ""), [])
+
+
+class TestDedupScopes(unittest.TestCase):
+    def test_differently_cased_copies_collapse_first_spelling_wins(self):
+        self.assertEqual(dedup_scopes([("P1", "Alice"), ("p1", "ALICE"), ("P2", "Bob")]),
+                         [("P1", "Alice"), ("P2", "Bob")])
+
+    def test_distinct_tuples_kept_in_order(self):
+        self.assertEqual(dedup_scopes([("P2", "Bob"), ("P1", "Alice")]),
+                         [("P2", "Bob"), ("P1", "Alice")])
 
 
 class TestEnumerateRunScopes(unittest.TestCase):
