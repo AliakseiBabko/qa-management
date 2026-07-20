@@ -205,16 +205,27 @@ class TestJsonContract(unittest.TestCase):
         import json
         from io import StringIO
 
-        args = ["qa_manage.py", "status", "--json"]
-        with patch("sys.argv", args), patch("qa_manage.cmd_status", return_value=0), patch("sys.stdout", new_callable=StringIO) as mock_out:
-            code = qa_manage.main()
+        test_cases = [
+            (["qa_manage.py", "status", "--json"], "cmd_status", "status"),
+            (["qa_manage.py", "--json", "status"], "cmd_status", "status"),
+            (["qa_manage.py", "--json", "--debug", "status"], "cmd_status", "status"),
+            (["qa_manage.py", "status", "--json", "--debug"], "cmd_status", "status"),
+            (["qa_manage.py", "record-analysis", "run-1", "--summary", "x", "--json"], "cmd_record_analysis", "record-analysis"),
+            (["qa_manage.py", "--json", "record-apply", "run-1", "--updated", "doc"], "cmd_record_apply", "record-apply"),
+        ]
 
-        self.assertEqual(code, 0)
-        output = mock_out.getvalue()
-        data = json.loads(output)
-        self.assertEqual(data["schema_version"], 1)
-        self.assertTrue(data["ok"])
-        self.assertEqual(data["command"], "status")
+        for args, mock_cmd, cmd_name in test_cases:
+            with patch("sys.argv", args), \
+                 patch(f"qa_manage.{mock_cmd}", return_value=0), \
+                 patch("sys.stdout", new_callable=StringIO) as mock_out:
+                code = qa_manage.main()
+
+            self.assertEqual(code, 0, f"Failed for args: {args}")
+            output = mock_out.getvalue()
+            data = json.loads(output)
+            self.assertEqual(data["schema_version"], 1)
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["command"], cmd_name)
 
 if __name__ == "__main__":
     unittest.main()
