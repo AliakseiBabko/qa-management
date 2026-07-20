@@ -14,10 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from qa_manage import (STATES, TRANSITIONS, check_snapshot, discovery_action,
-                       entries_for_scope, enumerate_run_scopes, mint_run_id,
-                       needed_scopes, parse_outcome_args, resolve_route,
-                       resolve_scope_args, seeds_for_scope,
-                       validate_entry_outcomes, validate_transition)
+                       entries_for_scope, enumerate_run_scopes,
+                       is_queue_only_dirt, mint_run_id, needed_scopes,
+                       parse_outcome_args, resolve_route, resolve_scope_args,
+                       seeds_for_scope, validate_entry_outcomes,
+                       validate_transition)
 
 GRAPH = {
     "documents": {
@@ -221,9 +222,20 @@ class TestResolveScopeArgs(unittest.TestCase):
         import json
         return {"Run ID": "r1", "Scopes": json.dumps(scopes) if scopes else ""}
 
-    def test_explicit_args_win(self):
+    def test_explicit_declared_scope_wins(self):
         self.assertEqual(resolve_scope_args(self.row([["P1", "A"], ["P2", "B"]]),
                                             "P2", "B", "x"), ("P2", "B"))
+
+    def test_explicit_undeclared_scope_is_rejected(self):
+        # A typo must not silently create a new scope; add-scope declares one.
+        with self.assertRaises(SystemExit):
+            resolve_scope_args(self.row([["P1", "A"]]), "P1", "Bob", "x")
+        with self.assertRaises(SystemExit):
+            resolve_scope_args(self.row([]), "P1", "A", "x")
+
+    def test_explicit_scope_case_insensitive_membership(self):
+        self.assertEqual(resolve_scope_args(self.row([["P1", "Alice"]]),
+                                            "p1", "alice", "x"), ("p1", "alice"))
 
     def test_single_scope_defaults(self):
         self.assertEqual(resolve_scope_args(self.row([["P1", "A"]]), "", "", "x"),
@@ -236,6 +248,28 @@ class TestResolveScopeArgs(unittest.TestCase):
         # Defaulting here would store a wildcard record satisfying every scope.
         with self.assertRaises(SystemExit):
             resolve_scope_args(self.row([["P1", "A"], ["P2", "B"]]), "", "", "x")
+
+
+class TestQueueOnlyDirt(unittest.TestCase):
+    def test_queue_files_and_manifest_are_recoverable_dirt(self):
+        porcelain = (" M _intake_queue.values.json\n"
+                     " M _intake_queue.Sheet1.csv\n"
+                     " D _intake_queue.xlsx\n"
+                     " M _manifest.json\n")
+        self.assertTrue(is_queue_only_dirt(porcelain))
+
+    def test_business_file_dirt_blocks(self):
+        porcelain = (" M _intake_queue.values.json\n"
+                     " M 20_M2_Project_Management/X/project_risk.Sheet1.csv\n")
+        self.assertFalse(is_queue_only_dirt(porcelain))
+
+    def test_clean_is_not_dirt(self):
+        self.assertFalse(is_queue_only_dirt(""))
+
+    def test_nested_queue_named_file_elsewhere_still_matches_by_basename(self):
+        # Only basenames are checked; queue exports live at the root, and a
+        # same-named file elsewhere would still be queue-export shaped.
+        self.assertTrue(is_queue_only_dirt("?? _intake_queue.Sheet1.csv\n"))
 
 
 class TestEntryOutcomeValidation(unittest.TestCase):

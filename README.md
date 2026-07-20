@@ -405,10 +405,15 @@ These are what actually runs day to day, once a project's folder already exists:
   exact `run:<run-id>` token in `_skill_invocations`, and a clean mirror
   snapshot no older than the run's `Last mutation` (bumped by every queue
   transition; snapshot SHA persisted on the row). The terminal transition
-  is two-phase via a retryable `finalizing` state: the queue state is
-  exported to the mirror with a verified commit before `completed` is
-  written, so a bookkeeping failure can never produce a false success or
-  a stuck terminal row. For a multi-scope run, `record-apply` and
+  is two-phase via a retryable `finalizing` state: the *intended terminal
+  representation* is committed to the mirror (verified commit, manifest
+  updated, Drive bundle refreshed) before `completed` is written to the
+  live queue, so a bookkeeping failure can never produce a false success
+  or a stuck terminal row — and a half-finished terminal commit (dirt
+  confined to the queue's own export files) is recovered idempotently on
+  retry. Explicit scope args must name a declared tuple (a typo can't
+  silently create a scope); `add-scope` declares one the analysis
+  legitimately discovered. For a multi-scope run, `record-apply` and
   `resolve-edge` require an explicit `--project`/`--person` (a default
   would collapse into a wildcard). `fail` and `historical` (evidence
   required; also corrects a mistaken `fail`) are the other terminal

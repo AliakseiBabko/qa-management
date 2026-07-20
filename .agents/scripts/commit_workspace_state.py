@@ -362,17 +362,25 @@ def main() -> int:
             print(f"  {line}")
 
     if not args.no_bundle:
-        try:
-            BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
-            bundle = BUNDLE_DIR / "mirror.bundle"
-            res = run_git(mirror, "bundle", "create", str(bundle), "--all")
-            if res.returncode == 0:
-                print(f"Bundle backup refreshed: {bundle}")
-            else:
-                print(f"Bundle backup FAILED (history is still safe locally): {res.stderr.strip()}")
-        except OSError as exc:
-            print(f"Bundle backup FAILED (history is still safe locally): {exc}")
+        print(refresh_bundle(mirror))
     return 1 if errors else 0
+
+
+def refresh_bundle(mirror: Path) -> str:
+    """Pack the mirror's full history into the single-file Drive bundle.
+    Reused by qa_manage.py's terminal queue commits - the architecture
+    requires the bundle after every mirror commit, not only full exports.
+    Returns a human-readable status; never raises (a failed bundle loses
+    nothing locally)."""
+    try:
+        BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
+        bundle = BUNDLE_DIR / "mirror.bundle"
+        res = run_git(mirror, "bundle", "create", str(bundle), "--all")
+        if res.returncode == 0:
+            return f"Bundle backup refreshed: {bundle}"
+        return f"Bundle backup FAILED (history is still safe locally): {res.stderr.strip()}"
+    except OSError as exc:
+        return f"Bundle backup FAILED (history is still safe locally): {exc}"
 
 
 if __name__ == "__main__":
