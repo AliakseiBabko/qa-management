@@ -109,9 +109,9 @@ class EvaluationResult:
     entry_problems: list[str]
     unresolved_edges: list[str]
     warnings: list[str]
-    snapshot_sha: str
+    snapshot_sha: str | None
     snapshot_problem: str
-    invocation_present: bool
+    invocation_present: bool | None
 
     @property
     def all_problems(self) -> list[str]:
@@ -1125,13 +1125,20 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
     if status in ("discovered", "needs_scope", "ready", "blocked", "failed", "historical", "ignored", "completed"):
         res.ready_for_completion = False
         res.entry_problems.append(f"Run cannot be completed from state {status!r}.")
-        res.invocation_present = True # irrelevant for these states
+        if status == "completed":
+            res.snapshot_sha = row.get("Snapshot", "")
+            token = f"run:{row.get('Run ID', '')}"
+            res.invocation_present = any(token in " | ".join(r) for r in ctx.inv_rows[1:])
+        else:
+            res.invocation_present = None
+            res.snapshot_sha = None
         return res
 
     if status == "processing" and stage in ("analysis", "apply", ""):
         res.ready_for_completion = False
         res.entry_problems.append(f"Stage is {stage!r} (must be closure).")
-        res.invocation_present = True # irrelevant for these states
+        res.invocation_present = None # irrelevant for these states
+        res.snapshot_sha = None
         return res
 
     route = resolve_route(graph, row["Source type"], row["Route variant"])
@@ -1249,6 +1256,20 @@ def cmd_complete(args) -> int:
             data={"run_id": args.run_id, "completed": False, "problems": problems},
             errors=["Run is not ready for completion"],
             human_lines=[f"NOT completed - {len(problems)} unmet requirement(s):"] +
+                        [f"  - {p}" for p in problems],
+            exit_code=1
+        )
+
+    # Verify that the mirror commit contains the exact token in _skill_invocations.csv
+    token = f"run:{args.run_id}"
+    res_git = mirror_git("show", f"{sha}:_skill_invocations.csv")
+    if res_git.returncode != 0 or token not in res_git.stdout:
+        problems = [f"Mirror commit {sha[:8]} does not contain {token} in _skill_invocations.csv"]
+        return CommandResult(
+            ok=False,
+            data={"run_id": args.run_id, "completed": False, "problems": problems},
+            errors=["Missing mirror invocation token"],
+            human_lines=[f"NOT completed - 1 unmet requirement(s):"] +
                         [f"  - {p}" for p in problems],
             exit_code=1
         )

@@ -211,15 +211,12 @@ class TestShowProjectStateTargeted(unittest.TestCase):
                     mock_dump_project.assert_called_once()
                     self.assertEqual(mock_dump_sheet.call_count, 3)
 
-if __name__ == '__main__':
-    unittest.main()
-
     @patch("show_project_state.get_services")
     @patch("show_project_state.find_folder")
     def test_multiple_documents(self, mock_find_folder, mock_get_services):
         mock_get_services.return_value = self.mock_services
         mock_find_folder.side_effect = lambda drive, parent, name: {"id": "fake_id"}
-        
+
         test_args = ["--project", "MyProject", "--document", "project_metrics", "--document", "project_risk", "--json"]
         with patch("sys.argv", ["show_project_state.py"] + test_args):
             with patch("show_project_state.find_sheet_in_folder") as mock_find_sheet:
@@ -234,3 +231,6 @@ if __name__ == '__main__':
                         self.assertEqual(len(out_json["data"]["documents"]), 2)
                         self.assertEqual(out_json["data"]["documents"][0]["name"], "project_metrics")
                         self.assertEqual(out_json["data"]["documents"][1]["name"], "project_risk")
+
+if __name__ == '__main__':
+    unittest.main()
