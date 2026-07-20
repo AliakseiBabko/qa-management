@@ -518,6 +518,23 @@ reads these rows, so "no change needed" becomes a recorded, checkable fact
 instead of a sentence in a chat reply. Until the intake queue mints
 canonical run ids, use `<date>-<source-slug>`.
 
+### `_intake_queue`
+
+Workspace-wide Sheet at the Drive root: one row per intake run, managed
+only through `qa_manage.py` (scan/next/start/record-analysis/resolve-edge/
+block/resume/complete/fail) — never edited by hand, and unlike the
+append-only logs its rows are updated in place as a run moves through
+`discovered → needs_scope/ready → processing (analysis→apply→closure) →
+completed/failed`, with `blocked` as a parking state. `scan` discovers new
+source files idempotently by content hash; `start` records the agent's
+classification and refuses to default a missing project/person scope
+(`needs_scope` instead); `complete` is a verification gate (entry
+documents touched, strict closure per scope, `_skill_invocations` row,
+mirror snapshot tagged with the run id). Rows hold operational metadata
+and short summaries only — never transcript content or analysis bodies.
+The queue's `Run ID` is the canonical run id used in `_closure_outcomes`,
+`_skill_invocations` notes, and mirror commit messages.
+
 ## Naming And Versioning
 
 - Preserve existing skill naming patterns, but use Google file titles instead of local filenames.
