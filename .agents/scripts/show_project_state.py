@@ -326,8 +326,11 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
     limit = args.limit if args.limit is not None else 20
 
     for doc_name in args.document:
+        is_sheet = not doc_name.endswith("_plan") and doc_name != "m2_input"
         doc_result = {
             "name": doc_name,
+            "kind": "sheet" if is_sheet else "doc",
+            "drive_id": None,
             "scope": {"project": args.project, "person": args.person},
             "missing": True,
             "content": [],
@@ -342,6 +345,10 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
                 people_root = find_folder(services["drive"], ROOT_FOLDER_ID, "05_People_Management")
                 target_folder_id = people_root["id"] if people_root else None
             else:
+                if not m2_root_id:
+                    errors.append(f"Document {doc_name} requires 20_M2_Project_Management which was not found")
+                    doc_results.append(doc_result)
+                    continue
                 target_folder_id = m2_root_id
         else:
             proj_folder = find_folder(services["drive"], m2_root_id, args.project)
@@ -364,8 +371,6 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
         if not target_folder_id:
             doc_results.append(doc_result)
             continue
-
-        is_sheet = not doc_name.endswith("_plan") and doc_name != "m2_input"
 
         if is_sheet:
             sheet = find_sheet_in_folder(services["drive"], target_folder_id, doc_name)
@@ -438,12 +443,23 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
 
     drive = services["drive"]
     m2_root = find_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
-    if not m2_root:
+    m2_root_id = m2_root["id"] if m2_root else None
+
+    needs_m2_root = False
+    if args.project or args.summary or (args.registries and not args.project):
+        needs_m2_root = True
+    elif args.document:
+        for doc in args.document:
+            if doc != "_people_registry":
+                needs_m2_root = True
+                break
+
+    if needs_m2_root and not m2_root_id:
         msg = "20_M2_Project_Management folder not found under the workspace root."
         return build_json_envelope(False, "show_project_state", {}, [], [msg]), 1
 
     if args.document:
-        res = fetch_targeted_docs(services, args, m2_root["id"])
+        res = fetch_targeted_docs(services, args, m2_root_id)
         envelope = build_json_envelope(len(res["errors"]) == 0, "show_project_state", {
             "selectors": {
                 "project": args.project,
