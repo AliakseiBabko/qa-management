@@ -57,7 +57,7 @@ import re
 import subprocess
 import sys
 from mirror_common import mirror_git, assert_private_mirror
-from qa_manage import DATA_ROOT, find_queue, load_queue
+from qa_manage import DATA_ROOT, find_queue, read_queue
 from export_source_text import export as export_source_texts
 import time
 from pathlib import Path
@@ -286,9 +286,9 @@ def main() -> int:
     args = parser.parse_args()
 
     mirror = Path(args.mirror)
-    mirror.mkdir(parents=True, exist_ok=True)
     if not (mirror / ".git").exists():
         assert_private_mirror(mirror, DATA_ROOT, init_allowed=True)
+        mirror.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "init"], cwd=mirror, capture_output=True, check=True)
         (mirror / "README.md").write_text(MIRROR_README, encoding="utf-8")
         print(f"Initialized mirror repo at {mirror}")
@@ -314,10 +314,10 @@ def main() -> int:
 
     print("Exporting source text from queue...")
     try:
-        q = find_queue(DATA_ROOT)
+        q = find_queue(services)
         if q:
             rows = read_queue(services, q)
-            protected_paths, source_errs, source_warns = export_source_texts(rows)
+            protected_paths, source_errs, source_warns = export_source_texts(rows, DATA_ROOT, mirror_path)
             written.extend(protected_paths)
             errors.extend(source_errs)
             warnings.extend(source_warns)

@@ -8,17 +8,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import xml.etree.ElementTree as ET
 
 from mirror_common import assert_private_mirror
-from qa_manage import DATA_ROOT, MIRROR, find_queue, read_queue
 
 # --- Constraints & Constants ---
-SOURCE_TEXT_SEARCH_ROOTS = [
-    DATA_ROOT / "02_Transcripts_Inbox",
-    DATA_ROOT / "03_Transcripts_Processed",
-    DATA_ROOT / "01_Recordings",
-    DATA_ROOT / "00_Source_Docs" / "01_Meeting_Transcripts",
-    DATA_ROOT / "00_Source_Docs" / "02_Chats_and_Emails"
-]
-
 SOURCE_TEXT_TYPES = {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
 
@@ -30,12 +21,36 @@ WORD_NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 class ExtractionError(Exception):
     pass
 
+# --- JSON Envelope ---
+
+def build_json_envelope(ok: bool, command: str, data: dict, warnings: list, errors: list) -> dict:
+    return {
+        "schema_version": 1,
+        "ok": ok,
+        "command": command,
+        "data": data,
+        "warnings": warnings,
+        "errors": errors
+    }
+
+def print_envelope_and_exit(ok: bool, command: str, data: dict, warnings: list, errors: list):
+    envelope = build_json_envelope(ok, command, data, warnings, errors)
+    print(json.dumps(envelope, ensure_ascii=False, indent=1))
+    sys.exit(0 if ok else 1)
+
 # --- Extraction Logic ---
 
 def extract_paragraph(p_elem: ET.Element) -> str:
     parts = []
+    # Avoid text from w:del
     for node in p_elem.iter():
         tag = node.tag.split('}')[-1] if '}' in node.tag else node.tag
+        if tag == "del":
+            # Skip entire subtree of deleted content
+            continue
+        # Also skip field instructions
+        if tag == "instrText":
+            continue
         if tag == "t" and node.text:
             parts.append(node.text)
         elif tag == "tab":
@@ -46,16 +61,24 @@ def extract_paragraph(p_elem: ET.Element) -> str:
 
 def extract_table(tbl_elem: ET.Element) -> str:
     rows = []
-    for tr in tbl_elem.findall(".//w:tr", WORD_NS):
+    # Direct child traversal to avoid processing nested tables multiple times
+    for tr in tbl_elem:
+        tag_tr = tr.tag.split('}')[-1] if '}' in tr.tag else tr.tag
+        if tag_tr != "tr":
+            continue
         cells = []
-        for tc in tr.findall(".//w:tc", WORD_NS):
+        for tc in tr:
+            tag_tc = tc.tag.split('}')[-1] if '}' in tc.tag else tc.tag
+            if tag_tc != "tc":
+                continue
             cell_parts = []
             for child in tc:
                 tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
                 if tag == "p":
-                    # Flatten paragraphs in cells to space or newline. Let's use space to keep table row intact.
+                    # Keep table row intact
                     cell_parts.append(extract_paragraph(child).replace("\n", " "))
                 elif tag == "tbl":
+                    # Nested table traversed exactly once
                     cell_parts.append(extract_table(child).replace("\n", " "))
             cells.append(" ".join(cell_parts).strip())
         rows.append("\t".join(cells))
@@ -86,6 +109,10 @@ def docx_to_text_v1(docx_bytes: bytes) -> str:
 
     if doc_info.file_size > MAX_XML_SIZE:
         raise ExtractionError(f"document.xml size {doc_info.file_size} exceeds {MAX_XML_SIZE}")
+
+    # ZIP bomb protection: compression ratio
+    if doc_info.compress_size > 0 and doc_info.file_size / doc_info.compress_size > 100:
+        raise ExtractionError("Highly compressed document.xml suspected zip bomb")
 
     xml_bytes = zf.read("word/document.xml")
     if len(xml_bytes) > MAX_XML_SIZE:
@@ -137,13 +164,13 @@ def normalize_path(p: str) -> str:
         raise ValueError(f"Invalid path {p}")
     return p
 
-def resolve_source_file(queue_rel_path: str, queue_hash_prefix: str) -> Tuple[Path, str, bytes]:
+def resolve_source_file(data_root: Path, queue_rel_path: str, queue_hash_prefix: str) -> Tuple[Path, str, bytes]:
     # 1. Try exact path first
-    exact_path = DATA_ROOT / queue_rel_path
+    exact_path = data_root / queue_rel_path
     if exact_path.exists() and exact_path.is_file():
         try:
             exact_path_resolved = exact_path.resolve()
-            if not str(exact_path_resolved).startswith(str(DATA_ROOT.resolve())):
+            if not str(exact_path_resolved).startswith(str(data_root.resolve())):
                 raise ValueError("Escape")
         except Exception:
             pass
@@ -154,8 +181,15 @@ def resolve_source_file(queue_rel_path: str, queue_hash_prefix: str) -> Tuple[Pa
                 return exact_path, full_sha, b
 
     # 2. Relocation fallback
+    search_roots = [
+        data_root / "02_Transcripts_Inbox",
+        data_root / "03_Transcripts_Processed",
+        data_root / "01_Recordings",
+        data_root / "00_Source_Docs" / "01_Meeting_Transcripts",
+        data_root / "00_Source_Docs" / "02_Chats_and_Emails"
+    ]
     candidates = []
-    for root in SOURCE_TEXT_SEARCH_ROOTS:
+    for root in search_roots:
         if not root.exists():
             continue
         for p in root.rglob("*"):
@@ -183,22 +217,33 @@ def resolve_source_file(queue_rel_path: str, queue_hash_prefix: str) -> Tuple[Pa
     full_hash = list(matching.keys())[0]
     paths = matching[full_hash]
     # sort lexically by normalized relative path
-    paths.sort(key=lambda x: str(x[0].relative_to(DATA_ROOT)).replace("\\", "/"))
+    paths.sort(key=lambda x: str(x[0].relative_to(data_root)).replace("\\", "/"))
     chosen_path, chosen_bytes = paths[0]
     return chosen_path, full_hash, chosen_bytes
 
 
 # --- Export Logic ---
 
-def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], warnings: List[str], errors: List[str], protected_blobs: Set[str], write_blobs: bool = False) -> Optional[Dict[str, Any]]:
+def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], data_root: Path, mirror: Path, warnings: List[str], errors: List[str], protected_blobs: Set[str], write_blobs: bool = False) -> Optional[Dict[str, Any]]:
     run_id = row.get("Run ID", "")
-    state = row.get("State", "")
+    state = row.get("Status", "")
     src_type = row.get("Source type", "")
-    q_path = row.get("Source path", "")
+    q_path = row.get("Source", "")
     q_hash = row.get("Source hash", "")
     version_str = str(row.get("Source text version", "")).strip()
 
-    if state not in ("completed", "historical", "terminal"):
+    is_v1 = (version_str == "1")
+
+    # Determine eligibility by version and status
+    if is_v1:
+        # Mandatory export in active and completed states
+        if state not in ("needs_scope", "processing", "blocked", "finalizing", "completed"):
+            return None
+    elif state in ("completed", "historical"):
+        # Optional legacy backfill
+        pass
+    else:
+        # Other blank-version active states or ignored/failed -> skip
         return None
 
     ext = Path(q_path).suffix.casefold()
@@ -208,27 +253,26 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], warnings: Lis
     existing = old_manifest.get(key)
 
     if not is_eligible:
-        if version_str == "1":
+        if is_v1:
             errors.append(f"{run_id}: version 1 row is ineligible type/ext")
-        return existing # preserve if it happens to be there
+        return existing
 
     try:
         norm_q_path = normalize_path(q_path)
     except Exception as e:
-        if version_str == "1":
+        if is_v1:
             errors.append(f"{run_id}: bad path: {e}")
         else:
             warnings.append(f"{run_id}: legacy backfill failed bad path: {e}")
         return existing
 
-    # if already present and valid, we just keep it
     if existing:
         protected_blobs.add(existing["text_path"])
         return existing
 
-    # We need to extract it
+    # Extract
     try:
-        actual_path, source_sha256, raw_bytes = resolve_source_file(norm_q_path, q_hash)
+        actual_path, source_sha256, raw_bytes = resolve_source_file(data_root, norm_q_path, q_hash)
 
         if ext == ".docx":
             profile = "docx_body_v1"
@@ -251,7 +295,8 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], warnings: Lis
         }
 
         if write_blobs:
-            out_p = MIRROR / text_path
+            out_p = mirror / text_path
+            assert_private_mirror(mirror, data_root)
             out_p.parent.mkdir(parents=True, exist_ok=True)
             out_p.write_bytes(text_bytes)
 
@@ -259,39 +304,75 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], warnings: Lis
         return dict(sorted(entry.items()))
 
     except ExtractionError as e:
-        if version_str == "1":
+        if is_v1:
             errors.append(f"{run_id}: v1 extraction failed: {e}")
         else:
             warnings.append(f"{run_id}: legacy extraction skipped: {e}")
         return None
+
+def validate_manifest(data: dict) -> None:
+    # Reject entire manifest if any record violates rules
+    if not isinstance(data, dict):
+        raise ValueError("Manifest must be a dict")
+    for k, v in data.items():
+        if not isinstance(v, dict):
+            raise ValueError(f"Manifest entry {k} must be a dict")
+        if not k.endswith(":v1"):
+            raise ValueError(f"Malformed key {k}")
+
+        req_fields = {"source_path", "queue_source_hash", "source_sha256", "text_sha256", "text_path", "extractor_profile"}
+        if set(v.keys()) != req_fields:
+            raise ValueError(f"Manifest entry {k} has missing or extra fields")
+
+        qsh = v["queue_source_hash"]
+        ssha = v["source_sha256"]
+        tsha = v["text_sha256"]
+        tp = v["text_path"]
+        sp = v["source_path"]
+        prof = v["extractor_profile"]
+
+        if not (isinstance(qsh, str) and len(qsh) == 16 and all(c in "0123456789abcdef" for c in qsh)):
+            raise ValueError(f"Manifest entry {k} queue_source_hash invalid")
+
+        if not (isinstance(ssha, str) and len(ssha) == 64 and all(c in "0123456789abcdef" for c in ssha)):
+            raise ValueError(f"Manifest entry {k} source_sha256 invalid")
+
+        if not (isinstance(tsha, str) and len(tsha) == 64 and all(c in "0123456789abcdef" for c in tsha)):
+            raise ValueError(f"Manifest entry {k} text_sha256 invalid")
+
+        if not ssha.startswith(qsh):
+            raise ValueError(f"Manifest entry {k} source_sha256 does not start with queue_source_hash")
+
+        if prof not in ("docx_body_v1", "utf8_text_v1"):
+            raise ValueError(f"Manifest entry {k} extractor_profile invalid")
+
+        if (prof == "docx_body_v1" and not sp.endswith(".docx")) or (prof == "utf8_text_v1" and not (sp.endswith(".txt") or sp.endswith(".md"))):
+            raise ValueError(f"Manifest entry {k} extractor_profile invalid for extension")
+
+        if tp != f"_source_text/blobs/v1/{tsha}.txt":
+            raise ValueError(f"Manifest entry {k} invalid text_path derivation")
+
+        if ".." in sp.split("/") or sp.startswith("/") or ":" in sp:
+            raise ValueError(f"Manifest entry {k} unsafe source_path")
 
 def read_manifest(manifest_path: Path) -> Dict[str, Any]:
     if not manifest_path.exists():
         return {}
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        # validation
-        for k, v in data.items():
-            if not isinstance(v, dict):
-                raise ValueError("Manifest entries must be dicts")
-            tp = v.get("text_path")
-            ts = v.get("text_sha256")
-            if not tp or not ts or tp != f"_source_text/blobs/v1/{ts}.txt":
-                raise ValueError(f"Invalid text_path derivation for {k}")
+        validate_manifest(data)
         return data
     except Exception as e:
         raise RuntimeError(f"Malformed manifest: {e}")
 
-
-def export(queue_rows: List[Dict[str, Any]]) -> Tuple[Set[str], List[str], List[str]]:
+def export(queue_rows: List[Dict[str, Any]], data_root: Path, mirror: Path) -> Tuple[Set[str], List[str], List[str]]:
     """Mutating export intended to be called by commit_workspace_state.py"""
-    assert_private_mirror(MIRROR, DATA_ROOT)
-    manifest_path = MIRROR / "_source_text_manifest.json"
+    assert_private_mirror(mirror, data_root)
+    manifest_path = mirror / "_source_text_manifest.json"
 
     try:
         old_manifest = read_manifest(manifest_path)
     except Exception as e:
-        # Crucially: we do not swallow malformed manifest. We fail out.
         return set(), [f"Manifest read error: {e}"], []
 
     warnings: List[str] = []
@@ -300,58 +381,47 @@ def export(queue_rows: List[Dict[str, Any]]) -> Tuple[Set[str], List[str], List[
 
     new_manifest = {}
     for row in queue_rows:
-        entry = process_row(row, old_manifest, warnings, errors, protected_paths, write_blobs=True)
+        entry = process_row(row, old_manifest, data_root, mirror, warnings, errors, protected_paths, write_blobs=True)
         key = f"{row.get('Run ID', '')}:v1"
         if entry:
             new_manifest[key] = entry
 
-    # Also preserve things in old_manifest that aren't in the current queue
-    # because they might be historical runs dropped from the queue.
-    # Actually wait: queue is the source of truth. Does the queue drop terminal runs?
-    # No, queue keeps historical/terminal rows forever unless manually deleted.
-    # But just in case, we retain manifest entries if they exist in old but weren't processed.
     for k, v in old_manifest.items():
         if k not in new_manifest:
             new_manifest[k] = v
             protected_paths.add(v["text_path"])
 
     if not errors:
-        # Write updated manifest deterministically
+        try:
+            validate_manifest(new_manifest)
+        except Exception as e:
+            return set(), [f"New manifest validation failed: {e}"], []
+
         sorted_manifest = dict(sorted(new_manifest.items()))
         json_bytes = json.dumps(sorted_manifest, indent=2, ensure_ascii=False).encode("utf-8")
-        # exactly one trailing LF
+        assert_private_mirror(mirror, data_root)
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_bytes(json_bytes + b"\n")
 
     return protected_paths, errors, warnings
 
-def audit() -> int:
-    try:
-        q = find_queue(DATA_ROOT)
-    except Exception as e:
-        print(json.dumps({"error": str(e)}))
-        return 1
-
-    manifest_path = MIRROR / "_source_text_manifest.json"
+def audit(data_root: Path, mirror: Path, queue_rows: list) -> None:
+    manifest_path = mirror / "_source_text_manifest.json"
     try:
         old_manifest = read_manifest(manifest_path)
     except Exception as e:
-        print(json.dumps({"error": str(e)}))
-        return 1
+        print_envelope_and_exit(False, "audit", {}, [], [str(e)])
 
-    queue_rows = read_queue(get_services_cached(), q)
     warnings = []
     errors = []
     protected = set()
     for row in queue_rows:
-        process_row(row, old_manifest, warnings, errors, protected, write_blobs=False)
+        process_row(row, old_manifest, data_root, mirror, warnings, errors, protected, write_blobs=False)
 
     out = {
-        "errors": errors,
-        "warnings": warnings,
         "protected_blobs_count": len(protected)
     }
-    print(json.dumps(out))
-    return 1 if errors else 0
+    print_envelope_and_exit(not errors, "audit", out, warnings, errors)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -359,19 +429,30 @@ def main():
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
+    # Lazy import of queue logic
+    try:
+        from qa_manage import DATA_ROOT, MIRROR, find_queue, read_queue, get_services_cached
+    except ImportError as e:
+        print_envelope_and_exit(False, args.mode, {}, [], [f"Failed to import qa_manage: {e}"])
+
     if args.mode == "audit":
         if args.json:
-            sys.exit(audit())
+            try:
+                q = find_queue(get_services_cached())
+                rows = read_queue(get_services_cached(), q) if q else []
+            except Exception as e:
+                print_envelope_and_exit(False, "audit", {}, [], [str(e)])
+            audit(DATA_ROOT, MIRROR, rows)
         else:
             sys.exit("audit only supports --json")
     elif args.mode == "export":
-        # export is primarily an internal module function, but could be called via CLI for testing
-        q = find_queue(DATA_ROOT)
-        rows = read_queue(get_services_cached(), q)
-        protected, errs, warns = export(rows)
-        out = {"errors": errs, "warnings": warns, "protected": list(protected)}
-        print(json.dumps(out))
-        sys.exit(1 if errs else 0)
+        try:
+            q = find_queue(get_services_cached())
+            rows = read_queue(get_services_cached(), q) if q else []
+            protected, errs, warns = export(rows, DATA_ROOT, MIRROR)
+            print_envelope_and_exit(not errs, "export", {"protected": list(protected)}, warns, errs)
+        except Exception as e:
+            print_envelope_and_exit(False, "export", {}, [], [str(e)])
 
 if __name__ == "__main__":
     main()
