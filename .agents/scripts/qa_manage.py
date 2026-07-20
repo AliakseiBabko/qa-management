@@ -128,7 +128,8 @@ from export_source_text import source_text_requirement
 
 from mirror_common import mirror_git, mirror_git_bytes, assert_private_mirror
 
-if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+if (isinstance(sys.stdout, io.TextIOWrapper) and sys.stdout.encoding
+        and sys.stdout.encoding.lower() not in ("utf-8", "utf8")):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -338,8 +339,15 @@ def needed_scopes(graph: dict, route: dict) -> set[str]:
     workspace-scoped - e.g. people_case_chat)."""
     docs = graph.get("documents") or {}
     entry_docs = route.get("entry") or []
-    derived = {(docs.get(d) or {}).get("scope") for d in entry_docs}
-    return (derived | set(route.get("scope_required") or [])) & {"project", "person"}
+    needed: set[str] = set()
+    for doc in entry_docs:
+        scope = (docs.get(doc) or {}).get("scope")
+        if isinstance(scope, str) and scope in ("project", "person"):
+            needed.add(scope)
+    for scope in route.get("scope_required") or []:
+        if isinstance(scope, str) and scope in ("project", "person"):
+            needed.add(scope)
+    return needed
 
 
 def scope_key(project: str, person: str) -> str:
@@ -461,7 +469,8 @@ def check_snapshot(log_entries: list[tuple[str, float, str]], row: dict,
     if is_finalizing:
         if dirty:
             return "", "mirror worktree is dirty - run commit_workspace_state.py first"
-        sha = row.get("Snapshot", "")
+        snapshot = row.get("Snapshot", "")
+        sha = snapshot if isinstance(snapshot, str) else ""
         if not sha:
             return "", "run is finalizing but missing Snapshot SHA"
         # Validate that the snapshot exists in logs
@@ -721,7 +730,7 @@ def row_brief(row: dict) -> str:
 
 # ---------- commands ----------
 
-def cmd_scan(args) -> int:
+def cmd_scan(args) -> CommandResult:
     services = get_services_cached()
     sheet = get_or_create_queue(services)
     rows = read_queue(services, sheet)
@@ -775,7 +784,7 @@ def cmd_scan(args) -> int:
     )
 
 
-def cmd_status(args) -> int:
+def cmd_status(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
@@ -796,7 +805,7 @@ def cmd_status(args) -> int:
     )
 
 
-def cmd_next(args) -> int:
+def cmd_next(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
@@ -859,7 +868,7 @@ def _update_run(args, mutate) -> dict:
     return row
 
 
-def cmd_start(args) -> int:
+def cmd_start(args) -> CommandResult:
     graph = load_graph()
     from pipeline_common import SKILL_INVOCATION_SOURCE_TYPES
     if args.source_type not in SKILL_INVOCATION_SOURCE_TYPES:
@@ -921,7 +930,7 @@ def cmd_start(args) -> int:
     )
 
 
-def cmd_record_analysis(args) -> int:
+def cmd_record_analysis(args) -> CommandResult:
     def mutate(row: dict) -> None:
         if row["Status"] != "processing":
             raise SystemExit(f"record-analysis requires status=processing (is {row['Status']!r}).")
@@ -941,7 +950,7 @@ def cmd_record_analysis(args) -> int:
     )
 
 
-def cmd_record_apply(args) -> int:
+def cmd_record_apply(args) -> CommandResult:
     from check_cascade_closure import build_alias_map, normalize
     graph = load_graph()
     alias_map = build_alias_map(graph)
@@ -978,7 +987,7 @@ def cmd_record_apply(args) -> int:
     )
 
 
-def cmd_resolve_edge(args) -> int:
+def cmd_resolve_edge(args) -> CommandResult:
     import closure_outcomes as co
     services = get_services_cached()
     sheet = find_queue(services)
@@ -1012,7 +1021,7 @@ def cmd_resolve_edge(args) -> int:
     )
 
 
-def cmd_add_scope(args) -> int:
+def cmd_add_scope(args) -> CommandResult:
     if not (args.project or args.person):
         raise SystemExit("add-scope needs --project and/or --person.")
     graph = load_graph()
@@ -1050,7 +1059,7 @@ def cmd_add_scope(args) -> int:
     )
 
 
-def cmd_block(args) -> int:
+def cmd_block(args) -> CommandResult:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "blocked")
         row["Status"], row["Reason"] = "blocked", args.reason
@@ -1063,7 +1072,7 @@ def cmd_block(args) -> int:
     )
 
 
-def cmd_fail(args) -> int:
+def cmd_fail(args) -> CommandResult:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "failed")
         row["Status"], row["Reason"] = "failed", args.reason
@@ -1076,7 +1085,7 @@ def cmd_fail(args) -> int:
     )
 
 
-def cmd_ignore(args) -> int:
+def cmd_ignore(args) -> CommandResult:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "ignored")
         row["Status"] = "ignored"
@@ -1091,7 +1100,7 @@ def cmd_ignore(args) -> int:
     )
 
 
-def cmd_historical(args) -> int:
+def cmd_historical(args) -> CommandResult:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "historical")
         row["Status"] = "historical"
@@ -1105,7 +1114,7 @@ def cmd_historical(args) -> int:
     )
 
 
-def cmd_resume(args) -> int:
+def cmd_resume(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
@@ -1196,10 +1205,12 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
         res.ready_for_completion = False
         res.entry_problems.append(f"Run cannot be completed from state {status!r}.")
         if status == "completed":
-            res.snapshot_sha = row.get("Snapshot", "")
+            snapshot = row.get("Snapshot", "")
+            snapshot_sha = snapshot if isinstance(snapshot, str) else ""
+            res.snapshot_sha = snapshot_sha
             token = f"run:{row.get('Run ID', '')}"
             res.invocation_present = any(token in " | ".join(r) for r in ctx.inv_rows[1:])
-            st_errors = check_source_text_snapshot(res.snapshot_sha, row)
+            st_errors = check_source_text_snapshot(snapshot_sha, row)
             if st_errors:
                 res.snapshot_problem = "\n  ".join(st_errors)
         else:
@@ -1268,7 +1279,7 @@ def get_recommended_action(status: str, stage: str, ready: bool) -> str:
             return "complete" if ready else "resolve unmet requirements"
     return "unknown"
 
-def cmd_review(args) -> int:
+def cmd_review(args) -> CommandResult:
     services = get_services_cached()
     ctx = load_review_context(services, args.run_id)
     eval_res = evaluate_run(ctx)
@@ -1311,10 +1322,12 @@ def cmd_review(args) -> int:
     )
 
 
-def cmd_complete(args) -> int:
+def cmd_complete(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
-    rows = read_queue(services, sheet) if sheet else []
+    if not sheet:
+        raise SystemExit(f"Queue sheet {QUEUE_SHEET!r} not found.")
+    rows = read_queue(services, sheet)
 
     ctx = load_review_context(services, args.run_id)
     eval_res = evaluate_run(ctx)
@@ -1331,6 +1344,16 @@ def cmd_complete(args) -> int:
             human_lines=[f"NOT completed - {len(problems)} unmet requirement(s):"] +
                         [f"  - {p}" for p in problems],
             exit_code=1
+        )
+
+    if not sha:
+        return CommandResult(
+            ok=False,
+            data={"run_id": args.run_id, "completed": False,
+                  "problems": ["Completion evaluation returned no snapshot SHA"]},
+            errors=["Missing snapshot SHA"],
+            human_lines=["NOT completed - completion evaluation returned no snapshot SHA."],
+            exit_code=1,
         )
 
     # Verify that the mirror commit contains the exact token in _skill_invocations.values.json
@@ -1370,24 +1393,26 @@ def cmd_complete(args) -> int:
         write_queue(services, sheet, rows)
 
     completed_ts = row["Completed"] or now()
+    stored_snapshot = row.get("Snapshot", "")
+    final_snapshot = stored_snapshot if isinstance(stored_snapshot, str) and stored_snapshot else sha
     terminal_rows = [dict(r) for r in rows]
     terminal_row = next(r for r in terminal_rows if r["Run ID"] == args.run_id)
     terminal_row.update({"Status": "completed", "Stage": "done",
                          "Completed": completed_ts,
-                         "Snapshot": row["Snapshot"] or sha})
+                         "Snapshot": final_snapshot})
     queue_sha, warnings = export_queue_terminal(services, sheet, terminal_rows, args.run_id)
 
     validate_transition("finalizing", "completed")
     row.update({"Status": "completed", "Stage": "done", "Completed": completed_ts,
-                "Snapshot": row["Snapshot"] or sha})
+                "Snapshot": final_snapshot})
     write_queue(services, sheet, rows)
     return CommandResult(
         ok=True,
-        data={"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"],
+        data={"run_id": args.run_id, "completed": True, "snapshot": final_snapshot,
               "terminal_commit": queue_sha},
         warnings=warnings,
         human_lines=[f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
-                     f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified; "
+                     f"scope, invocation token present, snapshot {final_snapshot[:8]} verified; "
                      f"terminal state committed to the mirror ({queue_sha[:8]}) before the Drive "
                      "transition."],
         exit_code=0
@@ -1395,12 +1420,12 @@ def cmd_complete(args) -> int:
 
 
 def main() -> int:
-    import argparse
-    parent = argparse.ArgumentParser(add_help=False)
+    parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     parent.add_argument("--debug", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
-    parser = JsonArgumentParser(description=__doc__.splitlines()[0])
+    module_doc = __doc__ or "QA management intake state machine"
+    parser = JsonArgumentParser(description=module_doc.splitlines()[0])
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument("--debug", action="store_true", help="print full traceback on unexpected error")
     sub = parser.add_subparsers(dest="cmd", required=True)
