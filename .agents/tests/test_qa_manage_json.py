@@ -113,10 +113,16 @@ class TestJsonContract(unittest.TestCase):
     @patch("qa_manage.load_review_context")
     @patch("qa_manage.evaluate_run")
     @patch("qa_manage.export_queue_terminal")
+    @patch("qa_manage.mirror_git")
     def test_cmd_complete_tuple_unpacking_and_success(
-        self, mock_export, mock_eval, mock_load_ctx, mock_write_queue,
+        self, mock_mirror_git, mock_export, mock_eval, mock_load_ctx, mock_write_queue,
         mock_read_queue, mock_find_queue, mock_get_services
     ):
+        from unittest.mock import MagicMock
+        res_mock = MagicMock()
+        res_mock.returncode = 0
+        res_mock.stdout = "run:test-run"
+        mock_mirror_git.return_value = res_mock
         mock_find_queue.return_value = {"id": "sheet_id"}
         mock_read_queue.return_value = [{
             "Run ID": "test-run", "Status": "processing", "Stage": "closure",
@@ -165,10 +171,16 @@ class TestJsonContract(unittest.TestCase):
     @patch("qa_manage.load_review_context")
     @patch("qa_manage.evaluate_run")
     @patch("qa_manage.export_queue_terminal")
+    @patch("qa_manage.mirror_git")
     def test_cmd_complete_failure_after_write(
-        self, mock_export, mock_eval, mock_load_ctx, mock_write_queue,
+        self, mock_mirror_git, mock_export, mock_eval, mock_load_ctx, mock_write_queue,
         mock_read_queue, mock_find_queue, mock_get_services
     ):
+        from unittest.mock import MagicMock
+        res_mock = MagicMock()
+        res_mock.returncode = 0
+        res_mock.stdout = "run:test-run"
+        mock_mirror_git.return_value = res_mock
         mock_find_queue.return_value = {"id": "sheet_id"}
         mock_read_queue.return_value = [{
             "Run ID": "test-run", "Status": "processing", "Stage": "closure",
