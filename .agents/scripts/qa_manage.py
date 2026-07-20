@@ -14,14 +14,18 @@ State model (per run, in the workspace `_intake_queue` Sheet):
         '-------------+----------------> processing <-> blocked
                                              |
                                              v
-                              completed | failed | historical
+                       completed | failed | historical | ignored
 
     stages within processing: analysis -> apply -> closure
 
 `historical` is the terminal state for sources that were already processed
 before the queue existed (with evidence) - being pre-queue is not a
 processing failure. `failed` may be corrected to `historical` when
-migration evidence turns up.
+migration evidence turns up. `ignored` (with a category:
+non_intake_course_material / reference_material / duplicate_data_quality /
+other) is for sources that are not intake at all - distinct from
+historical, which asserts prior processing. Subtrees that are categorically
+non-intake are additionally excluded from discovery via SCAN_EXCLUDE.
 
 Source identity is (path, content hash): a changed file at a known path is
 rediscovered as a new run (noting what it supersedes); identical content at
@@ -74,6 +78,8 @@ Commands (all support --json for machine-readable output):
                                   failure leaves the run retryable in
                                   finalizing - never a false success
     fail <run-id> --reason "..."  give up explicitly (kept in history)
+    ignore <run-id> --category C [--reason "..."]
+                                  terminal: not an intake source at all
     historical <run-id> --evidence "..."
                                   terminal: processed before the queue
                                   existed; evidence required
@@ -110,6 +116,14 @@ SCAN_DIRS = [
     r"00_Source_Docs\02_Chats_and_Emails",
     r"00_Source_Docs\03_Source_Documents",
 ]
+# Subtrees that are categorically not intake (course homework, training
+# material) - excluded from discovery entirely, matching the terminal
+# `ignored` state's non_intake_course_material category.
+SCAN_EXCLUDE = [
+    r"00_Source_Docs\03_Source_Documents\M2_personal_development_plan",
+    r"00_Source_Docs\03_Source_Documents\M2_project_development_plan",
+    r"00_Source_Docs\03_Source_Documents\M2_role_vision",
+]
 SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
 
 QUEUE_SHEET = "_intake_queue"
@@ -119,11 +133,11 @@ HEADER = ["Run ID", "Source", "Source hash", "Source type", "Route variant",
           "Snapshot", "Reason", "Summary"]
 
 STATES = {"discovered", "needs_scope", "ready", "processing", "blocked",
-          "finalizing", "completed", "failed", "historical"}
+          "finalizing", "completed", "failed", "historical", "ignored"}
 TRANSITIONS = {
-    "discovered": {"needs_scope", "ready", "processing", "failed", "historical"},
-    "needs_scope": {"ready", "processing", "failed", "historical"},
-    "ready": {"processing", "failed", "historical"},
+    "discovered": {"needs_scope", "ready", "processing", "failed", "historical", "ignored"},
+    "needs_scope": {"ready", "processing", "failed", "historical", "ignored"},
+    "ready": {"processing", "failed", "historical", "ignored"},
     "processing": {"blocked", "finalizing", "failed", "historical"},
     "blocked": {"processing", "failed", "historical"},
     # All verification passed; only the terminal mirror bookkeeping remains.
@@ -134,7 +148,12 @@ TRANSITIONS = {
     # the record is allowed; nothing else leaves a terminal state.
     "failed": {"historical"},
     "historical": set(),
+    # Not intake at all (course material, template/rule sources, duplicate
+    # artifacts) - distinct from historical, which means "was processed".
+    "ignored": set(),
 }
+IGNORE_CATEGORIES = {"non_intake_course_material", "reference_material",
+                     "duplicate_data_quality", "other"}
 STAGES = ["analysis", "apply", "closure", "done"]
 ENTRY_OUTCOMES = {"updated", "no_change", "not_applicable"}
 ENTRY_REASON_REQUIRED = {"no_change", "not_applicable"}
@@ -179,6 +198,13 @@ def mint_run_id(source_path: str, source_hash: str, date: str | None = None) -> 
         source_path.replace("\\", "/").casefold().encode("utf-8")).hexdigest()[:4]
     return (f"{date or dt.date.today().strftime('%Y%m%d')}-{slug}-"
             f"{source_hash[:6]}{path_digest}")
+
+
+def is_excluded(rel: str) -> bool:
+    """True when the path sits in a SCAN_EXCLUDE subtree."""
+    norm = rel.replace("/", "\\").casefold()
+    return any(norm.startswith(prefix.casefold() + "\\") or norm == prefix.casefold()
+               for prefix in SCAN_EXCLUDE)
 
 
 def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
@@ -565,7 +591,8 @@ def row_brief(row: dict) -> str:
             + (f"({row['Route variant']})" if row["Route variant"] else "")
             + (f"  {scope}" if scope else "")
             + (f"  reason: {row['Reason']}" if row["Reason"] and
-               row["Status"] in ("blocked", "needs_scope", "failed", "historical") else ""))
+               row["Status"] in ("blocked", "needs_scope", "failed", "historical",
+                                 "ignored") else ""))
 
 
 # ---------- commands ----------
@@ -586,8 +613,10 @@ def cmd_scan(args) -> int:
         for path in sorted(base.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in SCAN_EXTS:
                 continue
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
             rel = str(path.relative_to(DATA_ROOT))
+            if is_excluded(rel):
+                continue
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
             action, related = discovery_action(rel, digest, by_pair, by_path, by_hash)
             if action == "skip":
                 continue
@@ -623,7 +652,7 @@ def cmd_status(args) -> int:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
-    terminal = ("completed", "failed", "historical")
+    terminal = ("completed", "failed", "historical", "ignored")
     open_rows = [r for r in rows if r["Status"] not in terminal]
     counts: dict[str, int] = {}
     for r in rows:
@@ -897,6 +926,18 @@ def cmd_fail(args) -> int:
     return 0
 
 
+def cmd_ignore(args) -> int:
+    def mutate(row: dict) -> None:
+        validate_transition(row["Status"], "ignored")
+        row["Status"] = "ignored"
+        row["Reason"] = (f"ignored ({args.category})"
+                         + (f": {args.reason}" if args.reason else ""))
+    row = _update_run(args, mutate)
+    emit({"run_id": row["Run ID"], "status": "ignored", "category": args.category},
+         args.json, [row_brief(row)])
+    return 0
+
+
 def cmd_historical(args) -> int:
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "historical")
@@ -1125,6 +1166,11 @@ def main() -> int:
     p.add_argument("run_id")
     p.add_argument("--reason", required=True)
 
+    p = sub.add_parser("ignore", help="terminal: not an intake source at all")
+    p.add_argument("run_id")
+    p.add_argument("--category", required=True, choices=sorted(IGNORE_CATEGORIES))
+    p.add_argument("--reason", default="")
+
     p = sub.add_parser("historical", help="terminal: processed before the queue existed")
     p.add_argument("run_id")
     p.add_argument("--evidence", required=True,
@@ -1144,7 +1190,8 @@ def main() -> int:
             "start": cmd_start, "record-analysis": cmd_record_analysis,
             "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
             "add-scope": cmd_add_scope,
-            "block": cmd_block, "fail": cmd_fail, "historical": cmd_historical,
+            "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
+            "historical": cmd_historical,
             "resume": cmd_resume, "complete": cmd_complete}[args.cmd](args)
 
 

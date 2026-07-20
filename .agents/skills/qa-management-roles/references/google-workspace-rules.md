@@ -531,9 +531,13 @@ only through `qa_manage.py` (scan/next/start/record-analysis/resolve-edge/
 record-apply/resolve-edge/block/resume/complete/fail/historical) — never
 edited by hand, and unlike the append-only logs its rows are updated in
 place as a run moves through `discovered → needs_scope/ready → processing
-(analysis→apply→closure) → finalizing → completed/failed/historical`, with
-`blocked` as a parking state and `finalizing` as the retryable
-verification-passed-but-bookkeeping-pending step. `historical` is the terminal state for sources processed
+(analysis→apply→closure) → finalizing → completed/failed/historical/
+ignored`, with `blocked` as a parking state and `finalizing` as the
+retryable verification-passed-but-bookkeeping-pending step. `historical`
+asserts the source WAS processed pre-queue (evidence required); `ignored`
+(categorized: course material / reference material / duplicate artifact)
+asserts it is not intake at all and is reachable only from
+pre-processing states — never conflate the two. `historical` is the terminal state for sources processed
 before the queue existed (evidence required — pre-queue history is not a
 failure); `failed` may be corrected to `historical` when migration
 evidence turns up. Source identity is (path, content hash): changed
