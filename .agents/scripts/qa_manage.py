@@ -206,7 +206,7 @@ def parse_ts(text: str) -> float:
 
 def source_text_requirement(row: dict) -> str:
     src_type = row.get("Source type", "")
-    ext = Path(row.get("Source path", "")).suffix.casefold()
+    ext = Path(row.get("Source", "")).suffix.casefold()
     if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
         if ext in {".txt", ".md", ".docx"}:
             return "required"
@@ -230,11 +230,25 @@ def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
         except Exception as e:
             return [f"Malformed _source_text_manifest.json: {e}"]
 
-        key = f"{row['Run ID']}:v1"
+        key = f"{row.get('Run ID', '')}:v1"
         if key not in manifest:
             return [f"Run {key} missing from _source_text_manifest.json"]
 
         entry = manifest[key]
+
+        from export_source_text import validate_manifest
+        try:
+            validate_manifest({key: entry})
+        except Exception as e:
+            return [f"Manifest integrity failed: {e}"]
+
+        if entry.get("queue_source_hash") != row.get("Source hash", ""):
+            return ["Manifest queue_source_hash mismatch"]
+
+        norm_src = row.get("Source", "").replace("\\", "/")
+        if entry.get("source_path") != norm_src:
+            return ["Manifest source_path mismatch"]
+
         text_path = entry.get("text_path")
         text_sha = entry.get("text_sha256")
 
@@ -461,6 +475,8 @@ def check_snapshot(log_entries: list[tuple[str, float, str]], row: dict,
     # If finalizing, we use the stored snapshot exclusively, if it exists
     is_finalizing = row.get("Status") == "finalizing"
     if is_finalizing:
+        if dirty:
+            return "", "mirror worktree is dirty - run commit_workspace_state.py first"
         sha = row.get("Snapshot", "")
         if not sha:
             return "", "run is finalizing but missing Snapshot SHA"
@@ -903,6 +919,8 @@ def cmd_start(args) -> int:
             row["Status"], row["Stage"] = "processing", "analysis"
             row["Started"], row["Reason"] = now(), ""
 
+        row["Source text version"] = "1" if source_text_requirement(row) == "required" else ""
+
     row = _update_run(args, mutate)
     ok = row["Status"] == "processing"
     return CommandResult(
@@ -1197,6 +1215,9 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
             res.snapshot_sha = row.get("Snapshot", "")
             token = f"run:{row.get('Run ID', '')}"
             res.invocation_present = any(token in " | ".join(r) for r in ctx.inv_rows[1:])
+            st_errors = check_source_text_snapshot(res.snapshot_sha, row)
+            if st_errors:
+                res.snapshot_problem = "\n  ".join(st_errors)
         else:
             res.invocation_present = None
             res.snapshot_sha = None

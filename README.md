@@ -388,13 +388,7 @@ These are what actually runs day to day, once a project's folder already exists:
   (`_source_text/blobs/v1/<sha256>.txt`). `Source text version 1` is strictly required
   for newly processed eligible sources; legacy and `historical` sources undergo optional
   best-effort backfill. It supports strict `--json` output.
-- `export_source_text.py` — invoked by `commit_workspace_state.py` or manually via CLI.
-  Extracts text from file-backed sources (`.txt`, `.md`, `.docx`) of eligible types
-  (`qa_1to1`, `strategy_chat`, `meeting_transcript`, `people_case_chat`). Uses a
-  `_source_text_manifest.json` tracking file and content-addressed blobs
-  (`_source_text/blobs/v1/<sha256>.txt`). `Source text version 1` is strictly required
-  for newly processed eligible sources; legacy and `historical` sources undergo optional
-  best-effort backfill. It supports strict `--json` output.
+
 - `mirror_common.py` — not a script to run; shared helper enforcing the private mirror
   safety boundary. Validates requested paths against the public repo and Drive root,
   and restricts `git init` behavior. Used by `commit_workspace_state.py` and `qa_manage.py`.

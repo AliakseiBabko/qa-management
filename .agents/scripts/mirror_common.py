@@ -21,19 +21,25 @@ def assert_private_mirror(mirror: Path, data_root: Path, init_allowed: bool = Fa
     6. After initialization: requires `git rev-parse --show-toplevel` to equal the requested mirror.
     """
     try:
-        mirror_resolved = mirror.resolve()
+        existing = mirror
+        while not existing.exists() and existing.parent != existing:
+            existing = existing.parent
+        if existing.exists():
+            mirror_resolved = existing.resolve() / mirror.relative_to(existing)
+        else:
+            mirror_resolved = mirror.resolve()
     except Exception as e:
         sys.exit(f"Mirror guard failed: cannot resolve mirror path {mirror}: {e}")
 
     skills_repo = Path(__file__).resolve().parents[2]
 
-    if mirror_resolved == skills_repo or skills_repo in mirror_resolved.parents:
-        sys.exit(f"Mirror guard failed: mirror {mirror_resolved} is inside the public skills repository {skills_repo}")
+    if mirror_resolved == skills_repo or skills_repo in mirror_resolved.parents or mirror_resolved in skills_repo.parents:
+        sys.exit(f"Mirror guard failed: mirror {mirror_resolved} overlaps with the public skills repository {skills_repo}")
 
     try:
         data_root_resolved = data_root.resolve()
-        if mirror_resolved == data_root_resolved or data_root_resolved in mirror_resolved.parents:
-            sys.exit(f"Mirror guard failed: mirror {mirror_resolved} is inside the synchronized Drive workspace {data_root_resolved}")
+        if mirror_resolved == data_root_resolved or data_root_resolved in mirror_resolved.parents or mirror_resolved in data_root_resolved.parents:
+            sys.exit(f"Mirror guard failed: mirror {mirror_resolved} overlaps with the synchronized Drive workspace {data_root_resolved}")
     except Exception:
         pass
 
