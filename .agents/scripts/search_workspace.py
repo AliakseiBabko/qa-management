@@ -124,7 +124,7 @@ def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict
         try:
             queue = parse_intake_queue(mirror, ref)
         except Exception as e:
-            warnings.append({"metadata_ref": path, "condition": f"Queue error: {e}"})
+            warnings.append({"metadata_ref": ref, "condition": f"Queue error: {e}"})
 
         for r_id, entry in manifest.items():
             if entry.get("text_path") == path:
@@ -139,7 +139,7 @@ def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict
                 if queue:
                     q_row = next((r for r in queue if r.get("Run ID") == run_id), None)
                     if not q_row:
-                        warnings.append({"metadata_ref": path, "condition": "Missing intake queue entry"})
+                        warnings.append({"metadata_ref": ref, "condition": "Missing intake queue entry"})
                     else:
                         meta["source_type"] = q_row.get("Source type", "")
                         meta["route_variant"] = q_row.get("Route variant", "")
@@ -154,9 +154,9 @@ def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict
                 runs.append(meta)
 
         if not runs:
-            warnings.append({"metadata_ref": path, "condition": "Missing source text manifest entry"})
+            warnings.append({"metadata_ref": ref, "condition": "Missing source text manifest entry"})
 
-    return {"source_runs": runs} if runs else {}, warnings
+    return runs, warnings
 
 def resolve_ref(mirror: Path, ref: str) -> str:
     cmd = run_git(mirror, ["rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"], check=True, text=True)
@@ -237,8 +237,10 @@ def extract_matches_for_path(mirror: Path, ref: str, path: str, query: str, is_r
     # Deterministic sorting for matches inside a file
     matches.sort(key=lambda m: m['line'])
 
-    truncated = len(matches) > limit
-    return matches[:limit], truncated
+    if limit > 0:
+        truncated = len(matches) > limit
+        return matches[:limit], truncated
+    return matches, False
 
 def current_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sensitive: bool, allowed_paths: list[str], context: int, limit: int, require_run_id: bool, strict_manifest: bool) -> tuple[list, list, bool]:
     if not allowed_paths:
@@ -279,12 +281,13 @@ def current_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
         file_matches, _ = extract_matches_for_path(mirror, ref, path, query, is_regex, case_sensitive, context, limit - len(matches) + 1)
 
         if file_matches:
-            meta, warns = get_metadata(mirror, ref, path, require_run_id, strict_manifest)
+            runs, warns = get_metadata(mirror, ref, path, require_run_id, strict_manifest)
             warnings.extend(warns)
 
             for m in file_matches:
                 m["path"] = path
-                m["metadata"] = meta
+                m["ref"] = ref
+                if runs: m["source_runs"] = runs
                 matches.append(m)
 
                 if len(matches) > limit:
@@ -353,9 +356,9 @@ def history_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
             matches_after, after_trunc = [], False
 
             if status != "A":
-                matches_before, before_trunc = extract_matches_for_path(mirror, parent, path, query, is_regex, case_sensitive, context, limit)
+                matches_before, before_trunc = extract_matches_for_path(mirror, parent, path, query, is_regex, case_sensitive, context, 0)
             if status != "D":
-                matches_after, after_trunc = extract_matches_for_path(mirror, commit, path, query, is_regex, case_sensitive, context, limit)
+                matches_after, after_trunc = extract_matches_for_path(mirror, commit, path, query, is_regex, case_sensitive, context, 0)
 
             # Compare contexts
             if matches_before != matches_after:
@@ -363,20 +366,34 @@ def history_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
                 if not matches_before and matches_after: change_type = "introduced"
                 elif matches_before and not matches_after: change_type = "removed"
                 elif not matches_before and not matches_after: continue # Should not happen unless grep logic changed
+                before_trunc = len(matches_before) > 100
+                after_trunc = len(matches_after) > 100
+                matches_before = matches_before[:100]
+                matches_after = matches_after[:100]
 
                 meta_ref = parent if status == "D" else commit
-                meta, warns = get_metadata(mirror, meta_ref, path, require_run_id, strict_manifest)
+                runs, warns = get_metadata(mirror, meta_ref, path, require_run_id, strict_manifest)
                 warnings_out.extend(warns)
 
-                changes.append({
+                change_dict = {
                     "path": path,
                     "change": change_type,
                     "matches_before": matches_before,
                     "matches_before_truncated": before_trunc,
                     "matches_after": matches_after,
                     "matches_after_truncated": after_trunc,
-                    "metadata": meta
-                })
+                    "metadata_ref": meta_ref
+                }
+                if runs: change_dict["source_runs"] = runs
+                changes.append(change_dict)
+
+
+
+
+
+
+
+
 
         if changes:
             commits_out.append({
@@ -509,6 +526,8 @@ def main():
 
     try:
         if parsed.command == "search":
+            if parsed.since or parsed.until:
+                exit_err("--since and --until are only allowed in history search")
             cmd = run_git(mirror, ["ls-tree", "-r", "-z", "--name-only", resolved_ref], check=True)
             files = cmd.stdout.split(b'\0')
             for f in files:
@@ -539,6 +558,11 @@ def main():
     if parsed.kind == "source" or parsed.run_id or (parsed.kind == "all" and has_source_blobs):
         strict_manifest = True
 
+    if strict_manifest:
+        try:
+            parse_source_manifest(mirror, resolved_ref, strict=True)
+        except Exception as e:
+            exit_err(str(e))
     filter_run_id = None
     history_allowed_paths = list(valid_paths)
 
