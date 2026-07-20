@@ -49,7 +49,46 @@ class TestMirrorCommon(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "overlaps with the synchronized Drive workspace"):
                 assert_private_mirror(mirror_dir, data_root, init_allowed=True)
 
+
+    def test_mirror_security_wrong_toplevel(self):
+        import mirror_common
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            mirror_dir = tmp_path / "mirror"
+            mirror_dir.mkdir()
+            data_root = tmp_path / "data"
+            data_root.mkdir()
+            mirror_common.mirror_git(mirror_dir, "init")
+            sub = mirror_dir / "sub"
+            sub.mkdir()
+            with self.assertRaises(SystemExit):
+                mirror_common.assert_private_mirror(sub, data_root, init_allowed=False)
+
+    def test_mirror_security_remotes(self):
+        import mirror_common
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            mirror_dir = tmp_path / "mirror"
+            mirror_dir.mkdir()
+            data_root = tmp_path / "data"
+            data_root.mkdir()
+            mirror_common.mirror_git(mirror_dir, "init")
+            mirror_common.mirror_git(mirror_dir, "remote", "add", "origin", "https://github.com/test/test.git")
+            with self.assertRaises(SystemExit):
+                mirror_common.assert_private_mirror(mirror_dir, data_root, init_allowed=False)
+
+    def test_mirror_security_public_overlap(self):
+        import mirror_common
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_root = tmp_path / "data"
+            data_root.mkdir()
+            skills_repo = Path(__file__).resolve().parents[2]
+            with self.assertRaises(SystemExit):
+                mirror_common.assert_private_mirror(skills_repo, data_root, init_allowed=False)
+
 if __name__ == '__main__':
     unittest.main()
-
-
