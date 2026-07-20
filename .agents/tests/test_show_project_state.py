@@ -213,3 +213,24 @@ class TestShowProjectStateTargeted(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    @patch("show_project_state.get_services")
+    @patch("show_project_state.find_folder")
+    def test_multiple_documents(self, mock_find_folder, mock_get_services):
+        mock_get_services.return_value = self.mock_services
+        mock_find_folder.side_effect = lambda drive, parent, name: {"id": "fake_id"}
+        
+        test_args = ["--project", "MyProject", "--document", "project_metrics", "--document", "project_risk", "--json"]
+        with patch("sys.argv", ["show_project_state.py"] + test_args):
+            with patch("show_project_state.find_sheet_in_folder") as mock_find_sheet:
+                mock_find_sheet.return_value = {"id": "fake_sheet_id"}
+                with patch("show_project_state.read_sheet_values") as mock_read:
+                    mock_read.return_value = [["H1"], ["V1"]]
+                    with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+                        code = show_project_state.main()
+                        self.assertEqual(code, 0)
+                        out_json = json.loads(mock_out.getvalue())
+                        self.assertTrue(out_json["ok"])
+                        self.assertEqual(len(out_json["data"]["documents"]), 2)
+                        self.assertEqual(out_json["data"]["documents"][0]["name"], "project_metrics")
+                        self.assertEqual(out_json["data"]["documents"][1]["name"], "project_risk")
