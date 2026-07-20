@@ -124,6 +124,7 @@ class EvaluationResult:
         return p
 
 import yaml
+from mirror_common import mirror_git, mirror_git_bytes, assert_private_mirror
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -153,7 +154,7 @@ QUEUE_SHEET = "_intake_queue"
 HEADER = ["Run ID", "Source", "Source hash", "Source type", "Route variant",
           "Project", "Person", "Scopes", "Status", "Stage", "Skills",
           "Entries", "Discovered", "Started", "Last mutation", "Completed",
-          "Snapshot", "Reason", "Summary"]
+          "Snapshot", "Reason", "Summary", "Source text version"]
 
 STATES = {"discovered", "needs_scope", "ready", "processing", "blocked",
           "finalizing", "completed", "failed", "historical", "ignored"}
@@ -202,6 +203,51 @@ def parse_ts(text: str) -> float:
 
 
 # ---------- pure helpers (unit-tested) ----------
+
+def source_text_requirement(row: dict) -> str:
+    src_type = row.get("Source type", "")
+    ext = Path(row.get("Source path", "")).suffix.casefold()
+    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
+        if ext in {".txt", ".md", ".docx"}:
+            return "required"
+    if src_type in {"admin_note", "m2_conversation"}:
+        return "not_applicable"
+    return "optional"
+
+def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
+    v = str(row.get("Source text version", "")).strip()
+    req = source_text_requirement(row)
+
+    if req == "required" and v == "1":
+        # Required to exist in manifest and blob
+        # Load manifest
+        res = mirror_git_bytes(MIRROR, "show", f"{sha}:_source_text_manifest.json")
+        if res.returncode != 0:
+            return ["_source_text_manifest.json not found in snapshot"]
+        try:
+            import json
+            manifest = json.loads(res.stdout.decode("utf-8"))
+        except Exception as e:
+            return [f"Malformed _source_text_manifest.json: {e}"]
+
+        key = f"{row['Run ID']}:v1"
+        if key not in manifest:
+            return [f"Run {key} missing from _source_text_manifest.json"]
+
+        entry = manifest[key]
+        text_path = entry.get("text_path")
+        text_sha = entry.get("text_sha256")
+
+        blob_res = mirror_git_bytes(MIRROR, "show", f"{sha}:{text_path}")
+        if blob_res.returncode != 0:
+            return [f"Blob {text_path} not found in snapshot"]
+
+        import hashlib
+        actual_sha = hashlib.sha256(blob_res.stdout).hexdigest()
+        if actual_sha != text_sha:
+            return [f"Blob {text_path} sha256 mismatch: {actual_sha} != {text_sha}"]
+
+    return []
 
 def validate_transition(current: str, target: str) -> None:
     if current not in STATES or target not in STATES:
@@ -403,22 +449,46 @@ def enumerate_run_scopes(outcome_rows: list[dict], scopes: list[tuple[str, str]]
     return sorted(result)
 
 
-def check_snapshot(log_entries: list[tuple[str, float, str]], run_id: str,
+def check_snapshot(log_entries: list[tuple[str, float, str]], row: dict,
                    last_mutation_ts: float, dirty: bool) -> tuple[str, str]:
     """Verify a mirror snapshot for the run: (sha, "") on success, else
     ("", problem). A qualifying commit mentions the run id and is not older
     than the run's last recorded mutation; the mirror must be clean."""
-    if dirty:
-        return "", "mirror worktree is dirty - run commit_workspace_state.py first"
-    candidates = [(sha, ts) for sha, ts, subject in log_entries if run_id in subject]
-    if not candidates:
-        return "", (f"no mirror commit mentions {run_id} - run "
-                    f"commit_workspace_state.py -m \"<skill>: <source> [{run_id}]\"")
-    sha, ts = max(candidates, key=lambda c: c[1])
-    # Minute-precision timestamps on both sides - allow the same minute.
-    if ts + 60 < last_mutation_ts:
-        return "", (f"mirror commit {sha[:8]} mentioning {run_id} predates the run's "
-                    "last mutation - re-run commit_workspace_state.py")
+    run_id = row.get("Run ID", "")
+    req = source_text_requirement(row)
+    v1 = str(row.get("Source text version", "")).strip() == "1"
+
+    # If finalizing, we use the stored snapshot exclusively, if it exists
+    is_finalizing = row.get("Status") == "finalizing"
+    if is_finalizing:
+        sha = row.get("Snapshot", "")
+        if not sha:
+            return "", "run is finalizing but missing Snapshot SHA"
+        # Validate that the snapshot exists in logs
+        found = any(s == sha for s, _, _ in log_entries)
+        if not found:
+            return "", f"Snapshot {sha} not found in log"
+    else:
+        if dirty:
+            return "", "mirror worktree is dirty - run commit_workspace_state.py first"
+        candidates = [(s, ts) for s, ts, subject in log_entries if run_id in subject]
+        if not candidates:
+            if req == "required" and v1:
+                return "", "required_pending_snapshot"
+            return "", (f"no mirror commit mentions {run_id} - run "
+                        f"commit_workspace_state.py -m \"<skill>: <source> [{run_id}]\"")
+        sha, ts = max(candidates, key=lambda c: c[1])
+        if ts + 60 < last_mutation_ts:
+            if req == "required" and v1:
+                return "", "required_pending_snapshot"
+            return "", (f"mirror commit {sha[:8]} mentioning {run_id} predates the run's "
+                        "last mutation - re-run commit_workspace_state.py")
+
+    # Now we have a specific SHA. Verify source text if required.
+    st_errors = check_source_text_snapshot(sha, row)
+    if st_errors:
+        return "", "\n  ".join(st_errors)
+
     return sha, ""
 
 
@@ -530,12 +600,10 @@ def is_queue_only_dirt(porcelain: str) -> bool:
     return True
 
 
-def mirror_git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(MIRROR), *args],
-                          capture_output=True, text=True, encoding="utf-8")
 
 
 def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: str) -> tuple[str, list[str]]:
+    assert_private_mirror(MIRROR, DATA_ROOT)
     """Commit the run's INTENDED terminal queue state to the mirror -
     called before the final Drive transition, so the mirror always carries
     the terminal representation the moment the run becomes terminal (and a
@@ -567,15 +635,15 @@ def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: st
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True),
                              encoding="utf-8")
 
-    res = mirror_git("add", "-A")
+    res = mirror_git(MIRROR, "add", "-A")
     if res.returncode != 0:
         raise SystemExit(f"mirror git add failed: {res.stderr.strip()}")
     msg = f"queue: {run_id} completed [{run_id}]"
-    if not mirror_git("status", "--porcelain").stdout.strip():
+    if not mirror_git(MIRROR, "status", "--porcelain").stdout.strip():
         # Nothing to commit - a previous attempt already landed it; verify,
         # and refresh the bundle too (the earlier attempt may have crashed
         # between its commit and its bundle refresh).
-        for line in mirror_git("log", "-20", "--format=%H|%s").stdout.splitlines():
+        for line in mirror_git(MIRROR, "log", "-20", "--format=%H|%s").stdout.splitlines():
             sha, _, subject = line.partition("|")
             if subject.strip() == msg:
                 from commit_workspace_state import refresh_bundle
@@ -583,10 +651,10 @@ def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: st
                 return sha, [bundle_msg] if "FAILED" in bundle_msg else []
         raise SystemExit("mirror is clean but no terminal queue commit for "
                          f"{run_id} exists - inspect the mirror before retrying.")
-    res = mirror_git("commit", "-m", msg)
+    res = mirror_git(MIRROR, "commit", "-m", msg)
     if res.returncode != 0:
         raise SystemExit(f"mirror commit failed: {res.stderr.strip() or res.stdout.strip()}")
-    head = mirror_git("log", "-1", "--format=%H|%s").stdout.strip()
+    head = mirror_git(MIRROR, "log", "-1", "--format=%H|%s").stdout.strip()
     sha, _, subject = head.partition("|")
     if run_id not in subject:
         raise SystemExit(f"mirror HEAD {sha[:8]} is not the queue commit just made "
@@ -1095,12 +1163,12 @@ def load_review_context(services, run_id: str) -> ReviewContext:
     inv_sheet = find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SKILL_INVOCATIONS_SHEET)
     inv_rows = read_sheet_values(services, inv_sheet["id"]) if inv_sheet else []
 
-    porcelain = mirror_git("status", "--porcelain").stdout
+    porcelain = mirror_git(MIRROR, "status", "--porcelain").stdout
     dirty = bool(porcelain.strip())
     if dirty and row["Status"] == "finalizing" and is_queue_only_dirt(porcelain):
         dirty = False
 
-    log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
+    log_raw = mirror_git(MIRROR, "log", "-50", "--format=%H|%ct|%s").stdout
     log_entries = []
     for line in log_raw.splitlines():
         sha, _, rest = line.partition("|")
@@ -1169,7 +1237,7 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
     token = f"run:{row['Run ID']}"
     res.invocation_present = any(token in " | ".join(r) for r in ctx.inv_rows[1:])
 
-    sha, snap_problem = check_snapshot(ctx.log_entries, row["Run ID"], last_outcome_ts, ctx.dirty)
+    sha, snap_problem = check_snapshot(ctx.log_entries, row, last_outcome_ts, ctx.dirty)
     res.snapshot_sha = sha
     res.snapshot_problem = snap_problem
 
@@ -1262,7 +1330,7 @@ def cmd_complete(args) -> int:
 
     # Verify that the mirror commit contains the exact token in _skill_invocations.values.json
     token = f"run:{args.run_id}"
-    res_git = mirror_git("show", f"{sha}:_skill_invocations.values.json")
+    res_git = mirror_git(MIRROR, "show", f"{sha}:_skill_invocations.values.json")
     if res_git.returncode != 0 or token not in res_git.stdout:
         problems = [f"Mirror commit {sha[:8]} does not contain {token} in _skill_invocations.values.json"]
         return CommandResult(

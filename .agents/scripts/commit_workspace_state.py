@@ -56,6 +56,9 @@ import json
 import re
 import subprocess
 import sys
+from mirror_common import mirror_git, assert_private_mirror
+from qa_manage import DATA_ROOT, find_queue, load_queue
+from export_source_text import export as export_source_texts
 import time
 from pathlib import Path
 
@@ -285,18 +288,21 @@ def main() -> int:
     mirror = Path(args.mirror)
     mirror.mkdir(parents=True, exist_ok=True)
     if not (mirror / ".git").exists():
+        assert_private_mirror(mirror, DATA_ROOT, init_allowed=True)
         subprocess.run(["git", "init"], cwd=mirror, capture_output=True, check=True)
         (mirror / "README.md").write_text(MIRROR_README, encoding="utf-8")
         print(f"Initialized mirror repo at {mirror}")
+    else:
+        assert_private_mirror(mirror, DATA_ROOT, init_allowed=False)
     # The mirror needs its own identity (no global git config assumed) -
     # borrow the skills repo's, since the same person drives both.
-    if not run_git(mirror, "config", "user.email").stdout.strip():
+    if not mirror_git(mirror, "config", "user.email").stdout.strip():
         skills_repo = Path(__file__).resolve().parents[2]
         for key, fallback in (("user.name", "qa-drive-mirror"),
                               ("user.email", "mirror@localhost")):
             val = subprocess.run(["git", "-C", str(skills_repo), "config", key],
                                  capture_output=True, text=True).stdout.strip() or fallback
-            run_git(mirror, "config", key, val)
+            mirror_git(mirror, "config", key, val)
 
     services = get_services()
     manifest: dict = {}
@@ -305,6 +311,18 @@ def main() -> int:
     warnings: list[str] = []
     print("Exporting canonical documents (diff layer + restore layer)...")
     walk(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
+
+    print("Exporting source text from queue...")
+    try:
+        q = find_queue(DATA_ROOT)
+        if q:
+            rows = read_queue(services, q)
+            protected_paths, source_errs, source_warns = export_source_texts(rows)
+            written.extend(protected_paths)
+            errors.extend(source_errs)
+            warnings.extend(source_warns)
+    except Exception as exc:
+        errors.append(f"Source text export failed: {exc}")
 
     # A doc that failed to export contributes nothing to `manifest`/`written`.
     # Its previously-exported files survive (prune is skipped below), so its
@@ -336,8 +354,8 @@ def main() -> int:
     for err in errors:
         print(f"  EXPORT FAILED: {err}")
 
-    run_git(mirror, "add", "-A")
-    if not run_git(mirror, "status", "--porcelain").stdout.strip():
+    mirror_git(mirror, "add", "-A")
+    if not mirror_git(mirror, "status", "--porcelain").stdout.strip():
         print("No changes since last commit - nothing to do.")
         return 0
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -345,17 +363,17 @@ def main() -> int:
     if errors:
         msg += f" [PARTIAL: {len(errors)} export failure(s)]"
         body = "\n".join(f"  failed: {e.splitlines()[0][:200]}" for e in errors)
-        res = run_git(mirror, "commit", "-m",
+        res = mirror_git(mirror, "commit", "-m",
                       f"{msg}\n\nExported {stamp} by commit_workspace_state.py\n{body}")
     else:
-        res = run_git(mirror, "commit", "-m", f"{msg}\n\nExported {stamp} by commit_workspace_state.py")
+        res = mirror_git(mirror, "commit", "-m", f"{msg}\n\nExported {stamp} by commit_workspace_state.py")
     if res.returncode != 0:
         print(f"git commit failed: {res.stderr.strip()}")
         return 1
-    sha = run_git(mirror, "rev-parse", "--short", "HEAD").stdout.strip()
+    sha = mirror_git(mirror, "rev-parse", "--short", "HEAD").stdout.strip()
     print(f"Committed {sha}: {msg}")
-    print(run_git(mirror, "show", "--stat", "--oneline", "-s", "HEAD").stdout.strip())
-    changed = run_git(mirror, "diff", "--name-only", "HEAD~1", "HEAD").stdout.strip()
+    print(mirror_git(mirror, "show", "--stat", "--oneline", "-s", "HEAD").stdout.strip())
+    changed = mirror_git(mirror, "diff", "--name-only", "HEAD~1", "HEAD").stdout.strip()
     if changed:
         print("Changed files:")
         for line in changed.splitlines():
@@ -375,7 +393,7 @@ def refresh_bundle(mirror: Path) -> str:
     try:
         BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
         bundle = BUNDLE_DIR / "mirror.bundle"
-        res = run_git(mirror, "bundle", "create", str(bundle), "--all")
+        res = mirror_git(mirror, "bundle", "create", str(bundle), "--all")
         if res.returncode == 0:
             return f"Bundle backup refreshed: {bundle}"
         return f"Bundle backup FAILED (history is still safe locally): {res.stderr.strip()}"

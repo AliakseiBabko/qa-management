@@ -371,13 +371,33 @@ These are what actually runs day to day, once a project's folder already exists:
   restorable (`.xlsx`/`.docx`, plus `.values.json` for every Sheet — the
   values-only layer works even for manually-created files the `drive.file`
   scope can't export). `_manifest.json` maps restore-layer paths to live
-  file IDs. After each commit the full history is packed into a single-file
-  bundle at `90_Archive\_git_mirror_backups\mirror.bundle` on Drive
-  (disaster recovery: `git clone mirror.bundle`). Run with `-m` describing
+  file IDs. After document export, it automatically calls `export_source_text.py` to
+  extract and commit the text of any pending queue source. An extraction failure skips
+  global pruning (leaving stale files) to guarantee partial snapshots safely fail
+  verification instead of pretending to be complete. After each commit the full history
+  is packed into a single-file bundle at `90_Archive\_git_mirror_backups\mirror.bundle`
+  on Drive (disaster recovery: `git clone mirror.bundle`). Run with `-m` describing
   the pass at the end of any pass that wrote canonical documents; a no-op
   when nothing changed. One commit per pass = the whole cascade rolls back
-  as one unit. The mirror holds real names: never inside this public repo,
+  as one unit. The mirror holds real names and real source text: never inside this public repo,
   never a public remote.
+- `export_source_text.py` — invoked by `commit_workspace_state.py` or manually via CLI.
+  Extracts text from file-backed sources (`.txt`, `.md`, `.docx`) of eligible types
+  (`qa_1to1`, `strategy_chat`, `meeting_transcript`, `people_case_chat`). Uses a
+  `_source_text_manifest.json` tracking file and content-addressed blobs
+  (`_source_text/blobs/v1/<sha256>.txt`). `Source text version 1` is strictly required
+  for newly processed eligible sources; legacy and `historical` sources undergo optional
+  best-effort backfill. It supports strict `--json` output.
+- `export_source_text.py` — invoked by `commit_workspace_state.py` or manually via CLI.
+  Extracts text from file-backed sources (`.txt`, `.md`, `.docx`) of eligible types
+  (`qa_1to1`, `strategy_chat`, `meeting_transcript`, `people_case_chat`). Uses a
+  `_source_text_manifest.json` tracking file and content-addressed blobs
+  (`_source_text/blobs/v1/<sha256>.txt`). `Source text version 1` is strictly required
+  for newly processed eligible sources; legacy and `historical` sources undergo optional
+  best-effort backfill. It supports strict `--json` output.
+- `mirror_common.py` — not a script to run; shared helper enforcing the private mirror
+  safety boundary. Validates requested paths against the public repo and Drive root,
+  and restricts `git init` behavior. Used by `commit_workspace_state.py` and `qa_manage.py`.
 - `rollback_from_mirror.py` — restores live documents to a state recorded
   in the mirror: `--history <path>` lists commits touching a document,
   then `--commit <sha> --path <restore-layer file>` (dry-run; `--apply`
