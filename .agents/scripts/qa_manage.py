@@ -113,6 +113,16 @@ class EvaluationResult:
     snapshot_problem: str
     invocation_present: bool
 
+    @property
+    def all_problems(self) -> list[str]:
+        p = list(self.entry_problems)
+        p.extend(self.unresolved_edges)
+        if self.snapshot_problem:
+            p.append(self.snapshot_problem)
+        if not self.invocation_present:
+            p.append("Missing invocation token")
+        return p
+
 import yaml
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -1107,13 +1117,22 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
     from closure_outcomes import row_matches_scope
     row = ctx.row
     graph = ctx.graph
+    status = row.get("Status") or "discovered"
+    stage = row.get("Stage") or ""
 
-    res = EvaluationResult(False, [], [], [], "", "", False)
+    res = EvaluationResult(False, [], [], [], "", "", True)  # Default invocation_present to True until proven otherwise
 
-    if row["Status"] not in ("processing", "finalizing"):
-        res.entry_problems.append(f"status is {row['Status']!r} (must be processing or finalizing)")
-    elif row["Status"] == "processing" and row["Stage"] != "closure":
-        res.entry_problems.append(f"stage is {row['Stage'] or 'analysis'!r} (must be closure) - record-analysis and record-apply must run first, even for workspace-only routes.")
+    if status in ("discovered", "needs_scope", "ready", "blocked", "failed", "historical", "ignored", "completed"):
+        res.ready_for_completion = False
+        res.entry_problems.append(f"Run cannot be completed from state {status!r}.")
+        res.invocation_present = True # irrelevant for these states
+        return res
+
+    if status == "processing" and stage in ("analysis", "apply", ""):
+        res.ready_for_completion = False
+        res.entry_problems.append(f"Stage is {stage!r} (must be closure).")
+        res.invocation_present = True # irrelevant for these states
+        return res
 
     route = resolve_route(graph, row["Source type"], row["Route variant"])
     entry_docs = route.get("entry") or []
@@ -1141,17 +1160,33 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
         res.unresolved_edges.extend(f"{label}: unresolved edge {item}" for item in open_items)
 
     token = f"run:{row['Run ID']}"
-    if any(token in " | ".join(r) for r in ctx.inv_rows[1:]):
-        res.invocation_present = True
+    res.invocation_present = any(token in " | ".join(r) for r in ctx.inv_rows[1:])
 
     sha, snap_problem = check_snapshot(ctx.log_entries, row["Run ID"], last_outcome_ts, ctx.dirty)
     res.snapshot_sha = sha
     res.snapshot_problem = snap_problem
 
     res.ready_for_completion = (not res.entry_problems and not res.unresolved_edges
-                                and res.invocation_present and not res.snapshot_problem)
+                                and res.invocation_present and not res.snapshot_problem
+                                and not res.warnings)
     return res
 
+
+def get_recommended_action(status: str, stage: str, ready: bool) -> str:
+    if status in ("discovered", "needs_scope", "ready"):
+        return "start"
+    if status == "blocked":
+        return "resume --continue"
+    if status == "finalizing":
+        return "complete" if ready else "retry complete"
+    if status in ("completed", "failed", "historical", "ignored"):
+        return "none"
+    if status == "processing":
+        if stage == "analysis": return "record-analysis"
+        if stage == "apply": return "record-apply"
+        if stage == "closure":
+            return "complete" if ready else "resolve unmet requirements"
+    return "unknown"
 
 def cmd_review(args) -> int:
     services = get_services_cached()
@@ -1159,23 +1194,25 @@ def cmd_review(args) -> int:
     eval_res = evaluate_run(ctx)
     row = ctx.row
     try:
-        route = resolve_route(ctx.graph, row["Source type"], row["Route variant"])
+        route = resolve_route(ctx.graph, row.get("Source type", ""), row.get("Route variant", ""))
     except SystemExit:
         route = {}
 
-    all_problems = eval_res.entry_problems + eval_res.unresolved_edges + ([eval_res.snapshot_problem] if eval_res.snapshot_problem else []) + (["Missing invocation token"] if not eval_res.invocation_present else [])
+    all_problems = eval_res.all_problems
+
+    rec_action = get_recommended_action(row.get("Status", "discovered"), row.get("Stage", ""), eval_res.ready_for_completion)
 
     return CommandResult(
         ok=True,
         data={
             "run_id": args.run_id,
-            "source": row["Source"],
-            "source_hash": row["Source hash"],
-            "status": row["Status"],
-            "stage": row["Stage"],
-            "scopes": parse_scopes_cell(row["Scopes"]),
+            "source": row.get("Source", ""),
+            "source_hash": row.get("Source hash", ""),
+            "status": row.get("Status", ""),
+            "stage": row.get("Stage", ""),
+            "scopes": parse_scopes_cell(row.get("Scopes", "")),
             "skills": route.get("skills", []),
-            "entries": parse_entries_cell(row["Entries"]),
+            "entries": parse_entries_cell(row.get("Entries", "")),
             "outcomes": ctx.all_rows,
             "unresolved_edges": eval_res.unresolved_edges,
             "snapshot_sha": eval_res.snapshot_sha,
@@ -1183,11 +1220,12 @@ def cmd_review(args) -> int:
             "invocation_present": eval_res.invocation_present,
             "mirror_cleanliness": not ctx.dirty,
             "ready_for_completion": eval_res.ready_for_completion,
-            "recommended_action": "Run complete" if eval_res.ready_for_completion else "Resolve unmet requirements"
+            "recommended_action": rec_action
         },
         warnings=eval_res.warnings,
         human_lines=[f"Review for {args.run_id}:"] + (
-            [f"  - {p}" for p in all_problems] if not eval_res.ready_for_completion else ["  All clear. Ready for complete."]
+            [f"  - {p}" for p in all_problems] + [f"  - WARNING: {w}" for w in eval_res.warnings]
+            if all_problems or eval_res.warnings else ["  All clear. Ready for complete."]
         ),
         exit_code=0
     )
@@ -1205,7 +1243,7 @@ def cmd_complete(args) -> int:
     row = get_run(rows, args.run_id)
 
     if not eval_res.ready_for_completion:
-        problems = eval_res.entry_problems + eval_res.unresolved_edges + ([eval_res.snapshot_problem] if eval_res.snapshot_problem else []) + (["Missing invocation token"] if not eval_res.invocation_present else [])
+        problems = eval_res.all_problems + eval_res.warnings
         return CommandResult(
             ok=False,
             data={"run_id": args.run_id, "completed": False, "problems": problems},
@@ -1263,16 +1301,21 @@ def cmd_complete(args) -> int:
 
 
 def main() -> int:
+    import argparse
+    parent = argparse.ArgumentParser(add_help=False)
+    parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    parent.add_argument("--debug", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+
     parser = JsonArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     parser.add_argument("--debug", action="store_true", help="print full traceback on unexpected error")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("scan", help="discover new/changed source files")
-    sub.add_parser("status", help="queue overview")
-    sub.add_parser("next", help="most actionable run")
+    sub.add_parser("scan", help="discover new/changed source files", parents=[parent])
+    sub.add_parser("status", help="queue overview", parents=[parent])
+    sub.add_parser("next", help="most actionable run", parents=[parent])
 
-    p = sub.add_parser("start", help="classify + activate a run")
+    p = sub.add_parser("start", help="classify + activate a run", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--source-type", required=True)
     p.add_argument("--variant", default="")
@@ -1282,11 +1325,11 @@ def main() -> int:
                    metavar="PROJECT|PERSON",
                    help="explicit scope tuple; repeat for multi-scope runs")
 
-    p = sub.add_parser("record-analysis", help="analysis summary (stage -> apply)")
+    p = sub.add_parser("record-analysis", help="analysis summary (stage -> apply, parents=[parent])")
     p.add_argument("run_id")
     p.add_argument("--summary", required=True)
 
-    p = sub.add_parser("record-apply", help="per-scope entry outcomes (stage -> closure)")
+    p = sub.add_parser("record-apply", help="per-scope entry outcomes (stage -> closure, parents=[parent])")
     p.add_argument("run_id")
     p.add_argument("--project", default="")
     p.add_argument("--person", default="")
@@ -1296,7 +1339,7 @@ def main() -> int:
     p.add_argument("--not-applicable", dest="not_applicable", default="",
                    help="';'-separated doc=reason pairs")
 
-    p = sub.add_parser("resolve-edge", help="record one closure outcome")
+    p = sub.add_parser("resolve-edge", help="record one closure outcome", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--source", required=True)
     p.add_argument("--target", required=True)
@@ -1307,39 +1350,39 @@ def main() -> int:
     p.add_argument("--variant", default="")
     p.add_argument("--actor", default="agent")
 
-    p = sub.add_parser("add-scope", help="declare a scope discovered during analysis")
+    p = sub.add_parser("add-scope", help="declare a scope discovered during analysis", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--project", default="")
     p.add_argument("--person", default="")
 
-    p = sub.add_parser("block", help="mark run waiting on a gate")
+    p = sub.add_parser("block", help="mark run waiting on a gate", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--reason", required=True)
 
-    p = sub.add_parser("fail", help="give up on a run explicitly")
+    p = sub.add_parser("fail", help="give up on a run explicitly", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--reason", required=True)
 
-    p = sub.add_parser("ignore", help="terminal: not an intake source at all")
+    p = sub.add_parser("ignore", help="terminal: not an intake source at all", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--category", required=True, choices=sorted(IGNORE_CATEGORIES))
     p.add_argument("--reason", default="")
 
-    p = sub.add_parser("historical", help="terminal: processed before the queue existed")
+    p = sub.add_parser("historical", help="terminal: processed before the queue existed", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--evidence", required=True,
                    help="where the pre-queue processing is recorded "
                         "(_skill_invocations date, evidence_log row, ...)")
 
-    p = sub.add_parser("review", help="read-only run evaluation")
+    p = sub.add_parser("review", help="read-only run evaluation", parents=[parent])
     p.add_argument("run_id")
 
-    p = sub.add_parser("resume", help="unfinished stage + what remains")
+    p = sub.add_parser("resume", help="unfinished stage + what remains", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--continue", dest="cont", action="store_true",
                    help="reactivate a blocked run")
 
-    p = sub.add_parser("complete", help="verification gate -> completed")
+    p = sub.add_parser("complete", help="verification gate -> completed", parents=[parent])
     p.add_argument("run_id")
 
     args = parser.parse_args()
