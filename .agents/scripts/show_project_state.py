@@ -120,10 +120,37 @@ def parse_args() -> argparse.Namespace:
     if args.limit is not None: targeted_only_flags.append("--limit")
     if targeted_only_flags and not args.document:
         parser.error(f"Targeted options {', '.join(targeted_only_flags)} require --document")
-        
-    num_modes = sum([bool(args.document), bool(args.summary), bool(args.registries), bool(not args.document and not args.summary and not args.registries and args.project)])
+
+    num_modes = sum([
+        bool(args.document),
+        bool(args.summary),
+        bool(args.registries),
+        bool(not args.document and not args.summary and not args.registries and args.project)
+    ])
     if num_modes > 1:
-        parser.error("Incompatible options: cannot combine targeted reads (--document), summary mode (--summary), registries (--registries), or legacy full-dump mode.")
+        if not (args.registries and args.project and not args.document and not args.summary):
+            parser.error("Incompatible options: cannot combine targeted reads (--document), summary mode (--summary), registries (--registries), or legacy full-dump mode.")
+
+    if args.document:
+        for doc_name in args.document:
+            if doc_name in PROJECT_DOCS:
+                if not args.project:
+                    parser.error(f"Document {doc_name} requires --project")
+                if args.person:
+                    parser.error(f"Document {doc_name} does not accept --person")
+            elif doc_name in PERSON_DOCS:
+                if not args.project or not args.person:
+                    parser.error(f"Document {doc_name} requires both --project and --person")
+            elif doc_name in REGISTRY_DOCS:
+                if args.project or args.person:
+                    parser.error(f"Document {doc_name} does not accept --project or --person")
+            else:
+                parser.error(f"Unknown canonical document name: {doc_name}")
+
+            if args.since and doc_name not in DATE_COLS and not doc_name.endswith("_plan") and doc_name != "m2_input":
+                parser.error(f"Document {doc_name} does not support --since filtering")
+            if args.since and (doc_name.endswith("_plan") or doc_name == "m2_input"):
+                parser.error(f"Document {doc_name} (Docs) does not support --since filtering")
 
     return args
 
@@ -296,37 +323,9 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
 def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_root_id: str) -> dict[str, Any]:
     doc_results = []
     errors = []
-
     limit = args.limit if args.limit is not None else 20
 
     for doc_name in args.document:
-        if doc_name in PROJECT_DOCS:
-            if not args.project:
-                errors.append(f"Document {doc_name} requires --project")
-                continue
-            if args.person:
-                errors.append(f"Document {doc_name} does not accept --person")
-                continue
-        elif doc_name in PERSON_DOCS:
-            if not args.project or not args.person:
-                errors.append(f"Document {doc_name} requires both --project and --person")
-                continue
-        elif doc_name in REGISTRY_DOCS:
-            if args.project or args.person:
-                errors.append(f"Document {doc_name} does not accept --project or --person")
-                continue
-        else:
-            errors.append(f"Unknown canonical document name: {doc_name}")
-            continue
-
-        if args.since and doc_name not in DATE_COLS and not doc_name.endswith("_plan") and doc_name != "m2_input":
-            errors.append(f"Document {doc_name} does not support --since filtering")
-            continue
-
-        if args.since and (doc_name.endswith("_plan") or doc_name == "m2_input"):
-            errors.append(f"Document {doc_name} (Docs) does not support --since filtering")
-            continue
-
         doc_result = {
             "name": doc_name,
             "scope": {"project": args.project, "person": args.person},
@@ -436,7 +435,7 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
         services = get_services(args.credentials, args.token)
     except Exception as e:
         return build_json_envelope(False, "show_project_state", {}, [], [f"Failed to build services: {e}"]), 1
-        
+
     drive = services["drive"]
     m2_root = find_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
     if not m2_root:
@@ -454,13 +453,13 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
             },
             "documents": res["doc_results"]
         }, [], res["errors"])
-        
+
         if res["errors"]:
             if not args.json:
                 for e in res["errors"]:
                     print(f"Error: {e}", file=sys.stderr)
             return envelope, 1
-            
+
         if not args.json:
             for d in res["doc_results"]:
                 print(f"--- {d['name']} ---")
@@ -482,25 +481,24 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
             output.append(summary)
         return build_json_envelope(True, "show_project_state", {"output": output}, [], []), 0
 
-    if args.registries:
+    if args.registries or (args.project and not args.document and not args.summary):
         output_buffer = io.StringIO()
         with stdout_redirected(output_buffer if args.json else sys.stdout):
-            print("===== _people_registry =====")
-            people_root = find_folder(drive, ROOT_FOLDER_ID, "05_People_Management")
-            if people_root:
-                dump_sheet(services, people_root["id"], "_people_registry")
-            else:
-                print("--- _people_registry: not found (05_People_Management missing) ---")
-            print("===== _project_registry =====")
-            dump_sheet(services, m2_root["id"], "_project_registry")
-            print("===== _timeline =====")
-            dump_sheet(services, m2_root["id"], "_timeline")
-        return build_json_envelope(True, "show_project_state", {"output": output_buffer.getvalue() if args.json else ""}, [], []), 0
+            if args.registries:
+                print("===== _people_registry =====")
+                people_root = find_folder(drive, ROOT_FOLDER_ID, "05_People_Management")
+                if people_root:
+                    dump_sheet(services, people_root["id"], "_people_registry")
+                else:
+                    print("--- _people_registry: not found (05_People_Management missing) ---")
+                print("===== _project_registry =====")
+                dump_sheet(services, m2_root["id"], "_project_registry")
+                print("===== _timeline =====")
+                dump_sheet(services, m2_root["id"], "_timeline")
 
-    if args.project:
-        output_buffer = io.StringIO()
-        with stdout_redirected(output_buffer if args.json else sys.stdout):
-            dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
+            if args.project and not args.document and not args.summary:
+                dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
+
         return build_json_envelope(True, "show_project_state", {"output": output_buffer.getvalue() if args.json else ""}, [], []), 0
 
     return build_json_envelope(True, "show_project_state", {}, [], []), 0
@@ -510,15 +508,14 @@ def main() -> int:
         ensure_utf8_stdout()
     except Exception:
         pass
-        
+
     is_json = "--json" in sys.argv
-    
+
     try:
         args = parse_args()
     except ParserError as pe:
         if is_json:
-            cmd = next((arg for arg in sys.argv[1:] if not arg.startswith("-")), "show_project_state")
-            envelope = build_json_envelope(False, cmd, {}, [], [pe.message])
+            envelope = build_json_envelope(False, "show_project_state", {}, [], [pe.message])
             print(json.dumps(envelope, ensure_ascii=False, indent=1))
             return 1
         else:
@@ -538,7 +535,7 @@ def main() -> int:
         cm = stdout_redirected(buffer)
     else:
         cm = contextlib.nullcontext()
-        
+
     with cm:
         try:
             res, code = do_run(args)
@@ -548,14 +545,14 @@ def main() -> int:
         except Exception as e:
             res = build_json_envelope(False, "show_project_state", {}, [], [f"Unexpected error: {e}"])
             code = 1
-            
+
     if is_json:
         if res is not None:
             print(json.dumps(res, ensure_ascii=False, indent=1))
         else:
             envelope = build_json_envelope(False, "show_project_state", {}, [], [f"SystemExit {code}"])
             print(json.dumps(envelope, ensure_ascii=False, indent=1))
-            
+
     return code
 
 if __name__ == "__main__":
