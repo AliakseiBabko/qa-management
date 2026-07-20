@@ -200,10 +200,10 @@ def extract_matches_for_path(mirror: Path, ref: str, path: str, query: str, is_r
     matches = []
 
     # Read blob once
-    blob_lines = []
     blob_cmd = run_git(mirror, ["show", f"{ref}:{path}"], check=False)
-    if blob_cmd.returncode == 0:
-        blob_lines = blob_cmd.stdout.decode("utf-8", errors="replace").splitlines()
+    if blob_cmd.returncode != 0:
+        raise RuntimeError(f"Git show failed for {ref}:{path}")
+    blob_lines = blob_cmd.stdout.decode("utf-8", errors="replace").splitlines()
 
     # Process all to accurately get truncated flag
     for line in raw:

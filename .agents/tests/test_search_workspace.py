@@ -304,7 +304,7 @@ class TestSearchWorkspace(unittest.TestCase):
         self._write("10_M1_People_Management/b.md", "def\ndef")
         self._git("add", ".")
         self._git("commit", "-m", "B")
-        
+
         res2 = self.run_cli("search", "def", "--limit", "2", "--json")
         data2 = json.loads(res2.stdout)
         self.assertTrue(data2["ok"])
