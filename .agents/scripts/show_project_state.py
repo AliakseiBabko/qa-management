@@ -21,6 +21,7 @@ This enforces read-only semantics (no folder/sheet/doc creation).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import sys
@@ -36,23 +37,50 @@ from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_shee
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
 
-# Scope mapping
-PROJECT_DOCS = {"project_metrics", "project_risk", "evidence_log", "qa_process_metrics", "action_items", "project_development_plan", "m2_input", "m2_monthly_report"}
-PERSON_DOCS = {"individual_metrics", "individual_metrics_internal", "individual_development_plan", "m1_people_1to1", "m2_people_1to1"}
-REGISTRY_DOCS = {"_people_registry", "_project_registry", "_timeline", "_m1_timeline"}
+# Scope mapping - removed unsupported ones
+PROJECT_DOCS = {"project_metrics", "project_risk", "evidence_log", "qa_process_metrics", "action_items", "project_development_plan", "m2_input"}
+PERSON_DOCS = {"individual_metrics", "individual_metrics_internal", "individual_development_plan"}
+REGISTRY_DOCS = {"_people_registry", "_project_registry", "_timeline"}
 
 # Date column mapping for --since filtering
 DATE_COLS = {
     "evidence_log": 0,
     "action_items": 1,
     "project_risk": 1,
-    "_timeline": 0,
-    "_m1_timeline": 0
+    "_timeline": 1,
 }
 
+def build_json_envelope(ok: bool, cmd: str, data: dict[str, Any], warnings: list[str], errors: list[str]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "ok": ok,
+        "command": cmd,
+        "data": data,
+        "warnings": warnings,
+        "errors": errors
+    }
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        if "--json" in sys.argv:
+            cmd = next((arg for arg in sys.argv[1:] if not arg.startswith("-")), "show_project_state")
+            envelope = build_json_envelope(False, cmd, {}, [], [message])
+            print(json.dumps(envelope, ensure_ascii=False, indent=1))
+            sys.exit(1)
+        else:
+            super().error(message)
+
+@contextlib.contextmanager
+def stdout_redirected(to=sys.stderr):
+    original_stdout = sys.stdout
+    sys.stdout = to
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = JsonArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <ProjectName>")
     parser.add_argument("--registries", action="store_true", help="Also/instead dump _people_registry and _project_registry")
     parser.add_argument(
@@ -68,16 +96,25 @@ def parse_args() -> argparse.Namespace:
         help="Show only the last N evidence_log rows in the full dump (default 10). Pass 0 for the full log.",
     )
 
-    # New phase 3 targeted reads
+    # Phase 3 targeted reads
     parser.add_argument("--document", action="append", default=[], help="Specific document names to fetch")
     parser.add_argument("--person", help="Person name for individual document scope")
     parser.add_argument("--since", help="Filter rows >= this YYYY-MM-DD date")
     parser.add_argument("--limit", type=int, help="Limit returned rows/paragraphs. Defaults to 20 when --document is used.")
     parser.add_argument("--json", action="store_true", help="Output strict JSON envelope")
-
+    
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
-    return parser.parse_args()
+    
+    args = parser.parse_args()
+    
+    if args.since:
+        try:
+            dt.date.fromisoformat(args.since)
+        except ValueError:
+            parser.error(f"Invalid --since date format: '{args.since}'. Expected YYYY-MM-DD.")
+            
+    return args
 
 
 def find_folder(drive: Any, parent_id: str, name: str) -> dict[str, Any] | None:
@@ -91,19 +128,23 @@ def find_folder(drive: Any, parent_id: str, name: str) -> dict[str, Any] | None:
 
 def read_doc_paragraphs(services: dict[str, Any], doc_id: str) -> list[str]:
     doc = services["docs"].documents().get(documentId=doc_id).execute()
-    text = []
+    paras = []
     for element in doc.get("body", {}).get("content", []):
         if "paragraph" in element:
+            para_text = []
             for run in element["paragraph"].get("elements", []):
                 if "textRun" in run:
-                    text.append(run["textRun"]["content"])
-    return text
+                    para_text.append(run["textRun"]["content"])
+            full_text = "".join(para_text)
+            if full_text.strip():
+                paras.append(full_text)
+    return paras
 
 
 def dump_sheet(services: dict[str, Any], folder_id: str, title: str, tail: int = 0) -> None:
     sheet = find_sheet_in_folder(services["drive"], folder_id, title)
     if not sheet:
-        print(f"--- {title}: not found ---", file=sys.stdout)
+        print(f"--- {title}: not found ---")
         return
     rows = read_sheet_values(services, sheet["id"])
     header, body = (rows[0], rows[1:]) if rows else ([], [])
@@ -112,12 +153,12 @@ def dump_sheet(services: dict[str, Any], folder_id: str, title: str, tail: int =
         omitted = len(body) - tail
         body = body[-tail:]
     suffix = f" (showing last {tail} of {tail + omitted} rows; pass --evidence-tail 0 for all)" if omitted else ""
-    print(f"--- {title} ({sheet['id']}){suffix} ---", file=sys.stdout)
+    print(f"--- {title} ({sheet['id']}){suffix} ---")
     if header:
-        print(header, file=sys.stdout)
+        print(header)
     for row in body:
-        print(row, file=sys.stdout)
-    print(file=sys.stdout)
+        print(row)
+    print()
 
 
 def find_doc(services: dict[str, Any], folder_id: str, title: str) -> dict[str, Any] | None:
@@ -132,48 +173,49 @@ def find_doc(services: dict[str, Any], folder_id: str, title: str) -> dict[str, 
 def dump_doc(services: dict[str, Any], folder_id: str, title: str) -> None:
     match = find_doc(services, folder_id, title)
     if not match:
-        print(f"--- {title} (doc): not found ---", file=sys.stdout)
+        print(f"--- {title} (doc): not found ---")
         return
     text = read_doc_paragraphs(services, match["id"])
-    print(f"--- {title} (doc, {match['id']}) ---", file=sys.stdout)
-    print("".join(text), file=sys.stdout)
-    print(file=sys.stdout)
+    print(f"--- {title} (doc, {match['id']}) ---")
+    for para in text:
+        print(para, end="")
+    print()
 
 
 def dump_project(services: dict[str, Any], m2_root_id: str, project: str, evidence_tail: int = 0) -> None:
     project_folder = find_folder(services["drive"], m2_root_id, project)
     if not project_folder:
-        print(f"No such project folder: {project}", file=sys.stdout)
+        print(f"No such project folder: {project}")
         return
 
-    print(f"===== {project}: project_metrics =====", file=sys.stdout)
+    print(f"===== {project}: project_metrics =====")
     dump_sheet(services, project_folder["id"], "project_metrics")
-    print(f"===== {project}: project_risk =====", file=sys.stdout)
+    print(f"===== {project}: project_risk =====")
     dump_sheet(services, project_folder["id"], "project_risk")
-    print(f"===== {project}: evidence_log =====", file=sys.stdout)
+    print(f"===== {project}: evidence_log =====")
     dump_sheet(services, project_folder["id"], "evidence_log", tail=evidence_tail)
-    print(f"===== {project}: qa_process_metrics =====", file=sys.stdout)
+    print(f"===== {project}: qa_process_metrics =====")
     dump_sheet(services, project_folder["id"], "qa_process_metrics")
-    print(f"===== {project}: action_items =====", file=sys.stdout)
+    print(f"===== {project}: action_items =====")
     dump_sheet(services, project_folder["id"], "action_items")
-    print(f"===== {project}: project_development_plan =====", file=sys.stdout)
+    print(f"===== {project}: project_development_plan =====")
     dump_doc(services, project_folder["id"], "project_development_plan")
 
     m2_input_folder = find_folder(services["drive"], project_folder["id"], "m2_input")
     if m2_input_folder:
-        print(f"===== {project}: m2_input =====", file=sys.stdout)
+        print(f"===== {project}: m2_input =====")
         dump_doc(services, m2_input_folder["id"], "m2_input")
 
     people_folder = find_folder(services["drive"], project_folder["id"], "people")
     if not people_folder:
         return
-    print(f"===== {project}: people =====", file=sys.stdout)
+    print(f"===== {project}: people =====")
     for person in drive_query(
         services["drive"],
         f"'{people_folder['id']}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false",
         fields="id,name",
     ):
-        print(f"--- person: {person['name']} ---", file=sys.stdout)
+        print(f"--- person: {person['name']} ---")
         dump_sheet(services, person["id"], "individual_metrics")
         dump_sheet(services, person["id"], "individual_metrics_internal")
         dump_doc(services, person["id"], "individual_development_plan")
@@ -254,6 +296,10 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
     errors = []
 
     limit = args.limit if args.limit is not None else 20
+    if limit <= 0:
+        limit = 1000 # Safe maximum if user tries zero or negative
+    elif limit > 1000:
+        limit = 1000
 
     for doc_name in args.document:
         if doc_name in PROJECT_DOCS:
@@ -277,6 +323,10 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
 
         if args.since and doc_name not in DATE_COLS and not doc_name.endswith("_plan") and doc_name != "m2_input":
             errors.append(f"Document {doc_name} does not support --since filtering")
+            continue
+            
+        if args.since and (doc_name.endswith("_plan") or doc_name == "m2_input"):
+            errors.append(f"Document {doc_name} (Docs) does not support --since filtering")
             continue
 
         doc_result = {
@@ -338,11 +388,27 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
                 # Apply since filter
                 if args.since and doc_name in DATE_COLS:
                     col = DATE_COLS[doc_name]
-                    body = [r for r in body if len(r) > col and r[col] >= args.since]
+                    
+                    def parse_date(d_str):
+                        try:
+                            return dt.date.fromisoformat(d_str).isoformat()
+                        except ValueError:
+                            return None
+
+                    since_iso = dt.date.fromisoformat(args.since).isoformat()
+                    
+                    filtered_body = []
+                    for r in body:
+                        if len(r) > col:
+                            d = parse_date(r[col])
+                            if d and d >= since_iso:
+                                filtered_body.append(r)
+                                
+                    body = filtered_body
 
                 doc_result["total_count"] = len(body)
 
-                if limit and limit > 0 and len(body) > limit:
+                if limit and len(body) > limit:
                     body = body[-limit:]
                     doc_result["truncated"] = True
 
@@ -361,7 +427,7 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
             paras = read_doc_paragraphs(services, doc["id"])
             doc_result["total_count"] = len(paras)
 
-            if limit and limit > 0 and len(paras) > limit:
+            if limit and len(paras) > limit:
                 paras = paras[:limit]
                 doc_result["truncated"] = True
 
@@ -373,105 +439,115 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
     return {"doc_results": doc_results, "errors": errors}
 
 
-def main() -> int:
-    ensure_utf8_stdout()
+def do_run() -> dict[str, Any] | None:
     args = parse_args()
-
-    if args.json:
-        # Redirect standard stdout to stderr to avoid polluting JSON
-        sys.stdout = sys.stderr
 
     if not args.project and not args.registries and not args.summary and not args.document:
         msg = "Nothing to do: pass --project <Name>, --registries, --summary, and/or --document <Name>."
-        if args.json:
-            print(json.dumps({
-                "schema_version": 1,
-                "ok": False,
-                "command": "show_project_state",
-                "data": {},
-                "warnings": [],
-                "errors": [msg]
-            }), file=sys.__stdout__)
-        else:
-            print(msg)
-        return 1
+        return build_json_envelope(False, "show_project_state", {}, [], [msg])
 
-    services = get_services(args.credentials, args.token)
+    try:
+        services = get_services(args.credentials, args.token)
+    except Exception as e:
+        return build_json_envelope(False, "show_project_state", {}, [], [f"Failed to build services: {e}"])
+        
     drive = services["drive"]
     m2_root = find_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
     if not m2_root:
         msg = "20_M2_Project_Management folder not found under the workspace root."
-        if args.json:
-            print(json.dumps({
-                "schema_version": 1,
-                "ok": False,
-                "command": "show_project_state",
-                "data": {},
-                "warnings": [],
-                "errors": [msg]
-            }), file=sys.__stdout__)
-        else:
-            print(msg)
-        return 1
+        return build_json_envelope(False, "show_project_state", {}, [], [msg])
 
     if args.document:
         res = fetch_targeted_docs(services, args, m2_root["id"])
+        
+        envelope = build_json_envelope(len(res["errors"]) == 0, "show_project_state", {
+            "selectors": {
+                "project": args.project,
+                "person": args.person,
+                "since": args.since,
+                "limit": args.limit if args.limit is not None else 20
+            },
+            "documents": res["doc_results"]
+        }, [], res["errors"])
+        
         if args.json:
-            output = {
-                "schema_version": 1,
-                "ok": len(res["errors"]) == 0,
-                "command": "show_project_state",
-                "data": {
-                    "selectors": {
-                        "project": args.project,
-                        "person": args.person,
-                        "since": args.since,
-                        "limit": args.limit if args.limit is not None else 20
-                    },
-                    "documents": res["doc_results"]
-                },
-                "warnings": [],
-                "errors": res["errors"]
-            }
-            print(json.dumps(output), file=sys.__stdout__)
-            return 1 if res["errors"] else 0
-        else:
-            if res["errors"]:
-                for e in res["errors"]:
-                    print(f"Error: {e}")
-                return 1
-            for d in res["doc_results"]:
-                print(f"--- {d['name']} ---")
-                if d["missing"]:
-                    print("Not found.")
-                else:
-                    for line in d["content"]:
-                        print(line)
-            return 0
+            return envelope
+            
+        if res["errors"]:
+            for e in res["errors"]:
+                print(f"Error: {e}")
+            return build_json_envelope(False, "show_project_state", {}, [], res["errors"])
+            
+        for d in res["doc_results"]:
+            print(f"--- {d['name']} ---")
+            if d["missing"]:
+                print("Not found.")
+            else:
+                for line in d["content"]:
+                    print(line)
+        return envelope
 
     if args.summary:
         people_by_project = project_people_counts(services, m2_root["id"])
         projects = [args.project] if args.project else sorted(people_by_project)
+        output = []
         for project in projects:
-            print(summarize_project(services, m2_root["id"], project, people_by_project.get(project, "")), file=sys.__stdout__ if args.json else sys.stdout)
-        return 0
+            summary = summarize_project(services, m2_root["id"], project, people_by_project.get(project, ""))
+            print(summary)
+            output.append(summary)
+        return build_json_envelope(True, "show_project_state", {"output": output}, [], [])
 
     if args.registries:
-        print("===== _people_registry =====", file=sys.__stdout__ if args.json else sys.stdout)
+        output = []
+        print("===== _people_registry =====")
         people_root = find_folder(drive, ROOT_FOLDER_ID, "05_People_Management")
         if people_root:
             dump_sheet(services, people_root["id"], "_people_registry")
+            output.append("_people_registry dumped")
         else:
-            print("--- _people_registry: not found (05_People_Management missing) ---", file=sys.__stdout__ if args.json else sys.stdout)
-        print("===== _project_registry =====", file=sys.__stdout__ if args.json else sys.stdout)
+            print("--- _people_registry: not found (05_People_Management missing) ---")
+            output.append("_people_registry missing")
+        print("===== _project_registry =====")
         dump_sheet(services, m2_root["id"], "_project_registry")
-        print("===== _timeline =====", file=sys.__stdout__ if args.json else sys.stdout)
+        output.append("_project_registry dumped")
+        print("===== _timeline =====")
         dump_sheet(services, m2_root["id"], "_timeline")
+        output.append("_timeline dumped")
+        return build_json_envelope(True, "show_project_state", {"output": output}, [], [])
 
     if args.project:
         dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
+        return build_json_envelope(True, "show_project_state", {"output": ["project dumped"]}, [], [])
 
-    return 0
+    return build_json_envelope(True, "show_project_state", {}, [], [])
+
+
+def main() -> int:
+    ensure_utf8_stdout()
+    is_json = "--json" in sys.argv
+    
+    if is_json:
+        with stdout_redirected():
+            try:
+                res = do_run()
+            except SystemExit as e:
+                return e.code
+            except Exception as e:
+                res = build_json_envelope(False, "show_project_state", {}, [], [f"Unexpected error: {e}"])
+                
+            print(json.dumps(res), file=sys.__stdout__)
+            return 1 if res.get("errors") else 0
+    else:
+        try:
+            res = do_run()
+            if res and res.get("errors"):
+                return 1
+            return 0
+        except SystemExit as e:
+            return e.code
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
 
 
 if __name__ == "__main__":
