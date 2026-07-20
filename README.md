@@ -422,9 +422,13 @@ These are what actually runs day to day, once a project's folder already exists:
   other` — not an intake source at all, reachable only from
   pre-processing states). Categorically non-intake subtrees (the M2
   course homework folders) are also excluded from `scan` via
-  `SCAN_EXCLUDE`. All commands support `--json`; transitions
-  are validated against an explicit table (unit-tested in
-  `.agents/tests`).
+  `SCAN_EXCLUDE`. All commands support `--json` for a strict programmatic contract:
+  stdout is suppressed during execution, and exactly one JSON envelope containing
+  the command status, exit code, structured data, and human-readable lines is
+  emitted at the end. Transitions are validated against an explicit table
+  (unit-tested in `.agents/tests`). The `review <run-id>` command provides a
+  read-only evaluation of a run's closure/completion readiness (missing invocation
+  evidence, snapshot problems, unresolved edges) without mutation.
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,

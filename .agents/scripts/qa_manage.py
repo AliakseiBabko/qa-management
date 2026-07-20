@@ -99,6 +99,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+import contextlib
+import traceback
+from dataclasses import dataclass, field
 
 import yaml
 
@@ -512,7 +515,7 @@ def mirror_git(*args: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, encoding="utf-8")
 
 
-def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: str) -> str:
+def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: str) -> tuple[str, list[str]]:
     """Commit the run's INTENDED terminal queue state to the mirror -
     called before the final Drive transition, so the mirror always carries
     the terminal representation the moment the run becomes terminal (and a
@@ -556,8 +559,8 @@ def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: st
             sha, _, subject = line.partition("|")
             if subject.strip() == msg:
                 from commit_workspace_state import refresh_bundle
-                print(refresh_bundle(MIRROR))
-                return sha
+                bundle_msg = refresh_bundle(MIRROR)
+                return sha, [bundle_msg] if "FAILED" in bundle_msg else []
         raise SystemExit("mirror is clean but no terminal queue commit for "
                          f"{run_id} exists - inspect the mirror before retrying.")
     res = mirror_git("commit", "-m", msg)
@@ -569,18 +572,48 @@ def export_queue_terminal(services, sheet, terminal_rows: list[dict], run_id: st
         raise SystemExit(f"mirror HEAD {sha[:8]} is not the queue commit just made "
                          f"({subject!r}) - inspect the mirror before retrying.")
     from commit_workspace_state import refresh_bundle
-    print(refresh_bundle(MIRROR))
-    return sha
+    bundle_msg = refresh_bundle(MIRROR)
+    return sha, [bundle_msg] if "FAILED" in bundle_msg else []
 
 
 # ---------- output ----------
 
-def emit(payload: dict, as_json: bool, human_lines: list[str]) -> None:
-    if as_json:
-        print(json.dumps(payload, ensure_ascii=False, indent=1))
-    else:
-        for line in human_lines:
-            print(line)
+@dataclass
+class CommandResult:
+    ok: bool = True
+    data: dict = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    human_lines: list[str] = field(default_factory=list)
+    exit_code: int = 0
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        if "--json" in sys.argv:
+            cmd = next((arg for arg in sys.argv[1:] if not arg.startswith("-")), "unknown")
+            envelope = {
+                "schema_version": 1,
+                "ok": False,
+                "command": cmd,
+                "data": {},
+                "warnings": [],
+                "errors": [message]
+            }
+            print(json.dumps(envelope, ensure_ascii=False, indent=1))
+            sys.exit(1)
+        else:
+            super().error(message)
+
+
+@contextlib.contextmanager
+def stdout_redirected(to=sys.stderr):
+    original_stdout = sys.stdout
+    sys.stdout = to
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout
 
 
 def row_brief(row: dict) -> str:
@@ -640,12 +673,15 @@ def cmd_scan(args) -> int:
     payload = {"discovered": [{"run_id": r["Run ID"], "source": r["Source"],
                                "preclass": r["Source type"], "note": r["Reason"]}
                               for r in discovered]}
-    emit(payload, args.json,
-         [f"{len(discovered)} new source(s) discovered:"] +
-         [f"  {r['Run ID']}  {r['Source']}  ({r['Source type']})"
-          + (f"  [{r['Reason']}]" if r["Reason"] else "") for r in discovered]
-         if discovered else ["No new sources."])
-    return 0
+    return CommandResult(
+        ok=True,
+        data=payload,
+        human_lines=[f"{len(discovered)} new source(s) discovered:"] +
+                    [f"  {r['Run ID']}  {r['Source']}  ({r['Source type']})"
+                     + (f"  [{r['Reason']}]" if r["Reason"] else "") for r in discovered]
+                    if discovered else ["No new sources."],
+        exit_code=0
+    )
 
 
 def cmd_status(args) -> int:
@@ -659,11 +695,14 @@ def cmd_status(args) -> int:
         counts[r["Status"]] = counts.get(r["Status"], 0) + 1
     payload = {"counts": counts, "open": [{h.lower().replace(" ", "_"): r[h] for h in HEADER
                                           if h not in ("Summary", "Entries")} for r in open_rows]}
-    emit(payload, args.json,
-         [f"Queue: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) if counts
-          else "Queue is empty (run scan first)."] +
-         [f"  {row_brief(r)}" for r in open_rows])
-    return 0
+    return CommandResult(
+        ok=True,
+        data=payload,
+        human_lines=[f"Queue: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) if counts
+                     else "Queue is empty (run scan first)."] +
+                    [f"  {row_brief(r)}" for r in open_rows],
+        exit_code=0
+    )
 
 
 def cmd_next(args) -> int:
@@ -678,8 +717,7 @@ def cmd_next(args) -> int:
             pick = cands[0]
             break
     if not pick:
-        emit({"next": None}, args.json, ["Nothing actionable - queue is clear."])
-        return 0
+        return CommandResult(ok=True, data={"next": None}, human_lines=["Nothing actionable - queue is clear."], exit_code=0)
 
     lines = [row_brief(pick), f"  source: {pick['Source']}"]
     info: dict = {"run_id": pick["Run ID"], "status": pick["Status"], "stage": pick["Stage"],
@@ -712,8 +750,7 @@ def cmd_next(args) -> int:
         lines.append(f"  unfinished stage: {pick['Stage'] or 'analysis'}"
                      + (f" (blocked: {pick['Reason']})" if pick["Status"] == "blocked" else ""))
     info["unfinished"] = pick["Stage"] or pick["Status"]
-    emit({"next": info}, args.json, lines)
-    return 0
+    return CommandResult(ok=True, data={"next": info}, human_lines=lines, exit_code=0)
 
 
 def _update_run(args, mutate) -> dict:
@@ -799,10 +836,13 @@ def cmd_record_analysis(args) -> int:
         row["Summary"] = (row["Summary"] + " | " if row["Summary"] else "") + args.summary.strip()
 
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "stage": row["Stage"]}, args.json,
-         [row_brief(row),
-          "  next: apply the documents, then record-apply per scope."])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "stage": row["Stage"]},
+        human_lines=[row_brief(row),
+                     "  next: apply the documents, then record-apply per scope."],
+        exit_code=0
+    )
 
 
 def cmd_record_apply(args) -> int:
@@ -832,11 +872,14 @@ def cmd_record_apply(args) -> int:
         row["Stage"] = "closure"
 
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "stage": row["Stage"],
-          "entries": parse_entries_cell(row["Entries"])}, args.json,
-         [row_brief(row),
-          "  next: resolve every cascade edge (resolve-edge), snapshot, complete."])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "stage": row["Stage"],
+              "entries": parse_entries_cell(row["Entries"])},
+        human_lines=[row_brief(row),
+                     "  next: resolve every cascade edge (resolve-edge), snapshot, complete."],
+        exit_code=0
+    )
 
 
 def cmd_resolve_edge(args) -> int:
@@ -899,12 +942,14 @@ def cmd_add_scope(args) -> int:
         row["Person"] = "; ".join(dict.fromkeys(p for _, p in scopes if p))
 
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "scopes": parse_scopes_cell(row["Scopes"])},
-         args.json,
-         [row_brief(row),
-          f"  scopes now: {parse_scopes_cell(row['Scopes'])} - record-apply and "
-          "resolve-edge for the new scope need explicit --project/--person."])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "scopes": parse_scopes_cell(row["Scopes"])},
+        human_lines=[row_brief(row),
+                     f"  scopes now: {parse_scopes_cell(row['Scopes'])} - record-apply and "
+                     "resolve-edge for the new scope need explicit --project/--person."],
+        exit_code=0
+    )
 
 
 def cmd_block(args) -> int:
@@ -912,9 +957,12 @@ def cmd_block(args) -> int:
         validate_transition(row["Status"], "blocked")
         row["Status"], row["Reason"] = "blocked", args.reason
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "status": "blocked", "reason": row["Reason"]},
-         args.json, [row_brief(row)])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "status": "blocked", "reason": row["Reason"]},
+        human_lines=[row_brief(row)],
+        exit_code=0
+    )
 
 
 def cmd_fail(args) -> int:
@@ -922,8 +970,12 @@ def cmd_fail(args) -> int:
         validate_transition(row["Status"], "failed")
         row["Status"], row["Reason"] = "failed", args.reason
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "status": "failed"}, args.json, [row_brief(row)])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "status": "failed"},
+        human_lines=[row_brief(row)],
+        exit_code=0
+    )
 
 
 def cmd_ignore(args) -> int:
@@ -933,9 +985,12 @@ def cmd_ignore(args) -> int:
         row["Reason"] = (f"ignored ({args.category})"
                          + (f": {args.reason}" if args.reason else ""))
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "status": "ignored", "category": args.category},
-         args.json, [row_brief(row)])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "status": "ignored", "category": args.category},
+        human_lines=[row_brief(row)],
+        exit_code=0
+    )
 
 
 def cmd_historical(args) -> int:
@@ -944,9 +999,12 @@ def cmd_historical(args) -> int:
         row["Status"] = "historical"
         row["Reason"] = f"pre-queue history: {args.evidence}"
     row = _update_run(args, mutate)
-    emit({"run_id": row["Run ID"], "status": "historical", "evidence": args.evidence},
-         args.json, [row_brief(row)])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "status": "historical", "evidence": args.evidence},
+        human_lines=[row_brief(row)],
+        exit_code=0
+    )
 
 
 def cmd_resume(args) -> int:
@@ -975,48 +1033,81 @@ def cmd_resume(args) -> int:
              f"  cascade outcomes recorded: {len(outcome_rows)} across {len(scopes)} scope(s)",
              f"  unfinished stage: {row['Stage'] or row['Status']} - everything recorded "
              "above is done; do not repeat those writes, continue from here."]
-    emit({"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
-          "entries": entries, "outcomes": len(outcome_rows),
-          "scopes": [list(s) for s in scopes]}, args.json, lines)
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": row["Run ID"], "status": row["Status"], "stage": row["Stage"],
+              "entries": entries, "outcomes": len(outcome_rows),
+              "scopes": [list(s) for s in scopes]},
+        human_lines=lines,
+        exit_code=0
+    )
 
 
-def cmd_complete(args) -> int:
-    from check_cascade_closure import build_resolved, walk
+@dataclass
+class ReviewContext:
+    row: dict
+    graph: dict
+    all_rows: list[dict]
+    inv_rows: list[list[str]]
+    dirty: bool
+    log_entries: list[tuple[str, float, str]]
+
+def load_review_context(services, run_id: str) -> ReviewContext:
     from closure_outcomes import fetch_outcomes
-    from sync_m2_source_docs_to_sheets import read_sheet_values
-
-    services = get_services_cached()
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_sheet_in_folder, read_sheet_values
+    from pipeline_common import SKILL_INVOCATIONS_SHEET
+    
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
-    row = get_run(rows, args.run_id)
-    if row["Status"] not in ("processing", "finalizing"):
-        raise SystemExit(f"complete requires status=processing or finalizing "
-                         f"(is {row['Status']!r}).")
-    if row["Status"] == "processing" and row["Stage"] != "closure":
-        raise SystemExit(f"complete requires stage=closure (is {row['Stage'] or 'analysis'!r}) "
-                         "- record-analysis and record-apply must run first, even for "
-                         "workspace-only routes.")
-
+    row = get_run(rows, run_id)
     graph = load_graph()
+    
+    all_rows = fetch_outcomes(services, run_id, all_scopes=True)
+    
+    inv_sheet = find_sheet_in_folder(services["drive"], ROOT_FOLDER_ID, SKILL_INVOCATIONS_SHEET)
+    inv_rows = read_sheet_values(services, inv_sheet["id"]) if inv_sheet else []
+
+    porcelain = mirror_git("status", "--porcelain").stdout
+    dirty = bool(porcelain.strip())
+    if dirty and row["Status"] == "finalizing" and is_queue_only_dirt(porcelain):
+        dirty = False
+    
+    log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
+    log_entries = []
+    for line in log_raw.splitlines():
+        sha, _, rest = line.partition("|")
+        ts, _, subject = rest.partition("|")
+        try:
+            log_entries.append((sha, float(ts), subject))
+        except ValueError:
+            continue
+            
+    return ReviewContext(row, graph, all_rows, inv_rows, dirty, log_entries)
+
+def evaluate_run(ctx: ReviewContext) -> tuple[list[str], str]:
+    from check_cascade_closure import build_resolved, walk
+    row = ctx.row
+    graph = ctx.graph
+    
+    if row["Status"] not in ("processing", "finalizing"):
+        return [f"status is {row['Status']!r} (must be processing or finalizing)"], ""
+    if row["Status"] == "processing" and row["Stage"] != "closure":
+        return [f"stage is {row['Stage'] or 'analysis'!r} (must be closure) - record-analysis and record-apply must run first, even for workspace-only routes."], ""
+
     problems: list[str] = []
     route = resolve_route(graph, row["Source type"], row["Route variant"])
     entry_docs = route.get("entry") or []
     entries = parse_entries_cell(row["Entries"])
-    all_rows = fetch_outcomes(services, args.run_id, all_scopes=True)
-    scopes = enumerate_run_scopes(all_rows, parse_scopes_cell(row["Scopes"]),
+    scopes = enumerate_run_scopes(ctx.all_rows, parse_scopes_cell(row["Scopes"]),
                                   entries, row["Route variant"])
 
-    # 1+2. Per scope: every entry document has a valid outcome; cascade from
-    # the actually-updated ones must be strictly closed for that scope.
     last_outcome_ts = max(parse_ts(row["Started"]), parse_ts(row["Last mutation"]))
     for proj, pers, variant in scopes:
-        label = f"scope ({proj or '-'}, {pers or '-'}, {variant or '-'})"
+        label = f"scope ({proj or '-'!s}, {pers or '-'!s}, {variant or '-'!s})"
         scoped_entries = entries_for_scope(entries, proj, pers)
-        problems.extend(f"{label}: {p}"
-                        for p in validate_entry_outcomes(entry_docs, scoped_entries))
+        problems.extend(f"{label}: {p}" for p in validate_entry_outcomes(entry_docs, scoped_entries))
         seeds = seeds_for_scope(scoped_entries)
-        scoped_rows = fetch_outcomes(services, args.run_id, proj, pers, variant)
+        scoped_rows = [r for r in ctx.all_rows if r["Project"] == proj and r["Person"] == pers and r["Variant"] == variant]
         for rec in scoped_rows:
             last_outcome_ts = max(last_outcome_ts, parse_ts(rec.get("Timestamp", "")))
         resolved, warns = build_resolved(scoped_rows, graph)
@@ -1029,42 +1120,61 @@ def cmd_complete(args) -> int:
                  resolved, open_items, lines)
         problems.extend(f"{label}: unresolved edge {item}" for item in open_items)
 
-    # 3. A _skill_invocations row must carry the exact run token.
-    from pipeline_common import get_skill_invocations_sheet
-    token = f"run:{args.run_id}"
-    inv_rows = read_sheet_values(services, get_skill_invocations_sheet(services)["id"])
-    if not any(token in " | ".join(r) for r in inv_rows[1:]):
+    token = f"run:{row['Run ID']}"
+    if not any(token in " | ".join(r) for r in ctx.inv_rows[1:]):
         problems.append(f"no _skill_invocations row carries the token '{token}' - "
                         "log_skill_invocation() with it in Notes")
 
-    # 4. Clean mirror snapshot mentioning the run, not older than the run's
-    # last recorded mutation; its SHA is persisted on the row. In finalizing
-    # recovery, dirt confined to the queue's own export files is a
-    # half-finished terminal commit, not business dirt - the idempotent
-    # terminal export below handles it; anything else still blocks.
-    porcelain = mirror_git("status", "--porcelain").stdout
-    dirty = bool(porcelain.strip())
-    if dirty and row["Status"] == "finalizing" and is_queue_only_dirt(porcelain):
-        dirty = False
-    log_raw = mirror_git("log", "-50", "--format=%H|%ct|%s").stdout
-    log_entries = []
-    for line in log_raw.splitlines():
-        sha, _, rest = line.partition("|")
-        ts, _, subject = rest.partition("|")
-        try:
-            log_entries.append((sha, float(ts), subject))
-        except ValueError:
-            continue
-    sha, snap_problem = check_snapshot(log_entries, args.run_id, last_outcome_ts, dirty)
+    sha, snap_problem = check_snapshot(ctx.log_entries, row["Run ID"], last_outcome_ts, ctx.dirty)
     if snap_problem:
         problems.append(snap_problem)
 
+    return problems, sha
+
+
+def cmd_review(args) -> int:
+    services = get_services_cached()
+    ctx = load_review_context(services, args.run_id)
+    problems, sha = evaluate_run(ctx)
+    return CommandResult(
+        ok=not problems,
+        data={"run_id": args.run_id, "problems": problems},
+        human_lines=[f"Review for {args.run_id}:"] + (
+            [f"  - {p}" for p in problems] if problems else ["  All clear. Ready for complete."]
+        ),
+        exit_code=0
+    )
+
+
+def cmd_complete(args) -> int:
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    
+    ctx = load_review_context(services, args.run_id)
+    problems, sha = evaluate_run(ctx)
+    
+    row = get_run(rows, args.run_id)
+
     if problems:
-        emit({"run_id": args.run_id, "completed": False, "problems": problems},
-             args.json,
-             [f"NOT completed - {len(problems)} unmet requirement(s):"] +
-             [f"  - {p}" for p in problems])
-        return 1
+        return CommandResult(
+            ok=False,
+            data={"run_id": args.run_id, "completed": False, "problems": problems},
+            errors=["Run is not ready for completion"],
+            human_lines=[f"NOT completed - {len(problems)} unmet requirement(s):"] +
+                        [f"  - {p}" for p in problems],
+            exit_code=1
+        )
+
+    if problems:
+        return CommandResult(
+            ok=False,
+            data={"run_id": args.run_id, "completed": False, "problems": problems},
+            errors=["Run is not ready for completion"],
+            human_lines=[f"NOT completed - {len(problems)} unmet requirement(s):"] +
+                        [f"  - {p}" for p in problems],
+            exit_code=1
+        )
 
     # Verification passed. Two-phase terminal transition so a mirror
     # bookkeeping failure never yields a false success or a stuck terminal
@@ -1100,18 +1210,23 @@ def cmd_complete(args) -> int:
     row.update({"Status": "completed", "Stage": "done", "Completed": completed_ts,
                 "Snapshot": row["Snapshot"] or sha})
     write_queue(services, sheet, rows)
-    emit({"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"],
-          "terminal_commit": queue_sha}, args.json,
-         [f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
-          f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified; "
-          f"terminal state committed to the mirror ({queue_sha[:8]}) before the Drive "
-          "transition."])
-    return 0
+    return CommandResult(
+        ok=True,
+        data={"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"],
+              "terminal_commit": queue_sha},
+        warnings=warnings,
+        human_lines=[f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
+                     f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified; "
+                     f"terminal state committed to the mirror ({queue_sha[:8]}) before the Drive "
+                     "transition."],
+        exit_code=0
+    )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = JsonArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument("--debug", action="store_true", help="print full traceback on unexpected error")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("scan", help="discover new/changed source files")
@@ -1177,6 +1292,9 @@ def main() -> int:
                    help="where the pre-queue processing is recorded "
                         "(_skill_invocations date, evidence_log row, ...)")
 
+    p = sub.add_parser("review", help="read-only run evaluation")
+    p.add_argument("run_id")
+
     p = sub.add_parser("resume", help="unfinished stage + what remains")
     p.add_argument("run_id")
     p.add_argument("--continue", dest="cont", action="store_true",
@@ -1186,13 +1304,55 @@ def main() -> int:
     p.add_argument("run_id")
 
     args = parser.parse_args()
-    return {"scan": cmd_scan, "status": cmd_status, "next": cmd_next,
-            "start": cmd_start, "record-analysis": cmd_record_analysis,
-            "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
-            "add-scope": cmd_add_scope,
-            "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
-            "historical": cmd_historical,
-            "resume": cmd_resume, "complete": cmd_complete}[args.cmd](args)
+
+    commands = {
+        "scan": cmd_scan, "status": cmd_status, "next": cmd_next,
+        "start": cmd_start, "record-analysis": cmd_record_analysis,
+        "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
+        "add-scope": cmd_add_scope,
+        "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
+        "historical": cmd_historical,
+        "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review
+    }
+
+    if not args.json:
+        result = commands[args.cmd](args)
+        if isinstance(result, CommandResult):
+            for line in result.human_lines:
+                print(line)
+            return result.exit_code
+        return result
+
+    with stdout_redirected(sys.stderr):
+        try:
+            result = commands[args.cmd](args)
+        except SystemExit as exc:
+            msg = str(exc)
+            if msg == "0" or not msg:
+                result = CommandResult(ok=True)
+            else:
+                result = CommandResult(ok=False, errors=[msg], exit_code=1)
+        except Exception as exc:
+            if args.debug:
+                traceback.print_exc()
+            else:
+                print(f"Internal error: {exc}", file=sys.stderr)
+            result = CommandResult(ok=False, errors=["Internal error"], exit_code=1)
+
+    if not isinstance(result, CommandResult):
+        # Fallback if something returned an int
+        result = CommandResult(ok=(result == 0), exit_code=result)
+
+    envelope = {
+        "schema_version": 1,
+        "ok": result.ok,
+        "command": args.cmd,
+        "data": result.data,
+        "warnings": result.warnings,
+        "errors": result.errors
+    }
+    print(json.dumps(envelope, ensure_ascii=False, indent=1))
+    return result.exit_code
 
 
 if __name__ == "__main__":

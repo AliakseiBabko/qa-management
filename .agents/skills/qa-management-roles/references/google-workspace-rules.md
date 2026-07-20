@@ -552,10 +552,14 @@ outcomes valid per scope, strict closure per scope, the exact
 `run:<run-id>` token in `_skill_invocations`, and a clean mirror snapshot
 not older than the run's last mutation — its SHA is persisted on the row,
 and the terminal queue state itself is exported to the mirror as a
-follow-up commit. Rows hold operational metadata and short summaries only
-— never transcript content or analysis bodies. The queue's `Run ID` is
-the canonical run id used in `_closure_outcomes`, `_skill_invocations`
-notes, and mirror commit messages.
+follow-up commit. The `review <run-id>` command provides a read-only evaluation of
+a run's completion readiness (missing invocation evidence, snapshot problems,
+unresolved edges) without mutating the queue. All `qa_manage.py` commands support
+a strict `--json` contract (suppressing normal stdout and emitting exactly one
+JSON envelope at the end) for programmatic agent integration. Rows hold operational
+metadata and short summaries only — never transcript content or analysis bodies.
+The queue's `Run ID` is the canonical run id used in `_closure_outcomes`,
+`_skill_invocations` notes, and mirror commit messages.
 
 ## Naming And Versioning
 
