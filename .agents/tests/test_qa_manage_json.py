@@ -240,6 +240,7 @@ class TestJsonContract(unittest.TestCase):
             self.assertTrue(data["ok"])
             self.assertEqual(data["command"], cmd_name)
 
+    @patch("qa_manage.get_services_cached")
     @patch("qa_manage.export_queue_terminal")
     @patch("qa_manage.mirror_git")
     @patch("qa_manage.load_review_context")
@@ -249,7 +250,7 @@ class TestJsonContract(unittest.TestCase):
     @patch("qa_manage.find_queue")
     def test_cmd_complete_missing_invocation_file(
         self, mock_find_queue, mock_read_queue, mock_write_queue, mock_eval, mock_load_ctx,
-        mock_mirror_git, mock_export
+        mock_mirror_git, mock_export, mock_get_services
     ):
         mock_find_queue.return_value = {"id": "sheet_id"}
         mock_read_queue.return_value = [{"Run ID": "test-run", "Status": "processing", "Stage": "closure"}]
@@ -257,7 +258,7 @@ class TestJsonContract(unittest.TestCase):
             ready_for_completion=True, entry_problems=[], unresolved_edges=[], warnings=[],
             snapshot_sha="12345678", snapshot_problem="", invocation_present=True
         )
-        
+
         from unittest.mock import MagicMock
         res_mock = MagicMock()
         res_mock.returncode = 128 # git show fails
@@ -274,7 +275,10 @@ class TestJsonContract(unittest.TestCase):
         self.assertFalse(res.ok)
         self.assertEqual(res.exit_code, 1)
         self.assertIn("Missing mirror invocation token", res.errors)
+        mock_write_queue.assert_not_called()
+        mock_export.assert_not_called()
 
+    @patch("qa_manage.get_services_cached")
     @patch("qa_manage.export_queue_terminal")
     @patch("qa_manage.mirror_git")
     @patch("qa_manage.load_review_context")
@@ -284,7 +288,7 @@ class TestJsonContract(unittest.TestCase):
     @patch("qa_manage.find_queue")
     def test_cmd_complete_missing_invocation_token(
         self, mock_find_queue, mock_read_queue, mock_write_queue, mock_eval, mock_load_ctx,
-        mock_mirror_git, mock_export
+        mock_mirror_git, mock_export, mock_get_services
     ):
         mock_find_queue.return_value = {"id": "sheet_id"}
         mock_read_queue.return_value = [{"Run ID": "test-run", "Status": "processing", "Stage": "closure"}]
@@ -292,7 +296,7 @@ class TestJsonContract(unittest.TestCase):
             ready_for_completion=True, entry_problems=[], unresolved_edges=[], warnings=[],
             snapshot_sha="12345678", snapshot_problem="", invocation_present=True
         )
-        
+
         from unittest.mock import MagicMock
         res_mock = MagicMock()
         res_mock.returncode = 0
@@ -309,6 +313,8 @@ class TestJsonContract(unittest.TestCase):
         self.assertFalse(res.ok)
         self.assertEqual(res.exit_code, 1)
         self.assertIn("Missing mirror invocation token", res.errors)
+        mock_write_queue.assert_not_called()
+        mock_export.assert_not_called()
 
 
 

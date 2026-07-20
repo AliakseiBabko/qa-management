@@ -1260,7 +1260,7 @@ def cmd_complete(args) -> int:
             exit_code=1
         )
 
-    # Verify that the mirror commit contains the exact token in _skill_invocations.csv
+    # Verify that the mirror commit contains the exact token in _skill_invocations.values.json
     token = f"run:{args.run_id}"
     res_git = mirror_git("show", f"{sha}:_skill_invocations.values.json")
     if res_git.returncode != 0 or token not in res_git.stdout:
