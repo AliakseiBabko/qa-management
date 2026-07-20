@@ -383,21 +383,31 @@ These are what actually runs day to day, once a project's folder already exists:
   the restored docs, then `commit_workspace_state.py` to record the
   post-rollback state.
 - `qa_manage.py` — intake queue and run state machine (the durable-state
-  layer; the agent keeps all judgment). `scan` discovers new source files
-  into the workspace `_intake_queue` Sheet idempotently (content hash);
-  `next`/`status` are read-only; `start <run-id>` records the agent's
-  classification, validated against the graph (canonical source_type,
-  route variant, and scope required by the route's entry documents —
-  missing scope becomes `needs_scope`, never a silent default);
-  `record-analysis` stores a short summary + touched documents;
+  layer; the agent keeps all judgment). `scan` discovers sources into the
+  workspace `_intake_queue` Sheet with (path, content-hash) identity:
+  exact pairs are skipped, changed content at a known path becomes a
+  superseding run, identical content at a new path is recorded as a
+  duplicate. `next`/`status` are read-only. `start <run-id>` records the
+  agent's classification, validated against the graph — canonical
+  source_type, route variant, and explicit (project, person) scope tuples
+  (`--scope "P|X"`, repeatable; never a Cartesian product; missing
+  required scope becomes `needs_scope`, never a silent default).
+  `record-analysis` (stage → apply) stores a short summary;
+  `record-apply` (stage → closure) records a per-scope outcome for every
+  route entry document (`updated` / `no_change`+reason /
+  `not_applicable`+reason) — only updated entries seed the cascade;
   `resolve-edge` records closure outcomes via `closure_outcomes`'s shared
   validation; `block`/`resume [--continue]` handle gates and report the
-  exact unfinished stage; `complete` is a verification gate — route entry
-  documents all touched, strict closure per every (project, person,
-  variant) scope in the run, a `_skill_invocations` row referencing the
-  run, and a mirror snapshot tagged with the run id — only then
-  `completed`. All commands support `--json`. State transitions are
-  validated against an explicit table (unit-tested in `.agents/tests`).
+  exact unfinished stage with everything already recorded. `complete` is
+  a verification gate — valid entry outcomes and strict closure per every
+  (project, person, variant) scope, the exact `run:<run-id>` token in
+  `_skill_invocations`, and a clean mirror snapshot no older than the
+  run's last mutation (SHA persisted on the row; the terminal queue state
+  is then exported to the mirror as a follow-up commit). `fail` and
+  `historical` (evidence required; also corrects a mistaken `fail`) are
+  the other terminal states. All commands support `--json`; transitions
+  are validated against an explicit table (unit-tested in
+  `.agents/tests`).
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,
