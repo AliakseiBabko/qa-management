@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from qa_manage import (STATES, TRANSITIONS, check_snapshot, dedup_scopes,
                        discovery_action, entries_for_scope,
-                       enumerate_run_scopes, is_queue_only_dirt, mint_run_id,
-                       missing_scope_fields, needed_scopes,
+                       enumerate_run_scopes, is_excluded, is_queue_only_dirt,
+                       mint_run_id, missing_scope_fields, needed_scopes,
                        parse_outcome_args, resolve_route, resolve_scope_args,
                        seeds_for_scope, validate_entry_outcomes,
                        validate_transition)
@@ -49,11 +49,18 @@ class TestTransitions(unittest.TestCase):
                      ("finalizing", "completed"), ("finalizing", "failed")]:
             validate_transition(a, b)  # must not raise
 
-    def test_completed_and_historical_are_terminal(self):
-        for source in ("completed", "historical"):
+    def test_completed_historical_ignored_are_terminal(self):
+        for source in ("completed", "historical", "ignored"):
             for target in STATES:
                 with self.assertRaises(SystemExit):
                     validate_transition(source, target)
+
+    def test_ignored_only_from_pre_processing_states(self):
+        for source in ("discovered", "needs_scope", "ready"):
+            validate_transition(source, "ignored")
+        for source in ("processing", "blocked", "finalizing", "failed"):
+            with self.assertRaises(SystemExit):
+                validate_transition(source, "ignored")
 
     def test_failed_only_corrects_to_historical(self):
         validate_transition("failed", "historical")
@@ -95,6 +102,20 @@ class TestDiscoveryIdentity(unittest.TestCase):
 
     def test_unknown_pair_is_new(self):
         self.assertEqual(self.act("b.txt", "h2"), ("new", ""))
+
+
+class TestScanExclusion(unittest.TestCase):
+    def test_course_material_subtrees_excluded(self):
+        self.assertTrue(is_excluded(
+            r"00_Source_Docs\03_Source_Documents\M2_role_vision\Task 1.docx"))
+        self.assertTrue(is_excluded(
+            "00_Source_Docs/03_Source_Documents/M2_personal_development_plan/x.docx"))
+
+    def test_sibling_paths_not_excluded(self):
+        self.assertFalse(is_excluded(
+            r"00_Source_Docs\03_Source_Documents\McKinsey\metrics.xlsx"))
+        self.assertFalse(is_excluded(
+            r"00_Source_Docs\03_Source_Documents\M2_role_vision_notes.docx"))
 
 
 class TestMintRunId(unittest.TestCase):

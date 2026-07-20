@@ -415,9 +415,14 @@ These are what actually runs day to day, once a project's folder already exists:
   silently create a scope); `add-scope` declares one the analysis
   legitimately discovered. For a multi-scope run, `record-apply` and
   `resolve-edge` require an explicit `--project`/`--person` (a default
-  would collapse into a wildcard). `fail` and `historical` (evidence
-  required; also corrects a mistaken `fail`) are the other terminal
-  states. All commands support `--json`; transitions
+  would collapse into a wildcard). The other terminal states: `fail`;
+  `historical` (evidence required — asserts prior processing; also
+  corrects a mistaken `fail`); and `ignored` (`--category
+  non_intake_course_material|reference_material|duplicate_data_quality|
+  other` — not an intake source at all, reachable only from
+  pre-processing states). Categorically non-intake subtrees (the M2
+  course homework folders) are also excluded from `scan` via
+  `SCAN_EXCLUDE`. All commands support `--json`; transitions
   are validated against an explicit table (unit-tested in
   `.agents/tests`).
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
