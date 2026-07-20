@@ -43,25 +43,22 @@ def assert_private_mirror(mirror: Path, data_root: Path, init_allowed: bool = Fa
     except Exception:
         pass
 
-    if not (mirror_resolved / ".git").exists():
+    # Check toplevel
+    toplevel_res = mirror_git(mirror_resolved, "rev-parse", "--show-toplevel")
+    if toplevel_res.returncode == 0:
+        toplevel = Path(toplevel_res.stdout.strip()).resolve()
+        if toplevel != mirror_resolved:
+            sys.exit(f"Mirror guard failed: git toplevel {toplevel} does not match requested mirror {mirror_resolved}")
+
+        # Check remotes
+        remotes_res = mirror_git(mirror_resolved, "remote", "-v")
+        if remotes_res.stdout.strip():
+            sys.exit(f"Mirror guard failed: remotes found in {mirror_resolved}. "
+                     "If this is a disaster-recovery clone from a bundle, run 'git remote remove origin'.")
+    else:
         if not init_allowed:
             sys.exit(f"Mirror guard failed: mirror {mirror_resolved} is not initialized and init_allowed is False")
 
         if mirror_resolved.exists() and any(mirror_resolved.iterdir()):
             sys.exit(f"Mirror guard failed: requested mirror path {mirror_resolved} exists and is not empty before initialization")
         return
-
-    # Check toplevel
-    toplevel_res = mirror_git(mirror_resolved, "rev-parse", "--show-toplevel")
-    if toplevel_res.returncode != 0:
-        sys.exit(f"Mirror guard failed: git rev-parse failed for {mirror_resolved}:\n{toplevel_res.stderr}")
-
-    toplevel = Path(toplevel_res.stdout.strip()).resolve()
-    if toplevel != mirror_resolved:
-        sys.exit(f"Mirror guard failed: git toplevel {toplevel} does not match requested mirror {mirror_resolved}")
-
-    # Check remotes
-    remotes_res = mirror_git(mirror_resolved, "remote", "-v")
-    if remotes_res.stdout.strip():
-        sys.exit(f"Mirror guard failed: remotes found in {mirror_resolved}. "
-                 "If this is a disaster-recovery clone from a bundle, run 'git remote remove origin'.")

@@ -1,4 +1,5 @@
 import unittest
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import sys
@@ -17,7 +18,7 @@ class TestMirrorCommon(unittest.TestCase):
             assert_private_mirror(mirror_dir, data_root, init_allowed=True)
             pass
             pass
-            
+
     def test_assert_private_mirror_existing_empty(self):
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -27,7 +28,7 @@ class TestMirrorCommon(unittest.TestCase):
             data_root.mkdir()
             assert_private_mirror(mirror_dir, data_root, init_allowed=True)
             pass
-            
+
     def test_assert_private_mirror_existing_non_empty_no_git(self):
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -50,3 +51,27 @@ class TestMirrorCommon(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    def test_mirror_security_wrong_toplevel(self):
+        import mirror_common
+        # Initialize a git repo
+        mirror_common.mirror_git(self.mirror, "init")
+        # create a subdir inside the repo and use it as mirror
+        sub = self.mirror / "sub"
+        sub.mkdir()
+        with self.assertRaises(SystemExit):
+            mirror_common.assert_private_mirror(sub, self.droot, init_allowed=False)
+
+    def test_mirror_security_remotes(self):
+        import mirror_common
+        mirror_common.mirror_git(self.mirror, "init")
+        mirror_common.mirror_git(self.mirror, "remote", "add", "origin", "https://github.com/test/test.git")
+        with self.assertRaises(SystemExit):
+            mirror_common.assert_private_mirror(self.mirror, self.droot, init_allowed=False)
+
+    def test_mirror_security_public_overlap(self):
+        import mirror_common
+        from pathlib import Path
+        skills_repo = Path(__file__).resolve().parents[2]
+        with self.assertRaises(SystemExit):
+            mirror_common.assert_private_mirror(skills_repo, self.droot, init_allowed=False)

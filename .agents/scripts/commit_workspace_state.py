@@ -281,9 +281,9 @@ def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts
     written: list[str] = []
     errors: list[str] = []
     warnings: list[str] = []
-    
+
     walk_fn(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
-    
+
     try:
         q = find_queue_fn(services)
         if q:
@@ -294,7 +294,7 @@ def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts
             warnings.extend(source_warns)
     except Exception as exc:
         errors.append(f"Source text export failed: {exc}")
-        
+
     if errors:
         manifest_path = mirror / "_manifest.json"
         if manifest_path.exists():
@@ -307,9 +307,9 @@ def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts
 
     manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
     write_if_changed(mirror / "_manifest.json", manifest_bytes)
-    
+
     removed = prune_stale(mirror, set(written)) if not errors else 0
-    
+
     return written, manifest, removed, warnings, errors
 
 def main() -> int:
@@ -342,7 +342,7 @@ def main() -> int:
 
     services = get_services()
     print("Exporting canonical documents and source text...")
-    
+
     written, manifest, removed, warnings, errors = orchestrate_export(
         services, mirror, DATA_ROOT, walk, export_source_texts, find_queue, read_queue
     )

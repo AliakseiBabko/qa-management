@@ -14,6 +14,16 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+def source_text_requirement(row: dict) -> str:
+    src_type = row.get("Source type", "")
+    ext = Path(row.get("Source", "")).suffix.casefold()
+    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
+        if ext in {".txt", ".md", ".docx"}:
+            return "required"
+    if src_type in {"admin_note", "m2_conversation"}:
+        return "not_applicable"
+    return "optional"
+
 # We do NOT import qa_manage here at module load.
 from mirror_common import assert_private_mirror
 
@@ -145,7 +155,7 @@ def docx_to_text_v1(raw_bytes: bytes) -> str:
                                 if ctag != "tc":
                                     walk_doc(cell)
                                     continue
-                                
+
                                 cell_parts = []
                                 # Only process direct children for this cell's text
                                 for cchild in list(cell):
@@ -202,7 +212,7 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
 
     # Hash groupings: dict[full_hash] -> list[Path]
     groupings: Dict[str, List[Path]] = {}
-    
+
     for root_rel in SOURCE_TEXT_SEARCH_ROOTS:
         search_dir = data_root / root_rel
         if not search_dir.is_dir():
@@ -212,7 +222,7 @@ def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tupl
                 continue
         except Exception:
             continue
-            
+
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
@@ -251,7 +261,7 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
     """Search approved roots exclusively for exact 64-char equivalence, disregarding basenames."""
     data_root_res = data_root.resolve()
     matches = []
-    
+
     for root_rel in SOURCE_TEXT_SEARCH_ROOTS:
         search_dir = data_root / root_rel
         if not search_dir.is_dir():
@@ -261,7 +271,7 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
                 continue
         except Exception:
             continue
-            
+
         for root, dirs, files in os.walk(search_dir):
             for fname in files:
                 candidate = Path(root) / fname
@@ -274,10 +284,10 @@ def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, by
                         matches.append((candidate, h, b))
                 except Exception:
                     continue
-                    
+
     if not matches:
         raise ExtractionError(f"Could not resolve file matching exact hash {full_sha256}")
-        
+
     matches.sort(key=lambda x: x[0].as_posix().casefold())
     return matches[0]
 
@@ -579,11 +589,7 @@ def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> Non
         else:
             state = row.get("Status", "")
             if is_v1 and state in ("needs_scope", "processing", "blocked", "finalizing", "completed"):
-                src_type = row.get("Source type", "")
-                q_path = row.get("Source", "")
-                ext = Path(q_path).suffix.casefold()
-                is_eligible = (src_type in SOURCE_TEXT_TYPES and ext in ALLOWED_EXTENSIONS)
-                if is_eligible:
+                if source_text_requirement(row) == "required":
                     errors.append(f"{row.get('Run ID', '')}: missing mandatory v1 manifest entry")
 
     if is_json:
