@@ -276,6 +276,42 @@ def prune_stale(mirror: Path, expected: set[str]) -> int:
     return removed
 
 
+def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts_fn, find_queue_fn, read_queue_fn):
+    manifest: dict = {}
+    written: list[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+    
+    walk_fn(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
+    
+    try:
+        q = find_queue_fn(services)
+        if q:
+            rows = read_queue_fn(services, q)
+            protected_paths, source_errs, source_warns = export_source_texts_fn(rows, data_root, mirror)
+            written.extend(protected_paths)
+            errors.extend(source_errs)
+            warnings.extend(source_warns)
+    except Exception as exc:
+        errors.append(f"Source text export failed: {exc}")
+        
+    if errors:
+        manifest_path = mirror / "_manifest.json"
+        if manifest_path.exists():
+            old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            carried = 0
+            for key, entry in old_manifest.items():
+                if key not in manifest and (mirror / key).exists():
+                    manifest[key] = entry
+                    carried += 1
+
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
+    write_if_changed(mirror / "_manifest.json", manifest_bytes)
+    
+    removed = prune_stale(mirror, set(written)) if not errors else 0
+    
+    return written, manifest, removed, warnings, errors
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("-m", "--message", default="",
@@ -305,46 +341,12 @@ def main() -> int:
             mirror_git(mirror, "config", key, val)
 
     services = get_services()
-    manifest: dict = {}
-    written: list[str] = []
-    errors: list[str] = []
-    warnings: list[str] = []
-    print("Exporting canonical documents (diff layer + restore layer)...")
-    walk(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
+    print("Exporting canonical documents and source text...")
+    
+    written, manifest, removed, warnings, errors = orchestrate_export(
+        services, mirror, DATA_ROOT, walk, export_source_texts, find_queue, read_queue
+    )
 
-    print("Exporting source text from queue...")
-    try:
-        q = find_queue(services)
-        if q:
-            rows = read_queue(services, q)
-            protected_paths, source_errs, source_warns = export_source_texts(rows, DATA_ROOT, mirror_path)
-            written.extend(protected_paths)
-            errors.extend(source_errs)
-            warnings.extend(source_warns)
-    except Exception as exc:
-        errors.append(f"Source text export failed: {exc}")
-
-    # A doc that failed to export contributes nothing to `manifest`/`written`.
-    # Its previously-exported files survive (prune is skipped below), so its
-    # previous manifest entries must survive too - otherwise the files sit in
-    # the commit unrestorable. Carry over any old entry whose file still
-    # exists and wasn't re-exported this run.
-    if errors:
-        manifest_path = mirror / "_manifest.json"
-        if manifest_path.exists():
-            old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            carried = 0
-            for key, entry in old_manifest.items():
-                if key not in manifest and (mirror / key).exists():
-                    manifest[key] = entry
-                    carried += 1
-            if carried:
-                print(f"Carried {carried} manifest entr(ies) from failed-export documents forward.")
-    manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
-    write_if_changed(mirror / "_manifest.json", manifest_bytes)
-    # Same reasoning for pruning: after errors it would delete the failed
-    # documents' previously-good files. Skip.
-    removed = prune_stale(mirror, set(written)) if not errors else 0
     if errors:
         print("Prune skipped because of export errors - stale files (if any) survive until a clean run.")
     print(f"Exported {len(written)} files ({len(manifest)} restore-layer entries), "
@@ -382,24 +384,3 @@ def main() -> int:
     if not args.no_bundle:
         print(refresh_bundle(mirror))
     return 1 if errors else 0
-
-
-def refresh_bundle(mirror: Path) -> str:
-    """Pack the mirror's full history into the single-file Drive bundle.
-    Reused by qa_manage.py's terminal queue commits - the architecture
-    requires the bundle after every mirror commit, not only full exports.
-    Returns a human-readable status; never raises (a failed bundle loses
-    nothing locally)."""
-    try:
-        BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
-        bundle = BUNDLE_DIR / "mirror.bundle"
-        res = mirror_git(mirror, "bundle", "create", str(bundle), "--all")
-        if res.returncode == 0:
-            return f"Bundle backup refreshed: {bundle}"
-        return f"Bundle backup FAILED (history is still safe locally): {res.stderr.strip()}"
-    except OSError as exc:
-        return f"Bundle backup FAILED (history is still safe locally): {exc}"
-
-
-if __name__ == "__main__":
-    sys.exit(main())

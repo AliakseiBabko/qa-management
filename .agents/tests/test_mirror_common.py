@@ -45,7 +45,7 @@ class TestMirrorCommon(unittest.TestCase):
             data_root = tmp_path / "data"
             data_root.mkdir()
             mirror_dir = data_root / "mirror"
-            with self.assertRaisesRegex(SystemExit, "is inside the synchronized Drive workspace"):
+            with self.assertRaisesRegex(SystemExit, "overlaps with the synchronized Drive workspace"):
                 assert_private_mirror(mirror_dir, data_root, init_allowed=True)
 
 if __name__ == '__main__':
