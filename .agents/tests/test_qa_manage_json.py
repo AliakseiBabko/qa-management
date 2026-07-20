@@ -152,6 +152,7 @@ class TestJsonContract(unittest.TestCase):
 
         res = qa_manage.cmd_complete(Args())
 
+        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
         self.assertTrue(res.ok)
         self.assertEqual(res.data["completed"], True)
         self.assertEqual(res.data["terminal_commit"], "commit-sha")
@@ -238,6 +239,78 @@ class TestJsonContract(unittest.TestCase):
             self.assertEqual(data["schema_version"], 1)
             self.assertTrue(data["ok"])
             self.assertEqual(data["command"], cmd_name)
+
+    @patch("qa_manage.export_queue_terminal")
+    @patch("qa_manage.mirror_git")
+    @patch("qa_manage.load_review_context")
+    @patch("qa_manage.evaluate_run")
+    @patch("qa_manage.write_queue")
+    @patch("qa_manage.read_queue")
+    @patch("qa_manage.find_queue")
+    def test_cmd_complete_missing_invocation_file(
+        self, mock_find_queue, mock_read_queue, mock_write_queue, mock_eval, mock_load_ctx,
+        mock_mirror_git, mock_export
+    ):
+        mock_find_queue.return_value = {"id": "sheet_id"}
+        mock_read_queue.return_value = [{"Run ID": "test-run", "Status": "processing", "Stage": "closure"}]
+        mock_eval.return_value = qa_manage.EvaluationResult(
+            ready_for_completion=True, entry_problems=[], unresolved_edges=[], warnings=[],
+            snapshot_sha="12345678", snapshot_problem="", invocation_present=True
+        )
+        
+        from unittest.mock import MagicMock
+        res_mock = MagicMock()
+        res_mock.returncode = 128 # git show fails
+        res_mock.stdout = "fatal: path not in commit"
+        mock_mirror_git.return_value = res_mock
+
+        class Args:
+            run_id = "test-run"
+            json = True
+
+        res = qa_manage.cmd_complete(Args())
+
+        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
+        self.assertFalse(res.ok)
+        self.assertEqual(res.exit_code, 1)
+        self.assertIn("Missing mirror invocation token", res.errors)
+
+    @patch("qa_manage.export_queue_terminal")
+    @patch("qa_manage.mirror_git")
+    @patch("qa_manage.load_review_context")
+    @patch("qa_manage.evaluate_run")
+    @patch("qa_manage.write_queue")
+    @patch("qa_manage.read_queue")
+    @patch("qa_manage.find_queue")
+    def test_cmd_complete_missing_invocation_token(
+        self, mock_find_queue, mock_read_queue, mock_write_queue, mock_eval, mock_load_ctx,
+        mock_mirror_git, mock_export
+    ):
+        mock_find_queue.return_value = {"id": "sheet_id"}
+        mock_read_queue.return_value = [{"Run ID": "test-run", "Status": "processing", "Stage": "closure"}]
+        mock_eval.return_value = qa_manage.EvaluationResult(
+            ready_for_completion=True, entry_problems=[], unresolved_edges=[], warnings=[],
+            snapshot_sha="12345678", snapshot_problem="", invocation_present=True
+        )
+        
+        from unittest.mock import MagicMock
+        res_mock = MagicMock()
+        res_mock.returncode = 0
+        res_mock.stdout = "run:other-run" # missing token
+        mock_mirror_git.return_value = res_mock
+
+        class Args:
+            run_id = "test-run"
+            json = True
+
+        res = qa_manage.cmd_complete(Args())
+
+        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
+        self.assertFalse(res.ok)
+        self.assertEqual(res.exit_code, 1)
+        self.assertIn("Missing mirror invocation token", res.errors)
+
+
 
 if __name__ == "__main__":
     unittest.main()

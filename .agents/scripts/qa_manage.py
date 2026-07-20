@@ -119,7 +119,7 @@ class EvaluationResult:
         p.extend(self.unresolved_edges)
         if self.snapshot_problem:
             p.append(self.snapshot_problem)
-        if not self.invocation_present:
+        if self.invocation_present is False:
             p.append("Missing invocation token")
         return p
 
@@ -1262,9 +1262,9 @@ def cmd_complete(args) -> int:
 
     # Verify that the mirror commit contains the exact token in _skill_invocations.csv
     token = f"run:{args.run_id}"
-    res_git = mirror_git("show", f"{sha}:_skill_invocations.csv")
+    res_git = mirror_git("show", f"{sha}:_skill_invocations.values.json")
     if res_git.returncode != 0 or token not in res_git.stdout:
-        problems = [f"Mirror commit {sha[:8]} does not contain {token} in _skill_invocations.csv"]
+        problems = [f"Mirror commit {sha[:8]} does not contain {token} in _skill_invocations.values.json"]
         return CommandResult(
             ok=False,
             data={"run_id": args.run_id, "completed": False, "problems": problems},
