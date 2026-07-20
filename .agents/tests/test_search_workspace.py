@@ -138,7 +138,7 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertTrue(any("outside allowed structural boundaries" in err for err in data["errors"]))
 
     def test_unicode_filenames(self):
-        filename = "10_M1_People_Management/10.md"
+        filename = "10_M1_People_Management/Привет.md"
         self._write(filename, "M1 file")
         self._git("add", ".")
         self._git("commit", "-m", "A")
@@ -173,7 +173,10 @@ class TestSearchWorkspace(unittest.TestCase):
         data = json.loads(res.stdout)
         self.assertTrue(data["ok"])
         self.assertEqual(data["data"]["result_count"], 1)
-        self.assertEqual(data["data"]["matches"][0]["source_runs"][0]["queue_source_hash"], "0123456789abcdef")
+        runs = data["data"]["matches"][0]["source_runs"]
+        self.assertEqual(runs[0]["queue_source_hash"], "0123456789abcdef")
+        self.assertEqual(runs[0]["source_sha256"], "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+        self.assertEqual(runs[0]["text_sha256"], "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
     # 2. Actual queue header capitalization + 4. Queue as warning
     def test_queue_headers_and_warning(self):
@@ -390,7 +393,7 @@ class TestSearchWorkspace(unittest.TestCase):
 
         queue_json = json.dumps({
             "values": [
-                ["Snapshot", "Run id"],
+                ["Snapshot", "Run ID"],
                 ["a"*16, "run1"],
                 ["c"*16, "run2"]
             ]
@@ -453,19 +456,21 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertTrue(any("unmatched" in err.lower() or "invalid" in err.lower() or "grep failed" in err.lower() for err in out["errors"]))
 
     def test_date_boundary(self):
-        self._create_commit("A", {"10_M1_People_Management/date.md": "content A"}, date="2026-07-20 10:00:00 +0000")
+        self._create_commit("A", {"10_M1_People_Management/date.md": "content A"}, date="2026-07-19 10:00:00 +0000")
         self._create_commit("B", {"10_M1_People_Management/date.md": "content B"}, date="2026-07-20 12:00:00 +0000")
-        self._create_commit("C", {"10_M1_People_Management/date.md": "content C"}, date="2026-07-20 14:00:00 +0000")
+        self._create_commit("C", {"10_M1_People_Management/date.md": "content C"}, date="2026-07-21 14:00:00 +0000")
 
         # Test since
-        res = self.run_cli("history", "content", "--since", "2026-07-20T11:00:00+00:00", "--json")
+        res = self.run_cli("history", "content", "--since", "2026-07-20", "--json")
         out = json.loads(res.stdout)
         self.assertTrue(out["ok"])
+        self.assertEqual(out["data"]["result_count"], 2) # Should include B and C
 
         # Test until
-        res = self.run_cli("history", "content", "--until", "2026-07-20T13:00:00+00:00", "--json")
+        res = self.run_cli("history", "content", "--until", "2026-07-20", "--json")
         out = json.loads(res.stdout)
         self.assertTrue(out["ok"])
+        self.assertEqual(out["data"]["result_count"], 2) # Should include A and B
 
     def test_history_change_beyond_bound(self):
         # We need a file with 101 matches, and we modify the 101th match

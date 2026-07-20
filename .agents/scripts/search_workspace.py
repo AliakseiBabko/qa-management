@@ -45,14 +45,14 @@ def run_git(mirror: Path, args: list[str], check=True, text=False) -> subprocess
 
 def _normalize_iso_date(date_str: str, end_of_day: bool = False) -> datetime:
     try:
-        dt = datetime.fromisoformat(date_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+        from datetime import date
+        d = date.fromisoformat(date_str)
+        dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
         if end_of_day:
             dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
         return dt
     except ValueError as e:
-        raise ValueError(f"Invalid ISO date: {date_str}") from e
+        raise ValueError(f"Invalid ISO date (must be YYYY-MM-DD): {date_str}") from e
 
 def build_envelope(command, query, regex, case_sensitive, kind, resolved_ref, ok=True, data=None, warnings=None, errors=None):
     payload = data or {}
@@ -132,6 +132,8 @@ def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict
                 meta = {
                     "queue_source_hash": entry.get("queue_source_hash", ""),
                     "source_path": entry.get("source_path", ""),
+                    "source_sha256": entry.get("source_sha256", ""),
+                    "text_sha256": entry.get("text_sha256", ""),
                     "extractor_profile": entry.get("extractor_profile", ""),
                     "run_id": run_id
                 }
@@ -287,7 +289,7 @@ def current_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
             for m in file_matches:
                 m["path"] = path
                 m["ref"] = ref
-                if runs: m["source_runs"] = runs
+                m["source_runs"] = runs
                 matches.append(m)
 
                 if len(matches) > limit:
@@ -384,7 +386,7 @@ def history_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
                     "matches_after_truncated": after_trunc,
                     "metadata_ref": meta_ref
                 }
-                if runs: change_dict["source_runs"] = runs
+                change_dict["source_runs"] = runs
                 changes.append(change_dict)
 
 
