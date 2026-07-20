@@ -294,6 +294,13 @@ These are what actually runs day to day, once a project's folder already exists:
   (truncate rows/paragraphs). Passing `--json` emits a strict JSON envelope
   instead of plain text, trapping errors safely and buffering output for
   programmatic consumption.
+- `search_workspace.py` — Phase 5 deterministic query interface over the
+  private workspace mirror. Read-only by definition; supports literal-path
+  `search` across `HEAD` (or any valid `--ref`) and first-parent traversal
+  `history` search, joining matches to exact source queue runs and export
+  manifests. Constrained entirely to the defined canonical root paths (`.md`
+  and `.csv`) and `_source_text/blobs/v1/*.txt` source files. No vector/FTS
+  indexes or model calls; powered entirely by `git --literal-pathspecs grep`.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
   (`load_credentials` + `build_services`); `get_people_registry_sheet()`
