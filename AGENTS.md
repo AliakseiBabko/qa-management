@@ -102,6 +102,9 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `--registries`. Read-only, safe to run anytime, creates nothing. Add
      `--summary` for a cheap one-liner per project (People count, risk
      level, last evidence_log date) to triage before pulling a full dump.
+     For programmatic targeted reads (Phase 3), use `--document <Name>`,
+     `--person <Name>`, `--since YYYY-MM-DD`, and `--limit N` along with `--json`
+     to emit a strict JSON envelope.
    - Processing a new source? — the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>

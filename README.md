@@ -289,6 +289,11 @@ These are what actually runs day to day, once a project's folder already exists:
   dump, `evidence_log` defaults to the last 10 rows (`--evidence-tail N` to
   change, `0` for the full log) — it's an append-only audit trail that only
   grows, and most conversational updates only need what happened recently.
+  Targeted reads (Phase 3) allow querying specific docs: `--document <Name>`,
+  `--person <Name>`, `--since YYYY-MM-DD` (filter rows by date), and `--limit N`
+  (truncate rows/paragraphs). Passing `--json` emits a strict JSON envelope
+  instead of plain text, trapping errors safely and buffering output for
+  programmatic consumption.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
   (`load_credentials` + `build_services`); `get_people_registry_sheet()`
