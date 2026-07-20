@@ -1,0 +1,4 @@
+{
+  "extraPaths": [".agents/scripts"],
+  "reportMissingImports": "warning"
+}
