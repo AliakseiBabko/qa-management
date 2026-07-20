@@ -105,6 +105,12 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      For programmatic targeted reads (Phase 3), use `--document <Name>`,
      `--person <Name>`, `--since YYYY-MM-DD`, and `--limit N` along with `--json`
      to emit a strict JSON envelope.
+   - Need to search the entire workspace or view historical changes? —
+     `.agents\scripts\search_workspace.py search <query>` (current state) or
+     `.agents\scripts\search_workspace.py history <query>` (first-parent commit traversal).
+     It provides deterministic literal-path search across the canonical `.md`/`.csv` corpus
+     and `_source_text` blobs using Git. Output can be limited by path, kind, run-id, or dates.
+     Passing `--json` emits a strict JSON envelope buffering output for programmatic consumption.
    - Processing a new source? — the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>
