@@ -107,17 +107,20 @@ SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
 QUEUE_SHEET = "_intake_queue"
 HEADER = ["Run ID", "Source", "Source hash", "Source type", "Route variant",
           "Project", "Person", "Scopes", "Status", "Stage", "Skills",
-          "Entries", "Discovered", "Started", "Completed", "Snapshot",
-          "Reason", "Summary"]
+          "Entries", "Discovered", "Started", "Last mutation", "Completed",
+          "Snapshot", "Reason", "Summary"]
 
 STATES = {"discovered", "needs_scope", "ready", "processing", "blocked",
-          "completed", "failed", "historical"}
+          "finalizing", "completed", "failed", "historical"}
 TRANSITIONS = {
     "discovered": {"needs_scope", "ready", "processing", "failed", "historical"},
     "needs_scope": {"ready", "processing", "failed", "historical"},
     "ready": {"processing", "failed", "historical"},
-    "processing": {"blocked", "completed", "failed", "historical"},
+    "processing": {"blocked", "finalizing", "failed", "historical"},
     "blocked": {"processing", "failed", "historical"},
+    # All verification passed; only the terminal mirror bookkeeping remains.
+    # Retryable: a failed export leaves the run here, complete re-runs it.
+    "finalizing": {"completed", "failed"},
     "completed": set(),
     # A failed mark may later turn out to be pre-queue history - correcting
     # the record is allowed; nothing else leaves a terminal state.
@@ -162,7 +165,12 @@ def mint_run_id(source_path: str, source_hash: str, date: str | None = None) -> 
     stem = Path(source_path).stem.lower()
     slug = "".join(c if c.isalnum() else "-" for c in stem)
     slug = "-".join(p for p in slug.split("-") if p)[:40]
-    return f"{date or dt.date.today().strftime('%Y%m%d')}-{slug}-{source_hash[:6]}"
+    # Identity is (path, hash): identical content under the same filename in
+    # two directories is two runs, so the id carries a path digest too.
+    path_digest = hashlib.sha256(
+        source_path.replace("\\", "/").casefold().encode("utf-8")).hexdigest()[:4]
+    return (f"{date or dt.date.today().strftime('%Y%m%d')}-{slug}-"
+            f"{source_hash[:6]}{path_digest}")
 
 
 def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
@@ -201,10 +209,15 @@ def resolve_route(graph: dict, source_type: str, variant: str) -> dict:
     return spec
 
 
-def needed_scopes(graph: dict, entry_docs: list[str]) -> set[str]:
-    """Which scope fields the route's entry documents demand."""
+def needed_scopes(graph: dict, route: dict) -> set[str]:
+    """Which scope fields the route demands: derived from its entry
+    documents' graph scope, plus the route's own explicit `scope_required`
+    (a source can be person-centric even when its entry documents are
+    workspace-scoped - e.g. people_case_chat)."""
     docs = graph.get("documents") or {}
-    return {(docs.get(d) or {}).get("scope") for d in entry_docs} & {"project", "person"}
+    entry_docs = route.get("entry") or []
+    derived = {(docs.get(d) or {}).get("scope") for d in entry_docs}
+    return (derived | set(route.get("scope_required") or [])) & {"project", "person"}
 
 
 def scope_key(project: str, person: str) -> str:
@@ -236,12 +249,18 @@ def entries_for_scope(entries: dict[str, dict[str, list[str]]],
                       project: str, person: str) -> dict[str, list[str]]:
     """Entry outcomes applying to one (project, person) scope - same
     wildcard rule as closure rows: empty stored component matches any,
-    a scoped record never matches a different or omitted scope."""
-    out: dict[str, list[str]] = {}
+    a scoped record never matches a different or omitted scope. Merge
+    order is by specificity, wildcards first, so an exact scoped outcome
+    always wins over a workspace wildcard regardless of insertion order."""
+    matching: list[tuple[int, str, dict[str, list[str]]]] = []
     for key, docs in entries.items():
         sp, _, spe = key.partition("|")
         if scope_component_matches(sp, project) and scope_component_matches(spe, person):
-            out.update(docs)
+            specificity = sum(1 for c in (sp, spe) if c.strip())
+            matching.append((specificity, key, docs))
+    out: dict[str, list[str]] = {}
+    for _, _, docs in sorted(matching, key=lambda m: (m[0], m[1])):
+        out.update(docs)
     return out
 
 
@@ -288,7 +307,10 @@ def parse_outcome_args(updated: str, no_change: str, not_applicable: str) -> dic
 def enumerate_run_scopes(outcome_rows: list[dict], scopes: list[tuple[str, str]],
                          entries: dict[str, dict], variant: str) -> list[tuple[str, str, str]]:
     """Every (project, person, variant) scope the run declared or actually
-    used - explicit tuples only, no combination is invented."""
+    used - explicit tuples only, no combination is invented. A run with no
+    scope anywhere is a workspace-scoped run, checked as ("", "", variant):
+    the enumeration is never empty, so complete can never do zero
+    iterations."""
     result: set[tuple[str, str, str]] = set()
     for proj, pers in scopes:
         result.add((proj.strip(), pers.strip(), variant.strip()))
@@ -298,6 +320,8 @@ def enumerate_run_scopes(outcome_rows: list[dict], scopes: list[tuple[str, str]]
     for rec in outcome_rows:
         result.add((rec.get("Project", "").strip(), rec.get("Person", "").strip(),
                     rec.get("Route variant", "").strip()))
+    if not result:
+        result.add(("", "", variant.strip()))
     return sorted(result)
 
 
@@ -384,11 +408,22 @@ def get_run(rows: list[dict], run_id: str) -> dict:
     raise SystemExit(f"No queue row with Run ID {run_id!r} - see qa_manage.py status.")
 
 
-def single_scope(row: dict) -> tuple[str, str]:
+def resolve_scope_args(row: dict, project: str, person: str, cmd: str) -> tuple[str, str]:
+    """Which (project, person) a scoped record belongs to. Explicit args
+    win; a single-scope run defaults to its one declared tuple; a run with
+    no declared scope is workspace-scoped ("", ""); a multi-scope run
+    REQUIRES explicit args - defaulting there would collapse the record
+    into a wildcard that satisfies every scope."""
+    if project or person:
+        return project.strip(), person.strip()
     scopes = parse_scopes_cell(row["Scopes"])
     if len(scopes) == 1:
         return scopes[0]
-    return "", ""
+    if not scopes:
+        return "", ""
+    raise SystemExit(f"{cmd}: run {row['Run ID']} declares {len(scopes)} scopes "
+                     f"{scopes} - pass --project/--person explicitly so the record "
+                     "attaches to one scope instead of becoming a wildcard.")
 
 
 def mirror_git(*args: str) -> subprocess.CompletedProcess:
@@ -396,10 +431,14 @@ def mirror_git(*args: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True, encoding="utf-8")
 
 
-def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str) -> None:
-    """Capture the terminal queue transition in the mirror: rewrite the
-    queue's mirror files (same names the full exporter uses, so its prune
-    step recognizes them) and commit. Content-only follow-up - the verified
+def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str,
+                           label: str) -> str:
+    """Capture a queue transition in the mirror: rewrite the queue's mirror
+    files (same names the full exporter uses, so its prune step recognizes
+    them), commit, and VERIFY the commit exists. Returns the commit SHA
+    ("" when there was nothing to commit); raises on any git failure so the
+    caller can leave the run in a retryable state instead of reporting a
+    success that didn't happen. Content-only follow-up - the verified
     business snapshot keeps its own SHA."""
     title = queue_tab_title(services, sheet)
     values = [HEADER] + [[r.get(h, "") for h in HEADER] for r in rows]
@@ -408,9 +447,21 @@ def export_queue_to_mirror(services, sheet, rows: list[dict], run_id: str) -> No
     (MIRROR / f"{QUEUE_SHEET}.{title}.csv").write_text(buf.getvalue(), encoding="utf-8")
     (MIRROR / f"{QUEUE_SHEET}.values.json").write_text(
         json.dumps({title: values}, ensure_ascii=False, indent=1), encoding="utf-8")
-    mirror_git("add", "-A")
-    if mirror_git("status", "--porcelain").stdout.strip():
-        mirror_git("commit", "-m", f"queue: {run_id} completed [{run_id}]")
+    res = mirror_git("add", "-A")
+    if res.returncode != 0:
+        raise SystemExit(f"mirror git add failed: {res.stderr.strip()}")
+    if not mirror_git("status", "--porcelain").stdout.strip():
+        return ""
+    msg = f"queue: {run_id} {label} [{run_id}]"
+    res = mirror_git("commit", "-m", msg)
+    if res.returncode != 0:
+        raise SystemExit(f"mirror commit failed: {res.stderr.strip() or res.stdout.strip()}")
+    head = mirror_git("log", "-1", "--format=%H|%s").stdout.strip()
+    sha, _, subject = head.partition("|")
+    if run_id not in subject:
+        raise SystemExit(f"mirror HEAD {sha[:8]} is not the queue commit just made "
+                         f"({subject!r}) - inspect the mirror before retrying.")
+    return sha
 
 
 # ---------- output ----------
@@ -507,7 +558,7 @@ def cmd_next(args) -> int:
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
-    priority = ["processing", "ready", "needs_scope", "discovered", "blocked"]
+    priority = ["finalizing", "processing", "ready", "needs_scope", "discovered", "blocked"]
     pick = None
     for status in priority:
         cands = [r for r in rows if r["Status"] == status]
@@ -534,6 +585,9 @@ def cmd_next(args) -> int:
             info["routed_types"] = routed
     elif pick["Status"] == "needs_scope":
         lines.append(f"  unfinished: scope - {pick['Reason']}")
+    elif pick["Status"] == "finalizing":
+        lines.append("  unfinished: verification passed but the terminal mirror "
+                     "bookkeeping did not - re-run `complete` to retry it.")
     elif pick["Status"] in ("ready", "processing", "blocked"):
         try:
             route = resolve_route(graph, pick["Source type"], pick["Route variant"])
@@ -558,6 +612,9 @@ def _update_run(args, mutate) -> dict:
     rows = read_queue(services, sheet)
     row = get_run(rows, args.run_id)
     mutate(row)
+    # Every queue transition counts as run activity - complete compares the
+    # snapshot against this, not just Started/closure timestamps.
+    row["Last mutation"] = now()
     write_queue(services, sheet, rows)
     return row
 
@@ -570,7 +627,7 @@ def cmd_start(args) -> int:
                          f"({sorted(SKILL_INVOCATION_SOURCE_TYPES)})")
     route = resolve_route(graph, args.source_type, args.variant or "")
     entry = route.get("entry") or []
-    need = needed_scopes(graph, entry)
+    need = needed_scopes(graph, route)
 
     scopes: list[tuple[str, str]] = []
     for blob in args.scope or []:
@@ -655,9 +712,7 @@ def cmd_record_apply(args) -> int:
             raise SystemExit(f"record-apply requires status=processing (is {row['Status']!r}).")
         if row["Stage"] == "analysis":
             raise SystemExit("record-analysis first - the analysis stage hasn't been recorded.")
-        project, person = args.project, args.person
-        if not project and not person:
-            project, person = single_scope(row)
+        project, person = resolve_scope_args(row, args.project, args.person, "record-apply")
         entries = parse_entries_cell(row["Entries"])
         key = scope_key(project, person)
         entries.setdefault(key, {}).update(canon_outcomes)
@@ -681,9 +736,7 @@ def cmd_resolve_edge(args) -> int:
     if row["Status"] != "processing":
         raise SystemExit(f"resolve-edge requires status=processing (is {row['Status']!r}).")
 
-    project, person = args.project, args.person
-    if not project and not person:
-        project, person = single_scope(row)
+    project, person = resolve_scope_args(row, args.project, args.person, "resolve-edge")
     variant = args.variant or row["Route variant"]
     kind = co.edge_kind(args.source, args.target)
     co.validate(kind, args.outcome, args.reason)
@@ -694,6 +747,8 @@ def cmd_resolve_edge(args) -> int:
         body={"values": [[args.run_id, now(), project, person, variant,
                           args.source, args.target, kind, args.outcome,
                           args.reason, args.actor]]}).execute()
+    row["Last mutation"] = now()
+    write_queue(services, sheet, rows)
     emit({"run_id": args.run_id, "edge": f"{args.source}->{args.target}",
           "kind": kind, "outcome": args.outcome,
           "scope": [project, person, variant]},
@@ -775,8 +830,13 @@ def cmd_complete(args) -> int:
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
     row = get_run(rows, args.run_id)
-    if row["Status"] != "processing":
-        raise SystemExit(f"complete requires status=processing (is {row['Status']!r}).")
+    if row["Status"] not in ("processing", "finalizing"):
+        raise SystemExit(f"complete requires status=processing or finalizing "
+                         f"(is {row['Status']!r}).")
+    if row["Status"] == "processing" and row["Stage"] != "closure":
+        raise SystemExit(f"complete requires stage=closure (is {row['Stage'] or 'analysis'!r}) "
+                         "- record-analysis and record-apply must run first, even for "
+                         "workspace-only routes.")
 
     graph = load_graph()
     problems: list[str] = []
@@ -789,7 +849,7 @@ def cmd_complete(args) -> int:
 
     # 1+2. Per scope: every entry document has a valid outcome; cascade from
     # the actually-updated ones must be strictly closed for that scope.
-    last_outcome_ts = parse_ts(row["Started"])
+    last_outcome_ts = max(parse_ts(row["Started"]), parse_ts(row["Last mutation"]))
     for proj, pers, variant in scopes:
         label = f"scope ({proj or '-'}, {pers or '-'}, {variant or '-'})"
         scoped_entries = entries_for_scope(entries, proj, pers)
@@ -840,17 +900,35 @@ def cmd_complete(args) -> int:
              [f"  - {p}" for p in problems])
         return 1
 
-    validate_transition(row["Status"], "completed")
+    # Verification passed. Two-phase terminal transition so a mirror
+    # bookkeeping failure never yields a false success or a stuck terminal
+    # row: finalizing is written and exported first (verified commit),
+    # completed only after that commit exists; a failure at any point
+    # leaves the run in finalizing, and complete is re-runnable from there.
+    if row["Status"] == "processing":
+        validate_transition(row["Status"], "finalizing")
+        row["Status"], row["Snapshot"] = "finalizing", sha
+        row["Last mutation"] = now()
+        write_queue(services, sheet, rows)
+    export_queue_to_mirror(services, sheet, rows, args.run_id, "finalizing")
+
+    validate_transition("finalizing", "completed")
     row["Status"], row["Stage"], row["Completed"] = "completed", "done", now()
-    row["Snapshot"] = sha
+    row["Snapshot"] = row["Snapshot"] or sha
     write_queue(services, sheet, rows)
-    # Capture the terminal transition itself in the mirror (follow-up
-    # commit; the verified business snapshot keeps its recorded SHA).
-    export_queue_to_mirror(services, sheet, rows, args.run_id)
-    emit({"run_id": args.run_id, "completed": True, "snapshot": sha}, args.json,
+    try:
+        export_queue_to_mirror(services, sheet, rows, args.run_id, "completed")
+        terminal_note = "terminal queue state exported to the mirror."
+    except SystemExit as exc:
+        # Completion itself is verified and recorded; only the final
+        # bookkeeping commit failed - the next snapshot will carry it.
+        terminal_note = (f"WARNING: terminal-state mirror commit failed ({exc}); "
+                         "the next workspace snapshot will capture it.")
+    emit({"run_id": args.run_id, "completed": True, "snapshot": row["Snapshot"]},
+         args.json,
          [f"{args.run_id} completed: entry outcomes valid, closure strict-CLOSED per "
-          f"scope, invocation token present, snapshot {sha[:8]} verified and recorded; "
-          "terminal queue state exported to the mirror."])
+          f"scope, invocation token present, snapshot {row['Snapshot'][:8]} verified "
+          f"and recorded; {terminal_note}"])
     return 0
 
 

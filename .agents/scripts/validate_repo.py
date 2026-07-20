@@ -159,6 +159,10 @@ def check_graph(source_types: set[str]) -> None:
         for skill in (spec or {}).get("skills") or []:
             if not (SKILLS_DIR / skill / "SKILL.md").exists():
                 fail(f"graph source {stype!r}{label} names missing skill {skill!r}")
+        for scope in (spec or {}).get("scope_required") or []:
+            if scope not in ("project", "person"):
+                fail(f"graph source {stype!r}{label} scope_required {scope!r} "
+                     "must be 'project' or 'person'")
 
     for stype, spec in sources.items():
         if stype not in source_types:

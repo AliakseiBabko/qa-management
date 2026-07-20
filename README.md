@@ -399,13 +399,20 @@ These are what actually runs day to day, once a project's folder already exists:
   `resolve-edge` records closure outcomes via `closure_outcomes`'s shared
   validation; `block`/`resume [--continue]` handle gates and report the
   exact unfinished stage with everything already recorded. `complete` is
-  a verification gate — valid entry outcomes and strict closure per every
-  (project, person, variant) scope, the exact `run:<run-id>` token in
-  `_skill_invocations`, and a clean mirror snapshot no older than the
-  run's last mutation (SHA persisted on the row; the terminal queue state
-  is then exported to the mirror as a follow-up commit). `fail` and
-  `historical` (evidence required; also corrects a mistaken `fail`) are
-  the other terminal states. All commands support `--json`; transitions
+  a verification gate — requires stage=closure, valid entry outcomes and
+  strict closure per every (project, person, variant) scope (a scope-less
+  run is checked as the workspace scope — never zero iterations), the
+  exact `run:<run-id>` token in `_skill_invocations`, and a clean mirror
+  snapshot no older than the run's `Last mutation` (bumped by every queue
+  transition; snapshot SHA persisted on the row). The terminal transition
+  is two-phase via a retryable `finalizing` state: the queue state is
+  exported to the mirror with a verified commit before `completed` is
+  written, so a bookkeeping failure can never produce a false success or
+  a stuck terminal row. For a multi-scope run, `record-apply` and
+  `resolve-edge` require an explicit `--project`/`--person` (a default
+  would collapse into a wildcard). `fail` and `historical` (evidence
+  required; also corrects a mistaken `fail`) are the other terminal
+  states. All commands support `--json`; transitions
   are validated against an explicit table (unit-tested in
   `.agents/tests`).
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
