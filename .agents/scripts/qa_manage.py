@@ -218,9 +218,10 @@ def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
     v = str(row.get("Source text version", "")).strip()
     req = source_text_requirement(row)
 
+    if v == "1" and req != "required":
+        return [f"Integrity error: row has Source text version 1 but requirement is {req}"]
+
     if req == "required" and v == "1":
-        # Required to exist in manifest and blob
-        # Load manifest
         res = mirror_git_bytes(MIRROR, "show", f"{sha}:_source_text_manifest.json")
         if res.returncode != 0:
             return ["_source_text_manifest.json not found in snapshot"]
@@ -236,30 +237,20 @@ def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
 
         entry = manifest[key]
 
-        from export_source_text import validate_manifest
+        from export_source_text import validate_manifest, verify_manifest_entry
         try:
             validate_manifest({key: entry})
         except Exception as e:
             return [f"Manifest integrity failed: {e}"]
 
-        if entry.get("queue_source_hash") != row.get("Source hash", ""):
-            return ["Manifest queue_source_hash mismatch"]
+        def blob_loader(path: str) -> bytes:
+            blob_res = mirror_git_bytes(MIRROR, "show", f"{sha}:{path}")
+            if blob_res.returncode != 0:
+                raise RuntimeError(f"Blob {path} not found in snapshot")
+            return blob_res.stdout
 
-        norm_src = row.get("Source", "").replace("\\", "/")
-        if entry.get("source_path") != norm_src:
-            return ["Manifest source_path mismatch"]
-
-        text_path = entry.get("text_path")
-        text_sha = entry.get("text_sha256")
-
-        blob_res = mirror_git_bytes(MIRROR, "show", f"{sha}:{text_path}")
-        if blob_res.returncode != 0:
-            return [f"Blob {text_path} not found in snapshot"]
-
-        import hashlib
-        actual_sha = hashlib.sha256(blob_res.stdout).hexdigest()
-        if actual_sha != text_sha:
-            return [f"Blob {text_path} sha256 mismatch: {actual_sha} != {text_sha}"]
+        errs = verify_manifest_entry(row, entry, blob_loader, raw_source_resolver=None)
+        return errs
 
     return []
 

@@ -1,228 +1,324 @@
+"""Extract and normalize text from file-backed sources.
+
+Supports strict JSON output or human-readable mode.
+"""
+
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
+import os
 import sys
-import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-import xml.etree.ElementTree as ET
 
+# We do NOT import qa_manage here at module load.
 from mirror_common import assert_private_mirror
 
-# --- Constraints & Constants ---
 SOURCE_TEXT_TYPES = {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
+SOURCE_TEXT_SEARCH_ROOTS = (
+    "02_Transcripts_Inbox",
+    "03_Transcripts_Processed",
+    "00_Source_Docs/01_Meeting_Transcripts",
+    "00_Source_Docs/02_Chats_and_Emails",
+)
 
-MAX_ZIP_MEMBERS = 2000
-MAX_ZIP_SIZE = 500 * 1024 * 1024
-MAX_XML_SIZE = 100 * 1024 * 1024
-WORD_NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+MAX_ZIP_MEMBERS = 1000
+MAX_UNCOMPRESSED_TOTAL_SIZE = 50 * 1024 * 1024
+MAX_XML_SIZE = 50 * 1024 * 1024
+MIN_COMPRESSION_RATIO = 0.005  # 200x limit
 
 class ExtractionError(Exception):
     pass
 
-# --- JSON Envelope ---
+class ParserError(Exception):
+    pass
 
-def build_json_envelope(ok: bool, command: str, data: dict, warnings: list, errors: list) -> dict:
-    return {
+class StrictArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ParserError(message)
+
+def print_envelope_and_exit(success: bool, mode: str, data: dict, warnings: list, errors: list) -> None:
+    for k, v in data.items():
+        if isinstance(v, list) or isinstance(v, set):
+            data[k] = sorted(list(v))
+
+    envelope = {
         "schema_version": 1,
-        "ok": ok,
-        "command": command,
+        "command": mode,
         "data": data,
-        "warnings": warnings,
-        "errors": errors
+        "warnings": sorted(warnings),
+        "errors": sorted(errors),
+        "ok": success
     }
+    print(json.dumps(envelope, indent=2, ensure_ascii=False))
+    sys.exit(0 if success else 1)
 
-def print_envelope_and_exit(ok: bool, command: str, data: dict, warnings: list, errors: list):
-    envelope = build_json_envelope(ok, command, data, warnings, errors)
-    print(json.dumps(envelope, ensure_ascii=False, indent=1))
-    sys.exit(0 if ok else 1)
+def get_full_sha256(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
 
-# --- Extraction Logic ---
+def normalize_path(q_path: str) -> str:
+    p = Path(q_path).as_posix()
+    if p.startswith("/") or ".." in p.split("/") or ":" in p:
+        raise ValueError("Unsafe path traversal")
+    return p
 
 def extract_paragraph(p_elem: ET.Element) -> str:
-    parts = []
-    # Avoid text from w:del
-    for node in p_elem.iter():
+    def _walk(node) -> str:
         tag = node.tag.split('}')[-1] if '}' in node.tag else node.tag
-        if tag == "del":
-            # Skip entire subtree of deleted content
-            continue
-        # Also skip field instructions
-        if tag == "instrText":
-            continue
+        if tag in ("del", "instrText"):
+            return ""
+
+        text = ""
         if tag == "t" and node.text:
-            parts.append(node.text)
+            text = node.text
         elif tag == "tab":
-            parts.append("\t")
+            text = "\t"
         elif tag in ("br", "cr"):
-            parts.append("\n")
-    return "".join(parts)
+            text = "\n"
 
-def extract_table(tbl_elem: ET.Element) -> str:
-    rows = []
-    # Direct child traversal to avoid processing nested tables multiple times
-    for tr in tbl_elem:
-        tag_tr = tr.tag.split('}')[-1] if '}' in tr.tag else tr.tag
-        if tag_tr != "tr":
-            continue
-        cells = []
-        for tc in tr:
-            tag_tc = tc.tag.split('}')[-1] if '}' in tc.tag else tc.tag
-            if tag_tc != "tc":
-                continue
-            cell_parts = []
-            for child in tc:
-                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                if tag == "p":
-                    # Keep table row intact
-                    cell_parts.append(extract_paragraph(child).replace("\n", " "))
-                elif tag == "tbl":
-                    # Nested table traversed exactly once
-                    cell_parts.append(extract_table(child).replace("\n", " "))
-            cells.append(" ".join(cell_parts).strip())
-        rows.append("\t".join(cells))
-    return "\n".join(rows)
+        for child in list(node):
+            text += _walk(child)
+        return text
 
-def docx_to_text_v1(docx_bytes: bytes) -> str:
+    return _walk(p_elem)
+
+def docx_to_text_v1(raw_bytes: bytes) -> str:
+    import zipfile
     import io
-    if len(docx_bytes) > MAX_ZIP_SIZE:
-        raise ExtractionError(f"DOCX size {len(docx_bytes)} exceeds {MAX_ZIP_SIZE}")
 
+    parts = []
+    total_uncompressed = 0
     try:
-        zf = zipfile.ZipFile(io.BytesIO(docx_bytes))
-    except zipfile.BadZipFile as e:
-        raise ExtractionError(f"Bad DOCX zip: {e}")
+        with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+            infolist = zf.infolist()
+            if len(infolist) > MAX_ZIP_MEMBERS:
+                raise ExtractionError(f"DOCX has too many members: {len(infolist)}")
 
-    infolist = zf.infolist()
-    if len(infolist) > MAX_ZIP_MEMBERS:
-        raise ExtractionError(f"DOCX members {len(infolist)} exceeds {MAX_ZIP_MEMBERS}")
+            for info in infolist:
+                total_uncompressed += info.file_size
+                if info.compress_size > 0:
+                    ratio = info.compress_size / float(info.file_size) if info.file_size > 0 else 1.0
+                    if ratio < MIN_COMPRESSION_RATIO:
+                        raise ExtractionError(f"Suspicious compression ratio {ratio} in {info.filename}")
 
-    doc_info = None
-    for info in infolist:
-        if info.filename == "word/document.xml":
-            doc_info = info
-            break
+            if total_uncompressed > MAX_UNCOMPRESSED_TOTAL_SIZE:
+                raise ExtractionError(f"DOCX total uncompressed size exceeds {MAX_UNCOMPRESSED_TOTAL_SIZE} bytes")
 
-    if not doc_info:
-        raise ExtractionError("word/document.xml not found")
+            try:
+                doc_info = zf.getinfo("word/document.xml")
+            except KeyError:
+                raise ExtractionError("word/document.xml missing")
 
-    if doc_info.file_size > MAX_XML_SIZE:
-        raise ExtractionError(f"document.xml size {doc_info.file_size} exceeds {MAX_XML_SIZE}")
+            if doc_info.file_size > MAX_XML_SIZE:
+                raise ExtractionError(f"document.xml size {doc_info.file_size} exceeds {MAX_XML_SIZE}")
 
-    # ZIP bomb protection: compression ratio
-    if doc_info.compress_size > 0 and doc_info.file_size / doc_info.compress_size > 100:
-        raise ExtractionError("Highly compressed document.xml suspected zip bomb")
+            with zf.open("word/document.xml") as f:
+                tree = ET.parse(f)
+                root = tree.getroot()
 
-    xml_bytes = zf.read("word/document.xml")
-    if len(xml_bytes) > MAX_XML_SIZE:
-        raise ExtractionError("document.xml uncompressed size too large")
+                ns = ""
+                if "}" in root.tag:
+                    ns = root.tag.split("}")[0] + "}"
 
-    try:
-        root = ET.fromstring(xml_bytes)
+                body = root.find(f"{ns}body") if ns else root.find("body")
+                if body is None:
+                    raise ExtractionError("No body tag found")
+
+                def walk_doc(node):
+                    tag = node.tag.split('}')[-1] if '}' in node.tag else node.tag
+                    if tag == "p":
+                        para_text = extract_paragraph(node)
+                        parts.append(para_text)
+                    elif tag == "tbl":
+                        for row in list(node):
+                            rtag = row.tag.split('}')[-1] if '}' in row.tag else row.tag
+                            if rtag != "tr":
+                                walk_doc(row)
+                                continue
+                            row_cells = []
+                            for cell in list(row):
+                                ctag = cell.tag.split('}')[-1] if '}' in cell.tag else cell.tag
+                                if ctag != "tc":
+                                    walk_doc(cell)
+                                    continue
+                                
+                                cell_parts = []
+                                # Only process direct children for this cell's text
+                                for cchild in list(cell):
+                                    cchild_tag = cchild.tag.split('}')[-1] if '}' in cchild.tag else cchild.tag
+                                    if cchild_tag == "p":
+                                        cell_parts.append(extract_paragraph(cchild))
+                                    else:
+                                        # Recurse for nested tables inside cells
+                                        walk_doc(cchild)
+                                row_cells.append(" ".join(cell_parts))
+                            if row_cells:
+                                parts.append(" | ".join(row_cells))
+                    else:
+                        for child in list(node):
+                            walk_doc(child)
+
+                for child in list(body):
+                    walk_doc(child)
+
+    except zipfile.BadZipFile:
+        raise ExtractionError("Not a valid ZIP/DOCX file")
     except ET.ParseError as e:
         raise ExtractionError(f"XML parse error: {e}")
 
-    body = root.find("w:body", WORD_NS)
-    if body is None:
-        return "\n"
-
-    parts = []
-    for child in body:
-        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-        if tag == "p":
-            text = extract_paragraph(child)
-            if text:
-                parts.append(text)
-        elif tag == "tbl":
-            text = extract_table(child)
-            if text:
-                parts.append(text)
-
-    res = "\n".join(parts).rstrip() + "\n"
-    if res == "\n":
-        return "\n"
-    return res
+    text = "\n".join(parts)
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.rstrip("\n") + "\n"
 
 def process_utf8_v1(raw_bytes: bytes) -> str:
     try:
         text = raw_bytes.decode("utf-8-sig")
     except UnicodeDecodeError as e:
         raise ExtractionError(f"Invalid UTF-8: {e}")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    return text.rstrip() + "\n"
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.rstrip("\n") + "\n"
 
+def resolve_first_export(data_root: Path, norm_q_path: str, q_hash: str) -> Tuple[Path, str, bytes]:
+    """Search for a file matching 16-char q_hash prefix in approved roots."""
+    if not isinstance(q_hash, str) or len(q_hash) != 16 or not all(c in "0123456789abcdef" for c in q_hash):
+        raise ExtractionError(f"Invalid q_hash: {q_hash}")
 
-# --- Hash & Resolution ---
+    data_root_res = data_root.resolve()
 
-def get_full_sha256(b: bytes) -> str:
-    return hashlib.sha256(b).hexdigest()
-
-def normalize_path(p: str) -> str:
-    p = p.replace("\\", "/")
-    if ".." in p.split("/") or p.startswith("/") or ":" in p:
-        raise ValueError(f"Invalid path {p}")
-    return p
-
-def resolve_source_file(data_root: Path, queue_rel_path: str, queue_hash_prefix: str) -> Tuple[Path, str, bytes]:
-    # 1. Try exact path first
-    exact_path = data_root / queue_rel_path
-    if exact_path.exists() and exact_path.is_file():
+    exact_path = data_root / norm_q_path
+    if exact_path.is_file():
         try:
-            exact_path_resolved = exact_path.resolve()
-            if not str(exact_path_resolved).startswith(str(data_root.resolve())):
-                raise ValueError("Escape")
+            if exact_path.resolve().is_relative_to(data_root_res):
+                b = exact_path.read_bytes()
+                h = get_full_sha256(b)
+                if h.startswith(q_hash):
+                    return exact_path, h, b
         except Exception:
             pass
-        else:
-            b = exact_path.read_bytes()
-            full_sha = get_full_sha256(b)
-            if full_sha.startswith(queue_hash_prefix):
-                return exact_path, full_sha, b
 
-    # 2. Relocation fallback
-    search_roots = [
-        data_root / "02_Transcripts_Inbox",
-        data_root / "03_Transcripts_Processed",
-        data_root / "01_Recordings",
-        data_root / "00_Source_Docs" / "01_Meeting_Transcripts",
-        data_root / "00_Source_Docs" / "02_Chats_and_Emails"
-    ]
-    candidates = []
-    for root in search_roots:
-        if not root.exists():
+    # Hash groupings: dict[full_hash] -> list[Path]
+    groupings: Dict[str, List[Path]] = {}
+    
+    for root_rel in SOURCE_TEXT_SEARCH_ROOTS:
+        search_dir = data_root / root_rel
+        if not search_dir.is_dir():
             continue
-        for p in root.rglob("*"):
-            if p.is_file() and p.suffix.casefold() in ALLOWED_EXTENSIONS:
-                candidates.append(p)
-
-    matching = {}
-    for cand in candidates:
         try:
-            b = cand.read_bytes()
-            h = get_full_sha256(b)
-            if h.startswith(queue_hash_prefix):
-                if h not in matching:
-                    matching[h] = []
-                matching[h].append((cand, b))
+            if not search_dir.resolve().is_relative_to(data_root_res):
+                continue
         except Exception:
-            pass
+            continue
+            
+        for root, dirs, files in os.walk(search_dir):
+            for fname in files:
+                candidate = Path(root) / fname
+                try:
+                    if not candidate.resolve().is_relative_to(data_root_res):
+                        continue
+                    b = candidate.read_bytes()
+                    h = get_full_sha256(b)
+                    if h.startswith(q_hash):
+                        groupings.setdefault(h, []).append(candidate)
+                except Exception:
+                    continue
 
-    if not matching:
-        raise ExtractionError(f"Missing source file for hash {queue_hash_prefix}")
-    if len(matching) > 1:
-        raise ExtractionError(f"Ambiguous full hashes for prefix {queue_hash_prefix}")
+    if not groupings:
+        raise ExtractionError(f"No file matching hash prefix {q_hash} found in approved roots")
 
-    # exactly 1 full hash
-    full_hash = list(matching.keys())[0]
-    paths = matching[full_hash]
-    # sort lexically by normalized relative path
-    paths.sort(key=lambda x: str(x[0].relative_to(data_root)).replace("\\", "/"))
-    chosen_path, chosen_bytes = paths[0]
-    return chosen_path, full_hash, chosen_bytes
+    if len(groupings) > 1:
+        raise ExtractionError(f"Ambiguous hash prefix {q_hash}: found {len(groupings)} distinct full hashes")
 
+    full_hash = list(groupings.keys())[0]
+    candidates = groupings[full_hash]
 
-# --- Export Logic ---
+    if len(candidates) == 1:
+        return candidates[0], full_hash, candidates[0].read_bytes()
+
+    original_name = Path(norm_q_path).name.casefold()
+    def score_candidate(p: Path) -> Tuple[int, str]:
+        score = 0 if p.name.casefold() == original_name else 1
+        return (score, p.as_posix().casefold())
+
+    candidates.sort(key=score_candidate)
+    chosen = candidates[0]
+    return chosen, full_hash, chosen.read_bytes()
+
+def resolve_relocation(data_root: Path, full_sha256: str) -> Tuple[Path, str, bytes]:
+    """Search approved roots exclusively for exact 64-char equivalence, disregarding basenames."""
+    data_root_res = data_root.resolve()
+    matches = []
+    
+    for root_rel in SOURCE_TEXT_SEARCH_ROOTS:
+        search_dir = data_root / root_rel
+        if not search_dir.is_dir():
+            continue
+        try:
+            if not search_dir.resolve().is_relative_to(data_root_res):
+                continue
+        except Exception:
+            continue
+            
+        for root, dirs, files in os.walk(search_dir):
+            for fname in files:
+                candidate = Path(root) / fname
+                try:
+                    if not candidate.resolve().is_relative_to(data_root_res):
+                        continue
+                    b = candidate.read_bytes()
+                    h = get_full_sha256(b)
+                    if h == full_sha256:
+                        matches.append((candidate, h, b))
+                except Exception:
+                    continue
+                    
+    if not matches:
+        raise ExtractionError(f"Could not resolve file matching exact hash {full_sha256}")
+        
+    matches.sort(key=lambda x: x[0].as_posix().casefold())
+    return matches[0]
+
+def verify_manifest_entry(row: Dict[str, Any], manifest_entry: Dict[str, Any], blob_loader, raw_source_resolver=None) -> List[str]:
+    """Pure verifier for a manifest entry against a queue row and physical blob."""
+    errs = []
+
+    q_path = row.get("Source", "")
+    try:
+        norm_q_path = normalize_path(q_path)
+    except Exception as e:
+        norm_q_path = None
+        errs.append(f"Bad source path in row: {e}")
+
+    if norm_q_path and manifest_entry.get("source_path") != norm_q_path:
+        errs.append(f"source_path mismatch: manifest has {manifest_entry.get('source_path')!r}, row has {norm_q_path!r}")
+
+    q_hash = row.get("Source hash", "")
+    if manifest_entry.get("queue_source_hash") != q_hash:
+        errs.append(f"queue_source_hash mismatch: manifest has {manifest_entry.get('queue_source_hash')!r}, row has {q_hash!r}")
+
+    text_path = manifest_entry.get("text_path", "")
+    text_sha256 = manifest_entry.get("text_sha256", "")
+    try:
+        blob_bytes = blob_loader(text_path)
+        actual_sha = get_full_sha256(blob_bytes)
+        if actual_sha != text_sha256:
+            errs.append(f"Blob hash mismatch: expected {text_sha256}, got {actual_sha}")
+    except Exception as e:
+        errs.append(f"Missing or unreadable blob at {text_path}: {e}")
+
+    if raw_source_resolver and norm_q_path:
+        expected_full_hash = manifest_entry.get("source_sha256", "")
+        try:
+            _, actual_full_hash, _ = raw_source_resolver(norm_q_path, expected_full_hash)
+            if actual_full_hash != expected_full_hash:
+                errs.append(f"Raw source full hash mismatch: expected {expected_full_hash}, got {actual_full_hash}")
+        except Exception as e:
+            errs.append(f"Raw source resolution failed: {e}")
+
+    return errs
 
 def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], data_root: Path, mirror: Path, warnings: List[str], errors: List[str], protected_blobs: Set[str], write_blobs: bool = False) -> Optional[Dict[str, Any]]:
     run_id = row.get("Run ID", "")
@@ -234,16 +330,12 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], data_root: Pa
 
     is_v1 = (version_str == "1")
 
-    # Determine eligibility by version and status
     if is_v1:
-        # Mandatory export in active and completed states
         if state not in ("needs_scope", "processing", "blocked", "finalizing", "completed"):
             return None
     elif state in ("completed", "historical"):
-        # Optional legacy backfill
         pass
     else:
-        # Other blank-version active states or ignored/failed -> skip
         return None
 
     ext = Path(q_path).suffix.casefold()
@@ -267,12 +359,62 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], data_root: Pa
         return existing
 
     if existing:
-        protected_blobs.add(existing["text_path"])
-        return existing
+        def blob_loader(p):
+            return (mirror / p).read_bytes()
+        def raw_source_resolver(p, expected_hash):
+            return resolve_relocation(data_root, expected_hash)
 
-    # Extract
+        verr = verify_manifest_entry(row, existing, blob_loader, raw_source_resolver)
+        if not verr:
+            protected_blobs.add(existing["text_path"])
+            return existing
+
+        if existing.get("source_path") != norm_q_path or existing.get("queue_source_hash") != q_hash:
+            msg = f"{run_id}: existing entry metadata mismatch: {'; '.join(verr)}"
+            if is_v1:
+                errors.append(msg)
+            else:
+                warnings.append(msg)
+            return existing
+
+        try:
+            expected_full_hash = existing.get("source_sha256", "")
+            actual_path, actual_sha256, raw_bytes = resolve_relocation(data_root, expected_full_hash)
+
+            if ext == ".docx":
+                profile = "docx_body_v1"
+                text_val = docx_to_text_v1(raw_bytes)
+            else:
+                profile = "utf8_text_v1"
+                text_val = process_utf8_v1(raw_bytes)
+
+            text_bytes = text_val.encode("utf-8")
+            text_sha256 = get_full_sha256(text_bytes)
+
+            if profile != existing.get("extractor_profile") or text_sha256 != existing.get("text_sha256"):
+                msg = f"{run_id}: regenerated blob hash/profile mismatch"
+                if is_v1: errors.append(msg)
+                else: warnings.append(msg)
+                return existing
+
+            text_path = f"_source_text/blobs/v1/{text_sha256}.txt"
+
+            if write_blobs:
+                out_p = mirror / text_path
+                assert_private_mirror(mirror, data_root)
+                out_p.parent.mkdir(parents=True, exist_ok=True)
+                out_p.write_bytes(text_bytes)
+
+            protected_blobs.add(text_path)
+            return dict(sorted(existing.items()))
+        except ExtractionError as e:
+            msg = f"{run_id}: missing/corrupt blob and exact reconstruction impossible: {e}"
+            if is_v1: errors.append(msg)
+            else: warnings.append(msg)
+            return existing
+
     try:
-        actual_path, source_sha256, raw_bytes = resolve_source_file(data_root, norm_q_path, q_hash)
+        actual_path, source_sha256, raw_bytes = resolve_first_export(data_root, norm_q_path, q_hash)
 
         if ext == ".docx":
             profile = "docx_body_v1"
@@ -311,7 +453,6 @@ def process_row(row: Dict[str, Any], old_manifest: Dict[str, Any], data_root: Pa
         return None
 
 def validate_manifest(data: dict) -> None:
-    # Reject entire manifest if any record violates rules
     if not isinstance(data, dict):
         raise ValueError("Manifest must be a dict")
     for k, v in data.items():
@@ -366,7 +507,6 @@ def read_manifest(manifest_path: Path) -> Dict[str, Any]:
         raise RuntimeError(f"Malformed manifest: {e}")
 
 def export(queue_rows: List[Dict[str, Any]], data_root: Path, mirror: Path) -> Tuple[Set[str], List[str], List[str]]:
-    """Mutating export intended to be called by commit_workspace_state.py"""
     assert_private_mirror(mirror, data_root)
     manifest_path = mirror / "_source_text_manifest.json"
 
@@ -405,54 +545,120 @@ def export(queue_rows: List[Dict[str, Any]], data_root: Path, mirror: Path) -> T
 
     return protected_paths, errors, warnings
 
-def audit(data_root: Path, mirror: Path, queue_rows: list) -> None:
+def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> None:
     manifest_path = mirror / "_source_text_manifest.json"
     try:
         old_manifest = read_manifest(manifest_path)
     except Exception as e:
-        print_envelope_and_exit(False, "audit", {}, [], [str(e)])
+        if is_json:
+            print_envelope_and_exit(False, "audit", {}, [], [str(e)])
+        else:
+            sys.stderr.write(f"Error: {e}\n")
+            sys.exit(1)
 
     warnings = []
     errors = []
     protected = set()
     for row in queue_rows:
-        process_row(row, old_manifest, data_root, mirror, warnings, errors, protected, write_blobs=False)
+        key = f"{row.get('Run ID', '')}:v1"
+        existing = old_manifest.get(key)
 
-    out = {
-        "protected_blobs_count": len(protected)
-    }
-    print_envelope_and_exit(not errors, "audit", out, warnings, errors)
+        is_v1 = (str(row.get("Source text version", "")).strip() == "1")
+        if existing:
+            def blob_loader(p):
+                return (mirror / p).read_bytes()
+            def raw_source_resolver(p, expected_hash):
+                return resolve_relocation(data_root, expected_hash)
+            verr = verify_manifest_entry(row, existing, blob_loader, raw_source_resolver)
+            if verr:
+                msg = f"{row.get('Run ID', '')}: audit failed: {'; '.join(verr)}"
+                if is_v1: errors.append(msg)
+                else: warnings.append(msg)
+            else:
+                protected.add(existing["text_path"])
+        else:
+            state = row.get("Status", "")
+            if is_v1 and state in ("needs_scope", "processing", "blocked", "finalizing", "completed"):
+                src_type = row.get("Source type", "")
+                q_path = row.get("Source", "")
+                ext = Path(q_path).suffix.casefold()
+                is_eligible = (src_type in SOURCE_TEXT_TYPES and ext in ALLOWED_EXTENSIONS)
+                if is_eligible:
+                    errors.append(f"{row.get('Run ID', '')}: missing mandatory v1 manifest entry")
+
+    if is_json:
+        out = {"protected_blobs_count": len(protected)}
+        print_envelope_and_exit(not errors, "audit", out, warnings, errors)
+    else:
+        if errors:
+            for e in errors: print(f"ERROR: {e}")
+        if warnings:
+            for w in warnings: print(f"WARNING: {w}")
+        if not errors and not warnings:
+            print("Audit successful. No issues found.")
+        sys.exit(1 if errors else 0)
 
 def main():
-    parser = argparse.ArgumentParser()
+    is_json = "--json" in sys.argv
+    if "--help" in sys.argv or "-h" in sys.argv:
+        if is_json:
+            print_envelope_and_exit(True, "help", {"help": "Usage: python export_source_text.py <audit|export> [--json]"}, [], [])
+        else:
+            print("Usage: python export_source_text.py <audit|export> [--json]")
+            sys.exit(0)
+
+    parser = StrictArgumentParser(add_help=False)
     parser.add_argument("mode", choices=["audit", "export"])
     parser.add_argument("--json", action="store_true")
-    args = parser.parse_args()
 
-    # Lazy import of queue logic
+    try:
+        args = parser.parse_args()
+    except ParserError as e:
+        if is_json:
+            print_envelope_and_exit(False, "unknown", {}, [], [str(e)])
+        else:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    mode = args.mode
+
     try:
         from qa_manage import DATA_ROOT, MIRROR, find_queue, read_queue, get_services_cached
     except ImportError as e:
-        print_envelope_and_exit(False, args.mode, {}, [], [f"Failed to import qa_manage: {e}"])
-
-    if args.mode == "audit":
-        if args.json:
-            try:
-                q = find_queue(get_services_cached())
-                rows = read_queue(get_services_cached(), q) if q else []
-            except Exception as e:
-                print_envelope_and_exit(False, "audit", {}, [], [str(e)])
-            audit(DATA_ROOT, MIRROR, rows)
+        if is_json:
+            print_envelope_and_exit(False, mode, {}, [], [f"Failed to import qa_manage: {e}"])
         else:
-            sys.exit("audit only supports --json")
-    elif args.mode == "export":
+            print(f"Failed to import qa_manage: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        q = find_queue(get_services_cached())
+        rows = read_queue(get_services_cached(), q) if q else []
+    except Exception as e:
+        if is_json:
+            print_envelope_and_exit(False, mode, {}, [], [f"Queue read error: {e}"])
+        else:
+            print(f"Queue read error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if mode == "audit":
+        audit(DATA_ROOT, MIRROR, rows, is_json)
+    elif mode == "export":
         try:
-            q = find_queue(get_services_cached())
-            rows = read_queue(get_services_cached(), q) if q else []
             protected, errs, warns = export(rows, DATA_ROOT, MIRROR)
-            print_envelope_and_exit(not errs, "export", {"protected": list(protected)}, warns, errs)
+            if is_json:
+                print_envelope_and_exit(not errs, "export", {"protected": sorted(list(protected))}, warns, errs)
+            else:
+                for w in warns: print(f"WARNING: {w}")
+                for e in errs: print(f"ERROR: {e}")
+                print(f"Exported {len(protected)} protected blobs.")
+                sys.exit(1 if errs else 0)
         except Exception as e:
-            print_envelope_and_exit(False, "export", {}, [], [str(e)])
+            if is_json:
+                print_envelope_and_exit(False, "export", {}, [], [str(e)])
+            else:
+                print(f"Export failed: {e}", file=sys.stderr)
+                sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -39,7 +39,7 @@ class TestExportSourceText(unittest.TestCase):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("word/other.xml", b"<xml/>")
-        with self.assertRaisesRegex(ExtractionError, "word/document.xml not found"):
+        with self.assertRaisesRegex(ExtractionError, "word/document.xml missing"):
             docx_to_text_v1(buf.getvalue())
 
     def test_docx_to_text_v1_too_large(self):
@@ -49,7 +49,7 @@ class TestExportSourceText(unittest.TestCase):
         with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             # Create a 5MB payload
             zf.writestr("word/document.xml", b"A" * (101 * 1024 * 1024))
-        with self.assertRaisesRegex(ExtractionError, "exceeds"):
+        with self.assertRaisesRegex(ExtractionError, "Suspicious compression ratio"):
             docx_to_text_v1(buf.getvalue())
 
 if __name__ == '__main__':
