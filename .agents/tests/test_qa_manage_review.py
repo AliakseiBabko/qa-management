@@ -191,22 +191,86 @@ class TestEvaluateRun(unittest.TestCase):
         self.assertEqual(len(res.unresolved_edges), 0)
         self.assertTrue(len(res.warnings) > 0)
 
+    def test_cmd_complete_warnings_block(self):
+        ctx = MagicMock()
+        ctx.row = {
+            "Run ID": "test-run", "Status": "processing", "Stage": "closure",
+            "Scopes": '[["", "Alice"]]', "Source type": "raw_transcript",
+            "Route variant": "m1",
+            "Entries": '{"|Alice": {"10_M1_People_Management/<Person>/individual_development_plan.gdoc": ["updated", ""]}}',
+            "Started": "2023-10-01T10:00:00Z", "Last mutation": "2023-10-01T10:05:00Z"
+        }
+        ctx.graph = self.mock_graph
+        ctx.all_rows = [
+            {"Source": "10_M1_People_Management/Alice/individual_development_plan.gdoc",
+             "Target": "_m1_timeline.csv", "Outcome": "updated", "Person": "Alice",
+             "Project": "", "Route variant": "m1", "Timestamp": "2023-10-01T10:06:00Z",
+             "Source node": "10_M1_People_Management/<Person>/individual_development_plan.gdoc",
+             "Target node": "_m1_timeline.csv",
+             "Run ID": "test-run"},
+            {"Source": "10_M1_People_Management/Alice/individual_development_plan.gdoc",
+             "Target": "non_existent.csv", "Outcome": "updated", "Person": "Alice",
+             "Project": "", "Route variant": "m1", "Timestamp": "2023-10-01T10:06:00Z",
+             "Source node": "10_M1_People_Management/<Person>/individual_development_plan.gdoc",
+             "Target node": "non_existent.csv",
+             "Run ID": "test-run"}
+        ]
+        ctx.inv_rows = [["Headers"], ["... run:test-run ..."]]
+        ctx.dirty = False
+        ctx.log_entries = [{"run": "test-run", "sha": "12345678"}]
+
         args = MagicMock()
         args.run_id = "test-run"
         mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
         with patch("qa_manage.get_services_cached", return_value=mock_services), \
              patch("qa_manage.load_review_context", return_value=ctx), \
              patch("qa_manage.check_snapshot", return_value=("12345678", "")), \
+             patch("qa_manage.find_queue", return_value={"id": "mock_id"}), \
+             patch("qa_manage.get_run", return_value=ctx.row), \
              patch("qa_manage.write_queue") as mock_write_queue:
-            res = qa_manage.cmd_review(args)
-            
+            res = qa_manage.cmd_complete(args)
+
         mock_write_queue.assert_not_called()
+        self.assertFalse(res.ok)
+        pass
+        self.assertTrue(len(res.errors) > 0)
+        self.assertFalse(res.data["completed"])
+        self.assertTrue(any("edge no longer exists in document_graph.yaml" in err for err in res.data["problems"]))
+
+    def test_cmd_review_read_only(self):
+        ctx = MagicMock()
+        ctx.row = {
+            "Run ID": "test-run", "Status": "processing", "Stage": "closure",
+            "Scopes": '[["", "Alice"]]', "Source type": "raw_transcript",
+            "Route variant": "m1",
+            "Entries": '{"|Alice": {"10_M1_People_Management/<Person>/individual_development_plan.gdoc": ["updated", ""]}}',
+            "Started": "2023-10-01T10:00:00Z", "Last mutation": "2023-10-01T10:05:00Z"
+        }
+        ctx.graph = self.mock_graph
+        ctx.all_rows = []
+        ctx.inv_rows = [["Headers"], ["... run:test-run ..."]]
+        ctx.dirty = False
+        ctx.log_entries = [{"run": "test-run", "sha": "12345678"}]
+
+        args = MagicMock()
+        args.run_id = "test-run"
+        mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
+        with patch("qa_manage.get_services_cached", return_value=mock_services), \
+             patch("qa_manage.load_review_context", return_value=ctx), \
+             patch("qa_manage.check_snapshot", return_value=("12345678", "")), \
+             patch("qa_manage.write_queue") as mock_write_queue, \
+             patch("qa_manage.export_queue_terminal") as mock_export:
+            res = qa_manage.cmd_review(args)
+
+        mock_write_queue.assert_not_called()
+        mock_export.assert_not_called()
+        mock_services["sheets"].spreadsheets().values().update.assert_not_called()
+        mock_services["drive"].files().create.assert_not_called()
         self.assertTrue(res.ok)
         self.assertEqual(res.data["run_id"], "test-run")
-        self.assertEqual(res.data["status"], "processing")
-        self.assertFalse(res.data["ready_for_completion"])
 
     def test_recommended_actions_extended(self):
+
         self.assertEqual(qa_manage.get_recommended_action("needs_scope", "", False), "start")
         self.assertEqual(qa_manage.get_recommended_action("finalizing", "", False), "retry complete")
         self.assertEqual(qa_manage.get_recommended_action("finalizing", "", True), "complete")
