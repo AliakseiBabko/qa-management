@@ -114,8 +114,11 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `--not-applicable`, reasons required) → `resolve-edge` per cascade
      edge → `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
      Put the exact token `run:<run-id>` in the `_skill_invocations`
-     Notes and the run id in the mirror commit message — `complete`
-     verifies both, plus per-scope closure and snapshot freshness.
+     Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
+     pass also automatically extracts and commits the source text into the private mirror.
+     `complete` verifies the invocation evidence, per-scope closure, and requires verification
+     of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
+     runs, it also verifies that the exact snapshot SHA contains the exported text blob.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
@@ -134,7 +137,9 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      exports the workspace's canonical documents into the local private
      mirror repo (`~/Documents/qa-drive-mirror`, real data, never public)
      and commits, so the whole pass can be diffed or rolled back as one
-     unit later (`rollback_from_mirror.py`). Harmless when nothing
+     unit later (`rollback_from_mirror.py`). The mirror automatically stores exact,
+     content-addressed text representations of source chats and transcripts, which means it
+     contains real conversation text and must remain strictly private. Harmless when nothing
      changed.
    - Writing a new one-off inspection/update script anyway? Reuse
      `.agents\scripts\pipeline_common.py`'s `get_services()` instead of

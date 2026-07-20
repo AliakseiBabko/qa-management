@@ -350,28 +350,28 @@ class TestSnapshotCheck(unittest.TestCase):
            ("sha_old", 1000.0, "other work")]
 
     def test_clean_recent_snapshot_accepted(self):
-        sha, problem = check_snapshot(self.LOG, "run-1", 1500.0, dirty=False)
+        sha, problem = check_snapshot(self.LOG, {"Run ID": "run-1"}, 1500.0, dirty=False)
         self.assertEqual(sha, "sha_new")
         self.assertEqual(problem, "")
 
     def test_dirty_mirror_rejected(self):
-        sha, problem = check_snapshot(self.LOG, "run-1", 1500.0, dirty=True)
+        sha, problem = check_snapshot(self.LOG, {"Run ID": "run-1"}, 1500.0, dirty=True)
         self.assertEqual(sha, "")
         self.assertIn("dirty", problem)
 
     def test_missing_run_commit_rejected(self):
-        sha, problem = check_snapshot(self.LOG, "run-2", 1500.0, dirty=False)
+        sha, problem = check_snapshot(self.LOG, {"Run ID": "run-2"}, 1500.0, dirty=False)
         self.assertEqual(sha, "")
         self.assertIn("no mirror commit", problem)
 
     def test_stale_snapshot_rejected(self):
         # Snapshot at t=2000, but the run's last mutation is much later.
-        sha, problem = check_snapshot(self.LOG, "run-1", 5000.0, dirty=False)
+        sha, problem = check_snapshot(self.LOG, {"Run ID": "run-1"}, 5000.0, dirty=False)
         self.assertEqual(sha, "")
         self.assertIn("predates", problem)
 
     def test_same_minute_tolerated(self):
-        sha, problem = check_snapshot(self.LOG, "run-1", 2059.0, dirty=False)
+        sha, problem = check_snapshot(self.LOG, {"Run ID": "run-1"}, 2059.0, dirty=False)
         self.assertEqual(sha, "sha_new")
         self.assertEqual(problem, "")
 

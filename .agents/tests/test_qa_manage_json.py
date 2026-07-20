@@ -152,7 +152,7 @@ class TestJsonContract(unittest.TestCase):
 
         res = qa_manage.cmd_complete(Args())
 
-        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
+        mock_mirror_git.assert_called_once_with(unittest.mock.ANY, "show", "12345678:_skill_invocations.values.json")
         self.assertTrue(res.ok)
         self.assertEqual(res.data["completed"], True)
         self.assertEqual(res.data["terminal_commit"], "commit-sha")
@@ -271,7 +271,7 @@ class TestJsonContract(unittest.TestCase):
 
         res = qa_manage.cmd_complete(Args())
 
-        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
+        mock_mirror_git.assert_called_once_with(unittest.mock.ANY, "show", "12345678:_skill_invocations.values.json")
         self.assertFalse(res.ok)
         self.assertEqual(res.exit_code, 1)
         self.assertIn("Missing mirror invocation token", res.errors)
@@ -309,7 +309,7 @@ class TestJsonContract(unittest.TestCase):
 
         res = qa_manage.cmd_complete(Args())
 
-        mock_mirror_git.assert_called_once_with("show", "12345678:_skill_invocations.values.json")
+        mock_mirror_git.assert_called_once_with(unittest.mock.ANY, "show", "12345678:_skill_invocations.values.json")
         self.assertFalse(res.ok)
         self.assertEqual(res.exit_code, 1)
         self.assertIn("Missing mirror invocation token", res.errors)
