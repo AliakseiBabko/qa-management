@@ -183,26 +183,6 @@ def is_valid_filter_path(p: str, kind: str) -> bool:
             return True
     return False
 
-def extract_context(mirror: Path, ref: str, path: str, line_no: int, context_lines: int) -> tuple[str, list[str], list[str]]:
-    cmd = run_git(mirror, ["show", f"{ref}:{path}"], check=False)
-    if cmd.returncode != 0:
-        return "", [], []
-
-    lines = cmd.stdout.decode("utf-8", errors="replace").splitlines()
-    if not lines or line_no < 1 or line_no > len(lines):
-        return "", [], []
-
-    idx = line_no - 1
-    text = lines[idx]
-
-    start_idx = max(0, idx - context_lines)
-    end_idx = min(len(lines), idx + context_lines + 1)
-
-    ctx_b = lines[start_idx:idx]
-    ctx_a = lines[idx+1:end_idx]
-
-    return text, ctx_b, ctx_a
-
 def extract_matches_for_path(mirror: Path, ref: str, path: str, query: str, is_regex: bool, case_sensitive: bool, context: int, limit: int) -> tuple[list, bool]:
     args = ["grep", "-z", "-n", "-I"]
     if not case_sensitive: args.append("-i")
@@ -219,6 +199,12 @@ def extract_matches_for_path(mirror: Path, ref: str, path: str, query: str, is_r
     raw = cmd.stdout.split(b'\n')
     matches = []
 
+    # Read blob once
+    blob_lines = []
+    blob_cmd = run_git(mirror, ["show", f"{ref}:{path}"], check=False)
+    if blob_cmd.returncode == 0:
+        blob_lines = blob_cmd.stdout.decode("utf-8", errors="replace").splitlines()
+
     # Process all to accurately get truncated flag
     for line in raw:
         if not line: continue
@@ -228,7 +214,17 @@ def extract_matches_for_path(mirror: Path, ref: str, path: str, query: str, is_r
             line_no = int(parts[1].decode("utf-8"))
         except: continue
 
-        text, ctx_b, ctx_a = extract_context(mirror, ref, path, line_no, context)
+        idx = line_no - 1
+        text = ""
+        ctx_b = []
+        ctx_a = []
+        if 0 <= idx < len(blob_lines):
+            text = blob_lines[idx]
+            start_idx = max(0, idx - context)
+            end_idx = min(len(blob_lines), idx + context + 1)
+            ctx_b = blob_lines[start_idx:idx]
+            ctx_a = blob_lines[idx+1:end_idx]
+
         matches.append({
             "line": line_no,
             "text": text,
