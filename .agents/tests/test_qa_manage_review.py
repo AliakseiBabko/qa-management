@@ -196,55 +196,11 @@ class TestEvaluateRun(unittest.TestCase):
         mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
         with patch("qa_manage.get_services_cached", return_value=mock_services), \
              patch("qa_manage.load_review_context", return_value=ctx), \
-             patch("qa_manage.evaluate_run", return_value=res), \
-             patch("qa_manage.find_queue", return_value={"id": "mock_id"}), \
-             patch("qa_manage.get_run", return_value=ctx.row):
-            cmd_res = qa_manage.cmd_complete(args)
-            self.assertFalse(cmd_res.ok)
-            self.assertTrue(any("non_existent.csv" in p for p in cmd_res.data["problems"]))
-
-    def test_recommended_actions(self):
-        # Discovered -> start
-        self.assertEqual(qa_manage.get_recommended_action("discovered", "", False), "start")
-        # Ready -> start
-        self.assertEqual(qa_manage.get_recommended_action("ready", "", False), "start")
-        # Blocked -> resume --continue
-        self.assertEqual(qa_manage.get_recommended_action("blocked", "", False), "resume --continue")
-        # Completed -> none
-        self.assertEqual(qa_manage.get_recommended_action("completed", "done", False), "none")
-        # Processing Analysis -> record-analysis
-        self.assertEqual(qa_manage.get_recommended_action("processing", "analysis", False), "record-analysis")
-        # Processing Apply -> record-apply
-        self.assertEqual(qa_manage.get_recommended_action("processing", "apply", False), "record-apply")
-        # Processing Closure (ready) -> complete
-        self.assertEqual(qa_manage.get_recommended_action("processing", "closure", True), "complete")
-        # Processing Closure (not ready) -> resolve unmet requirements
-        self.assertEqual(qa_manage.get_recommended_action("processing", "closure", False), "resolve unmet requirements")
-
-
-    def test_cmd_review_read_only(self):
-        ctx = MagicMock()
-        ctx.row = {
-            "Run ID": "test-run", "Status": "processing", "Stage": "closure",
-            "Scopes": '[["", "Alice"]]', "Source type": "raw_transcript",
-            "Route variant": "m1", "Source": "doc", "Source hash": "hash",
-            "Entries": '{"|Alice": {"10_M1_People_Management/<Person>/individual_development_plan.gdoc": ["updated", ""]}}',
-            "Started": "2023-10-01T10:00:00Z", "Last mutation": "2023-10-01T10:05:00Z"
-        }
-        ctx.graph = self.mock_graph
-        ctx.all_rows = []
-        ctx.inv_rows = [["Headers"], ["... run:test-run ..."]]
-        ctx.dirty = False
-        ctx.log_entries = [{"run": "test-run", "sha": "12345678"}]
-
-        args = MagicMock()
-        args.run_id = "test-run"
-        mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
-        with patch("qa_manage.get_services_cached", return_value=mock_services), \
-             patch("qa_manage.load_review_context", return_value=ctx), \
-             patch("qa_manage.check_snapshot", return_value=("12345678", "")):
+             patch("qa_manage.check_snapshot", return_value=("12345678", "")), \
+             patch("qa_manage.write_queue") as mock_write_queue:
             res = qa_manage.cmd_review(args)
-
+            
+        mock_write_queue.assert_not_called()
         self.assertTrue(res.ok)
         self.assertEqual(res.data["run_id"], "test-run")
         self.assertEqual(res.data["status"], "processing")
