@@ -124,6 +124,8 @@ class EvaluationResult:
         return p
 
 import yaml
+from export_source_text import source_text_requirement
+
 from mirror_common import mirror_git, mirror_git_bytes, assert_private_mirror
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
@@ -204,15 +206,6 @@ def parse_ts(text: str) -> float:
 
 # ---------- pure helpers (unit-tested) ----------
 
-def source_text_requirement(row: dict) -> str:
-    src_type = row.get("Source type", "")
-    ext = Path(row.get("Source", "")).suffix.casefold()
-    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
-        if ext in {".txt", ".md", ".docx"}:
-            return "required"
-    if src_type in {"admin_note", "m2_conversation"}:
-        return "not_applicable"
-    return "optional"
 
 def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
     v = str(row.get("Source text version", "")).strip()
