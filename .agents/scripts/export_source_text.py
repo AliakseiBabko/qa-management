@@ -31,10 +31,8 @@ from mirror_common import assert_private_mirror
 SOURCE_TEXT_TYPES = {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
 SOURCE_TEXT_SEARCH_ROOTS = (
-    "02_Transcripts_Inbox",
-    "03_Transcripts_Processed",
-    "00_Source_Docs/01_Meeting_Transcripts",
-    "00_Source_Docs/02_Chats_and_Emails",
+    "00_Inbox",
+    "90_Archive/Processed_Sources",
 )
 
 MAX_ZIP_MEMBERS = 1000

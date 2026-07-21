@@ -171,13 +171,14 @@ def reformat_sheet(services: dict[str, Any], spreadsheet_id: str, name: str = ""
 
 def get_project_person_folder(services: dict[str, Any], project: str, person: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """Resolve (project_folder, person_folder) under
-    20_M2_Project_Management/<project>/people/<person> - the same four-hop
-    lookup (m2_root -> project -> people -> person) that kept getting
-    hand-rolled at the top of every apply-1to1-findings-style script (a
+    20_M2_Project_Management/<project>/people/<person>/shared - the canonical
+    employee-visible folder used by individual_metrics and
+    individual_development_plan. This replaces the repeated
+    m2_root -> project -> people -> person lookup that was hand-rolled at
+    the top of apply-1to1-findings-style scripts (a
     copy-paste source of at least one real IndexError). Uses
-    find_or_create_folder throughout, so it's safe to call for a person who
-    doesn't have a folder yet (creates it, matching what
-    scaffold_project_dashboard.py already does for people/<Person>) - it
+    canonical folder helpers, so it's safe to call for a person who doesn't
+    have a shared folder yet. It
     does not create the project folder itself if missing; that's still a
     deliberate step, not something to paper over silently."""
     from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder
@@ -185,8 +186,11 @@ def get_project_person_folder(services: dict[str, Any], project: str, person: st
     drive = services["drive"]
     m2_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
     project_folder = find_or_create_folder(drive, m2_root["id"], project)
-    people_folder = find_or_create_folder(drive, project_folder["id"], "people")
-    person_folder = find_or_create_folder(drive, people_folder["id"], person)
+    from m2_workspace_layout import ensure_document_folder
+
+    person_folder = ensure_document_folder(
+        drive, project_folder["id"], "individual_metrics", person
+    )
     return project_folder, person_folder
 
 

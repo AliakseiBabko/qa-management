@@ -66,6 +66,9 @@ Commands (all support --json for machine-readable output):
     block <run-id> --reason "..." mark waiting on a gate/answer
     resume <run-id> [--continue]  exact unfinished stage + what remains;
                                   --continue reactivates a blocked run
+    archive-source <run-id>       move the closure-stage original from
+                                  00_Inbox to its run-specific processed
+                                  archive before taking the final snapshot
     complete <run-id>             verification gate: every entry document
                                   has a per-scope outcome, strict closure
                                   per scope, a `run:<run-id>` token in
@@ -138,23 +141,14 @@ GRAPH_PATH = Path(__file__).resolve().parent.parent / "document_graph.yaml"
 DATA_ROOT = Path(r"G:\My Drive\QA_Management")
 MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
 SCAN_DIRS = [
-    "02_Transcripts_Inbox",
-    r"00_Source_Docs\01_Meeting_Transcripts",
-    r"00_Source_Docs\02_Chats_and_Emails",
-    r"00_Source_Docs\03_Source_Documents",
+    "00_Inbox",
 ]
-# Subtrees that are categorically not intake (course homework, training
-# material) - excluded from discovery entirely, matching the terminal
-# `ignored` state's non_intake_course_material category.
-SCAN_EXCLUDE = [
-    r"00_Source_Docs\03_Source_Documents\M2_personal_development_plan",
-    r"00_Source_Docs\03_Source_Documents\M2_project_development_plan",
-    r"00_Source_Docs\03_Source_Documents\M2_role_vision",
-]
+SCAN_EXCLUDE: list[str] = []
 SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
 
 QUEUE_SHEET = "_intake_queue"
-HEADER = ["Run ID", "Source", "Source hash", "Source type", "Route variant",
+HEADER = ["Run ID", "Source", "Source hash", "Current source", "Source disposition",
+          "Source type", "Route variant",
           "Project", "Person", "Scopes", "Status", "Stage", "Skills",
           "Entries", "Discovered", "Started", "Last mutation", "Completed",
           "Snapshot", "Reason", "Summary", "Source text version"]
@@ -187,10 +181,7 @@ ENTRY_REASON_REQUIRED = {"no_change", "not_applicable"}
 
 # Mechanical folder -> pre-classification label (agent refines via start).
 FOLDER_PRECLASS = {
-    "02_Transcripts_Inbox": "raw_transcript",
-    "01_Meeting_Transcripts": "raw_transcript",
-    "02_Chats_and_Emails": "raw_chat",
-    "03_Source_Documents": "source_document",
+    "00_Inbox": "source_document",
 }
 
 
@@ -280,6 +271,7 @@ def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
     """Identity is (path, hash). Returns (action, related_run_id):
     skip (exact pair known), changed (known path, new content - supersedes),
     duplicate (known content at a new path), or new."""
+    rel = rel.replace("\\", "/")
     if (rel, digest) in by_pair:
         return "skip", ""
     if rel in by_path:
@@ -287,6 +279,28 @@ def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
     if digest in by_hash:
         return "duplicate", by_hash[digest]
     return "new", ""
+
+
+def queue_discovery_indexes(
+    rows: list[dict],
+) -> tuple[set[tuple[str, str]], dict[str, str], dict[str, str]]:
+    by_pair: set[tuple[str, str]] = set()
+    by_path: dict[str, str] = {}
+    by_hash: dict[str, str] = {}
+    for row in rows:
+        digest = str(row.get("Source hash", ""))
+        run_id = str(row.get("Run ID", ""))
+        paths = {
+            str(row.get("Source", "")).strip(),
+            str(row.get("Current source", "")).strip(),
+        }
+        for path in paths - {""}:
+            normalized = path.replace("\\", "/")
+            by_pair.add((normalized, digest))
+            by_path[normalized] = run_id
+        if digest:
+            by_hash[digest] = run_id
+    return by_pair, by_path, by_hash
 
 
 def resolve_route(graph: dict, source_type: str, variant: str) -> dict:
@@ -734,9 +748,7 @@ def cmd_scan(args) -> CommandResult:
     services = get_services_cached()
     sheet = get_or_create_queue(services)
     rows = read_queue(services, sheet)
-    by_pair = {(r["Source"], r["Source hash"]) for r in rows}
-    by_path = {r["Source"]: r["Run ID"] for r in rows}
-    by_hash = {r["Source hash"]: r["Run ID"] for r in rows if r["Source hash"]}
+    by_pair, by_path, by_hash = queue_discovery_indexes(rows)
 
     discovered = []
     for rel_dir in SCAN_DIRS:
@@ -746,7 +758,7 @@ def cmd_scan(args) -> CommandResult:
         for path in sorted(base.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in SCAN_EXTS:
                 continue
-            rel = str(path.relative_to(DATA_ROOT))
+            rel = path.relative_to(DATA_ROOT).as_posix()
             if is_excluded(rel):
                 continue
             digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
@@ -760,7 +772,8 @@ def cmd_scan(args) -> CommandResult:
                       "new": ""}[action]
             row = dict.fromkeys(HEADER, "")
             row.update({"Run ID": mint_run_id(rel, digest), "Source": rel,
-                        "Source hash": digest, "Source type": preclass,
+                        "Source hash": digest, "Current source": rel,
+                        "Source disposition": "inbox", "Source type": preclass,
                         "Status": "discovered", "Discovered": now(),
                         "Reason": reason})
             discovered.append(row)
@@ -1114,6 +1127,78 @@ def cmd_historical(args) -> CommandResult:
     )
 
 
+def find_drive_item_by_path(drive, relative_path: str) -> dict:
+    from m2_workspace_layout import find_folder_path, list_children
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
+
+    normalized = relative_path.replace("\\", "/").strip("/")
+    parts = [part for part in normalized.split("/") if part]
+    if not parts or ".." in parts:
+        raise SystemExit(f"Unsafe current source path: {relative_path!r}")
+    parent = find_folder_path(drive, ROOT_FOLDER_ID, parts[:-1])
+    if not parent:
+        raise SystemExit(f"Source parent not found in Drive: {'/'.join(parts[:-1])}")
+    matches = [item for item in list_children(drive, str(parent["id"])) if item.get("name") == parts[-1]]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"Expected exactly one Drive item at {normalized!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def cmd_archive_source(args) -> CommandResult:
+    from m2_workspace_layout import ensure_folder_path, list_children, move_item
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
+    from workspace_root_layout import processed_run_destination
+
+    services = get_services_cached()
+    sheet = find_queue(services)
+    if not sheet:
+        raise SystemExit("No _intake_queue sheet yet - run scan first.")
+    rows = read_queue(services, sheet)
+    row = get_run(rows, args.run_id)
+    if row.get("Status") != "processing" or row.get("Stage") != "closure":
+        raise SystemExit("archive-source requires a processing run at the closure stage")
+    if row.get("Source disposition") == "archived":
+        return CommandResult(
+            ok=True,
+            data={"run_id": args.run_id, "current_source": row.get("Current source", ""),
+                  "source_disposition": "archived"},
+            human_lines=[f"{args.run_id}: source already archived."],
+            exit_code=0,
+        )
+
+    current = str(row.get("Current source") or row.get("Source") or "")
+    filename = Path(current.replace("\\", "/")).name
+    destination = processed_run_destination(args.run_id, filename, dt.date.today().isoformat())
+    drive = services["drive"]
+    target_parent = ensure_folder_path(drive, ROOT_FOLDER_ID, destination[:-1])
+
+    existing = [
+        item for item in list_children(drive, str(target_parent["id"]))
+        if item.get("name") == destination[-1]
+    ]
+    if len(existing) > 1:
+        raise SystemExit(f"Multiple archived source items exist for run {args.run_id}")
+    if existing:
+        item = existing[0]
+    else:
+        item = find_drive_item_by_path(drive, current)
+        move_item(drive, str(item["id"]), str(target_parent["id"]))
+
+    row["Current source"] = "/".join(destination)
+    row["Source disposition"] = "archived"
+    row["Last mutation"] = now()
+    write_queue(services, sheet, rows)
+    return CommandResult(
+        ok=True,
+        data={"run_id": args.run_id, "item_id": str(item["id"]),
+              "current_source": row["Current source"], "source_disposition": "archived"},
+        human_lines=[f"{args.run_id}: source archived; create a fresh workspace snapshot before complete."],
+        exit_code=0,
+    )
+
+
 def cmd_resume(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
@@ -1230,6 +1315,10 @@ def evaluate_run(ctx: ReviewContext) -> EvaluationResult:
     entries = parse_entries_cell(row["Entries"])
     scopes = enumerate_run_scopes(ctx.all_rows, parse_scopes_cell(row["Scopes"]),
                                   entries, row["Route variant"])
+
+    current_source = str(row.get("Current source", "")).strip()
+    if current_source and row.get("Source disposition") != "archived":
+        res.entry_problems.append("Source original is still in 00_Inbox; run archive-source before snapshotting.")
 
     last_outcome_ts = max(parse_ts(row["Started"]), parse_ts(row["Last mutation"]))
     for proj, pers, variant in scopes:
@@ -1493,6 +1582,9 @@ def main() -> int:
                    help="where the pre-queue processing is recorded "
                         "(_skill_invocations date, evidence_log row, ...)")
 
+    p = sub.add_parser("archive-source", help="move a closure-stage source from inbox to processed archive", parents=[parent])
+    p.add_argument("run_id")
+
     p = sub.add_parser("review", help="read-only run evaluation", parents=[parent])
     p.add_argument("run_id")
 
@@ -1512,7 +1604,7 @@ def main() -> int:
         "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
         "add-scope": cmd_add_scope,
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
-        "historical": cmd_historical,
+        "historical": cmd_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review
     }
 

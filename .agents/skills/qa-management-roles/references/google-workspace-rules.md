@@ -24,24 +24,21 @@ Treat Google Drive as the canonical business workspace when Google API access is
 
 Use the same folder names under the Google Drive root as the local mirror:
 
-- `00_Source_Docs`
+- `00_Inbox`
 - `10_M1_People_Management`
 - `20_M2_Project_Management`
-- `80_Exports`
+- `30_Reference`
+- `_System`
+- `80_Exports` (optional; create only for an actual external package)
 - `90_Archive`
 
 No raw video/multimedia is stored in Drive — only transcripts and
 documents.
 
-`00_Source_Docs` is organized by type, not by project — a fresh chat
-export or meeting transcript often isn't yet clear which project it
-belongs to, so type is the more stable first split:
-
-- `00_Source_Docs\01_Meeting_Transcripts` — 1:1s, dailies, demos, KT
-  calls, shadowing calls, client/project syncs.
-- `00_Source_Docs\02_Chats_and_Emails` — exported/combined chat and email
-  history: people cases, HR/feedback threads, status messages,
-  escalations, client/team correspondence. A filename ending `_strategy`
+`00_Inbox` is the only intake location. It is scanned recursively, but no
+type subfolders are required: the agent classifies content during `start`.
+An empty folder therefore means there are no unprocessed file sources.
+A filename ending `_strategy`
   (e.g. `<Project>_strategy.txt`) is a project-level M2 strategy chat — a
   running, multi-month, multi-stakeholder planning/status channel for one
   project, distinct from a person-specific case chat or 1:1. See
@@ -50,30 +47,14 @@ belongs to, so type is the more stable first split:
   `<Project>_strategy_2026-07-20.txt`), never appended into the existing
   one — `detect_strategy_chats.py` dedups by filename, so editing an
   already-logged file in place makes the new content invisible to it.
-  Unlike a one-off case chat or transcript, a `_strategy` file is not moved
-  to `03_Source_Documents` or `90_Archive` after processing: it's part of
-  an ongoing per-project series (more files keep landing in the same
-  place), and the API generally can't move a file dropped in manually
-  anyway (see API Safety below) — `evidence_log` is what records that it
-  was processed, same as for any other source.
-- `00_Source_Docs\03_Source_Documents` — durable per-project source
-  documents and company-wide reference material: `<Project>\` folders,
-  the M2 homework corpus (`M2_role_vision`, `M2_personal_development_plan`,
-  `M2_project_development_plan`), assessment matrices, monthly report
-  examples.
 
-Once a raw file in `01_Meeting_Transcripts` or `02_Chats_and_Emails` has
-been read and its facts extracted into the relevant Sheets/Docs, move it
-into `03_Source_Documents\<Project>\` if it's durable project reference
-material, or to `90_Archive` if it's not needed for near-term reference —
-there is no separate "processed" holding tier; `evidence_log` is what
-records that a source was used and where.
-
-Root-level folders were created outside this app's Drive API scope (via
-Drive Desktop sync or manually), so the app cannot rename, move, or
-delete them — this table describes the target structure; the user applies
-the actual Drive changes manually. Do not assume Drive already matches
-this table without checking.
+After successful processing, the original moves to
+`90_Archive\Processed_Sources`; its immutable queue `Source` value and
+content hash remain the audit identity. Durable non-intake references live
+under `30_Reference`. Generated source extracts and review bundles live
+under `_System`, never `80_Exports`. Create `80_Exports` only when an
+explicit package or copy will actually be shared outside the management
+workspace; otherwise the root is intentionally absent.
 
 When only the root folder ID is known, locate child folders by name through the Drive API. If a required child folder is missing, ask before creating it unless the user explicitly requested setup.
 
@@ -90,7 +71,7 @@ Standard per-person folder shape:
 - `1to1` Google Sheet, CSV fallback `1to1.csv` — see `m1-people-1to1-file`.
   Titled just `1to1`, not `<Person> 1to1` — the person is already the
   enclosing folder name, so repeating it in the file title is redundant
-  (same convention as M2's `people\<Person>\individual_metrics`, not
+  (same convention as M2's `people\<Person>\shared\individual_metrics`, not
   `<Person> individual_metrics`).
 - `OKR к Perfomance review <DD.MM.YY>` Google Doc, one per Performance
   Review cycle, with Markdown fallback — see
@@ -143,14 +124,14 @@ report dump. Final M2 tabular outputs should go under:
 
 Standard project folder shape:
 
-- `project_risk` Google Sheet, with CSV fallback `project_risk.csv`
-- `process_checklist` Google Sheet, with CSV fallback `process_checklist.csv`
+- `privateproject_risk` Google Sheet, with CSV fallback `project_risk.csv`
+- `privateprocess_checklist` Google Sheet, with CSV fallback `process_checklist.csv`
   — the 12-section outsource QA process-maturity checklist (see
   `m2-project-process-checklist`, based on `Templates\аутсорс_чек_лист_qa.csv`).
   A living record, not a dated snapshot; confirmed gaps route into
   `project_risk`'s `Риск QA process` column rather than living only here.
-- `project_development_plan` Google Doc, with Markdown fallback
-- `project_metrics` Google Sheet, with CSV fallback `project_metrics.csv`
+- `privateproject_development_plan` Google Doc, with Markdown fallback
+- `privateproject_metrics` Google Sheet, with CSV fallback `project_metrics.csv`
   — M2-only dashboard for the project (see `Templates\метрики_проекта_qa.md`
   §2). Holds: `Горизонт совместной работы`, `Бизнес-риск продукта
   клиента`, one `Вклад в проект: <Имя>` row per person (no aggregated
@@ -158,32 +139,32 @@ Standard project folder shape:
   `Качество QA-процесса` (M2's read of `qa_process_metrics`). Never share
   this with the QA engineers whose data appears in it, even once
   folder-level sharing exists for other artifacts.
-- `qa_process_metrics` Google Sheet, with CSV fallback
+- `team_sharedqa_process_metrics` Google Sheet, with CSV fallback
   `qa_process_metrics.csv` — project-wide QA-process facts (Defect Escape
   Rate, Automation Coverage, test-run counts, etc. — see
   `Templates\метрики_проекта_qa.md` §3). Filled in by the project team, not
   M2 — do not guess values into it; create empty skeleton rows with a real
   `Пояснение` instruction instead. Append-only by calendar month.
-- `evidence_log` Google Sheet, with CSV fallback `evidence_log.csv`
-- `people\<Person>\individual_development_plan` Google Doc, with Markdown fallback
-- `people\<Person>\individual_metrics` Google Sheet, with CSV fallback
-- `people\<Person>\individual_metrics_internal` Google Sheet, with CSV
+- `privateevidence_log` Google Sheet, with CSV fallback `evidence_log.csv`
+- `people\<Person>\shared\individual_development_plan` Google Doc, with Markdown fallback
+- `people\<Person>\shared\individual_metrics` Google Sheet, with CSV fallback
+- `private\people\<Person>\individual_metrics_internal` Google Sheet, with CSV
   fallback — M2-only, never shared with the employee (see
   `m2-individual-qa-metrics-report` document-contract, Internal Variant).
-- `m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
+- `private\m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
   own dated rounds of questions/answers ahead of each project-level
   rollup (see `m2-role-rules.md` Project-Level Rollups and
   `Templates\m2_input.md`). One Doc per project, not a file per cycle —
   rounds are dated sections appended to it. (No longer holds a metrics
   Sheet — that moved into `project_metrics`, see above.)
-- `status_reports` for saved project status Google Docs / Markdown fallback
+- `private\status_reports` for saved project status Google Docs / Markdown fallback
 
-Do not create a project-local `source_docs` folder. `00_Source_Docs\<Project>`
+Do not create a project-local `source_docs` folder. `30_Reference\Source_Documents\<Project>`
 is already the canonical source layer — a per-project copy has no automated
 way to stay in sync with it and will just go stale (this happened once
 already: a one-off script copied a project's source files into
 `20_M2_Project_Management\<Project>\source_docs`, and it was never kept
-current or repeated for any other project). Reference `00_Source_Docs`
+current or repeated for any other project). Reference `30_Reference`
 directly instead of copying from it.
 
 Do not create a project-local `archive` folder either. Superseded generated
@@ -439,7 +420,7 @@ requests.
 
 `evidence_log` traceability is not just for automated sync-script runs.
 Any update made conversationally — processing a transcript/chat dropped in
-`00_Source_Docs\01_Meeting_Transcripts`/`02_Chats_and_Emails`, applying M2's own answers from an `m2_input` round,
+`00_Inbox`, applying M2's own answers from an `m2_input` round,
 analyzing a source file on request (e.g. a grade/assessment matrix) — must
 also get an `evidence_log` row, with the same columns as an automated sync:
 `date, source, source_type, project, routed_to, notes`. When the source is
@@ -660,31 +641,21 @@ file paths, or literal evidence citations.
 
 ## Sharing Safety
 
-As of 2026-07-08, no folder-level Drive sharing is configured for
-`20_M2_Project_Management` — everything under it is currently only as
-private as the whole tree is. Documents marked "employee-facing"
-(`individual_development_plan`, `individual_metrics`) and documents marked
-"M2-only" (`m2_input`, `individual_metrics_internal`) live side by side in
-the same `people\<Person>\` folder purely by naming convention right now,
-not by actual access control.
+The M2 tree uses folders as explicit permission boundaries:
 
-When sharing with an employee is eventually set up:
-
-- Share the specific `individual_development_plan` Doc and `individual_metrics`
-  Sheet directly with that person — never the `people\<Person>\` folder, the
-  project folder, or any parent folder. Drive supports sharing an individual
-  file without exposing its parent folder; use that, not folder-level
-  sharing, for anything containing more than one person's or one
-  visibility-level's content.
-- Never share `m2_input` or `individual_metrics_internal` with anyone. If a
-  sharing request or automation ever proposes folder-level or bulk sharing
-  inside `20_M2_Project_Management`, stop and flag it explicitly instead of
-  proceeding — a wrong folder-level share would expose every person's
-  M2-only content project-wide, not just the intended file.
-- Naming something "internal" or placing it in a person's folder does not
-  make it private. Until sharing is actually configured, treat every
-  document in this workspace as equally exposed and do not rely on file
-  naming as a substitute for real access control when advising the user.
+- Share `team_shared\` only with the QA engineers assigned to that project.
+  It contains team-editable project facts, currently `qa_process_metrics`.
+- Share `people\<Person>\shared\` only with that person. It contains their
+  `individual_development_plan` and `individual_metrics`.
+- Never share the project root, `private\`, `people\<Person>\`, or any parent
+  folder. `private\` contains M2 judgment, evidence, risks, internal metrics,
+  1to1 history, and status drafts.
+- Inherited access cannot be corrected by making a child look private. A
+  private artifact found below a shared folder is a structural violation:
+  move it to `private\` before continuing.
+- Folder names are not a substitute for a permission audit. Sharing
+  automation must verify the target folder, intended audience, and absence
+  of private descendants before adding permissions.
 
 ## Docs API Editing
 
@@ -712,7 +683,7 @@ Instead:
    usually already point at the person's project and known source docs.
 2. Then look directly in the conventional location this repo already
    documents: `<Person> case chat.txt` / `<Person> case at <Project>.txt`
-   under `00_Source_Docs\02_Chats_and_Emails`, that project's
+   under `00_Inbox`, that project's
    `<Project>_strategy.txt`, or `01_Meeting_Transcripts` — the naming
    convention already tells you where to look; don't blind-search first.
 3. If a genuinely broad text search across Drive is still needed, use the
@@ -724,7 +695,7 @@ Instead:
 
 ## Source Extraction
 
-Source extraction may continue to write Markdown, CSV, JSON, and manifests under `80_Exports\source_extracts`. Those files are intermediate analysis artifacts, not final business documents.
+Source extraction writes Markdown, CSV, JSON, and manifests under `_System\extracts\source`. Those files are intermediate analysis artifacts, not final business documents.
 
 When asked to analyze a `.docx` or `.xlsx` source file, use
 `.agents\scripts\qa_source_extract.py` (its `extract_docx`/`extract_xlsx`
@@ -737,7 +708,7 @@ install anything.
 
 Before extracting, check whether the file has already been processed:
 look for its path (and `sha256`, via `sha256_file()`) in an existing
-`manifest.csv`/`manifest.json` under `80_Exports\source_extracts\*`. A
+`manifest.csv`/`manifest.json` under `_System\extracts\source\*`. A
 matching `source_file` + `sha256` means the extraction is already
 available at that row's `extract_file` — reuse it instead of
 re-extracting. A matching path with a different `sha256` means the file

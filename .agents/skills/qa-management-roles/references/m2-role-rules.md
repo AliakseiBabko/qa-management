@@ -225,7 +225,7 @@ The chain is `individual_metrics`/`individual_development_plan` (per
 person) → `project_metrics` (per project, M2's full-picture dashboard) →
 `_project_registry` (across every project M2 owns, the "war room" view).
 When a new source (a chat, a transcript, a document dropped in
-`00_Source_Docs`, direct M2 input) changes something at the
+`00_Inbox`, `30_Reference`, direct M2 input) changes something at the
 person level, update the whole chain in the same pass — not just the
 bottom layer:
 

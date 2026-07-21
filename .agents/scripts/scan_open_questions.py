@@ -27,7 +27,7 @@ still M2's call - this script's dates/wording are a starting point, not a
 finished row.
 
 Default mode is read-only: prints candidates grouped by project and writes
-a review bundle to 80_Exports/open_questions_review/YYYY-MM-DD.md. Pass
+a review bundle to _System/reviews/open_questions/YYYY-MM-DD.md. Pass
 --write to also append new candidates into each project's action_items
 Sheet (creating it if missing); run refresh_timeline_registry.py afterward
 to fold them into _timeline.
@@ -41,6 +41,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from m2_workspace_layout import DOC_MIME, SHEET_MIME, ensure_document_folder, find_document
+
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
 from pipeline_common import get_pending_round_questions, get_services
@@ -50,7 +52,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
-REVIEW_ROOT = DEFAULT_ROOT / "80_Exports" / "open_questions_review"
+REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "open_questions"
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,10 +88,9 @@ def find_doc(services: dict[str, Any], folder_id: str, title: str) -> dict[str, 
 
 
 def scan_m2_input(services: dict[str, Any], project_folder_id: str, project: str) -> list[dict[str, str]]:
-    m2in_folder = find_folder(services["drive"], project_folder_id, "m2_input")
-    if not m2in_folder:
-        return []
-    doc = find_doc(services, m2in_folder["id"], "m2_input")
+    doc = find_document(
+        services["drive"], project_folder_id, "m2_input", "m2_input", DOC_MIME
+    )
     if not doc:
         return []
     questions = get_pending_round_questions(services["docs"], doc["id"])
@@ -108,7 +109,9 @@ def scan_m2_input(services: dict[str, Any], project_folder_id: str, project: str
 
 
 def scan_project_risk(services: dict[str, Any], project_folder_id: str, project: str) -> list[dict[str, str]]:
-    sheet = find_sheet_in_folder(services["drive"], project_folder_id, "project_risk")
+    sheet = find_document(
+        services["drive"], project_folder_id, "project_risk", "project_risk", SHEET_MIME
+    )
     if not sheet:
         return []
     rows = read_sheet_values(services, sheet["id"])
@@ -139,7 +142,9 @@ def scan_project_risk(services: dict[str, Any], project_folder_id: str, project:
 
 
 def scan_project_metrics(services: dict[str, Any], project_folder_id: str, project: str) -> list[dict[str, str]]:
-    sheet = find_sheet_in_folder(services["drive"], project_folder_id, "project_metrics")
+    sheet = find_document(
+        services["drive"], project_folder_id, "project_metrics", "project_metrics", SHEET_MIME
+    )
     if not sheet:
         return []
     rows = read_sheet_values(services, sheet["id"])
@@ -166,7 +171,9 @@ def scan_project_metrics(services: dict[str, Any], project_folder_id: str, proje
 
 
 def existing_sources(services: dict[str, Any], project_folder_id: str) -> set[str]:
-    sheet = find_sheet_in_folder(services["drive"], project_folder_id, "action_items")
+    sheet = find_document(
+        services["drive"], project_folder_id, "action_items", "action_items", SHEET_MIME
+    )
     if not sheet:
         return set()
     rows = read_sheet_values(services, sheet["id"])
@@ -244,13 +251,16 @@ def main() -> int:
             pf = find_folder(drive, m2_root["id"], project)
             if pf is None:
                 continue
-            sheet = find_sheet_in_folder(drive, pf["id"], "action_items")
+            sheet = find_document(
+                drive, pf["id"], "action_items", "action_items", SHEET_MIME
+            )
             existing_rows = read_sheet_values(services, sheet["id"]) if sheet else [ACTION_ITEMS_HEADER]
             new_rows = [
                 [c["project"], c["due"], c["type"], c["what"], "Открыто", c["owner"], c["source"], c["notes"]]
                 for c in candidates
             ]
-            upsert_sheet(services, pf["id"], "action_items", existing_rows + new_rows)
+            target = ensure_document_folder(drive, pf["id"], "action_items")
+            upsert_sheet(services, target["id"], "action_items", existing_rows + new_rows)
             print(f"{project}: {len(new_rows)} candidate(s) written to action_items")
         print("Run refresh_timeline_registry.py to fold these into _timeline.")
 

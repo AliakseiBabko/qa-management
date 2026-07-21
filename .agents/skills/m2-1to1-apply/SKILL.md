@@ -1,6 +1,6 @@
 ---
 name: m2-1to1-apply
-description: Apply a QA 1:1 transcript's people/project signals (already extracted via qa-1to1-analysis) through the M2 cascading-update chain - individual_metrics, individual_development_plan, project_risk/project_development_plan, m2_input, evidence_log. Use after analyzing an M2 1:1 transcript (00_Source_Docs\01_Meeting_Transcripts) when the findings should actually update live project documents, not just produce a summary.
+description: Apply a QA 1:1 transcript's people/project signals (already extracted via qa-1to1-analysis) through the M2 cascading-update chain - individual_metrics, individual_development_plan, project_risk/project_development_plan, m2_input, evidence_log. Use after analyzing an M2 1:1 transcript from 00_Inbox when the findings should actually update live project documents, not just produce a summary.
 ---
 
 # M2 1to1 Apply

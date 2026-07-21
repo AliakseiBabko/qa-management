@@ -113,7 +113,7 @@ class TestPhase4(unittest.TestCase):
                 "Status": "discovered",
                 "Source type": "raw_transcript",
                 "Stage": "",
-                "Source": "02_Transcripts_Inbox/test.txt",
+                "Source": "00_Inbox/test.txt",
                 "Source text version": ""
             }
             # Start it as qa_1to1
@@ -142,7 +142,7 @@ class TestPhase4(unittest.TestCase):
         test_txt = b"Hello from fake drive"
         test_hash = hashlib.sha256(test_txt).hexdigest()
 
-        inbox = self.data_root / "02_Transcripts_Inbox"
+        inbox = self.data_root / "00_Inbox"
         src_path = inbox / "test.txt"
         src_path.write_bytes(test_txt)
 
@@ -150,7 +150,7 @@ class TestPhase4(unittest.TestCase):
             "Run ID": "test-run-001",
             "Status": "needs_scope",
             "Source type": "qa_1to1",
-            "Source": "02_Transcripts_Inbox/test.txt",
+            "Source": "00_Inbox/test.txt",
             "Source hash": test_hash[:16],
             "Source text version": "1"
         }]
@@ -176,7 +176,7 @@ class TestPhase4(unittest.TestCase):
         # Setup git mirror
         test_txt = b"Commit me\n"
         test_hash = hashlib.sha256(test_txt).hexdigest()
-        src_path = self.data_root / "02_Transcripts_Inbox" / "test2.txt"
+        src_path = self.data_root / "00_Inbox" / "test2.txt"
         src_path.parent.mkdir(parents=True, exist_ok=True)
         src_path.write_bytes(test_txt)
 
@@ -184,7 +184,7 @@ class TestPhase4(unittest.TestCase):
             "Run ID": "run-snap",
             "Status": "completed",
             "Source type": "qa_1to1",
-            "Source": "02_Transcripts_Inbox/test2.txt",
+            "Source": "00_Inbox/test2.txt",
             "Source hash": test_hash[:16],
             "Source text version": "1"
         }
@@ -243,17 +243,17 @@ class TestPhase4(unittest.TestCase):
         b = b"Relocation text"
         h = hashlib.sha256(b).hexdigest()
 
-        src = self.data_root / "02_Transcripts_Inbox" / "orig.txt"
+        src = self.data_root / "00_Inbox" / "orig.txt"
         src.write_bytes(b)
 
         # First export
-        actual_path, sha256, raw = resolve_first_export(self.data_root, "02_Transcripts_Inbox/orig.txt", h[:16])
+        actual_path, sha256, raw = resolve_first_export(self.data_root, "00_Inbox/orig.txt", h[:16])
         self.assertEqual(actual_path.name, "orig.txt")
         self.assertEqual(sha256, h)
 
         # Relocate (rename + move)
         src.unlink()
-        dest = self.data_root / "03_Transcripts_Processed" / "renamed.txt"
+        dest = self.data_root / "90_Archive" / "Processed_Sources" / "renamed.txt"
         dest.write_bytes(b)
 
         # Relocation search
@@ -275,13 +275,13 @@ class TestPhase4(unittest.TestCase):
 
         export_source_text.get_full_sha256 = fake_hash
         try:
-            p1 = self.data_root / "02_Transcripts_Inbox" / "f1.txt"
+            p1 = self.data_root / "00_Inbox" / "f1.txt"
             p1.write_bytes(b1)
-            p2 = self.data_root / "02_Transcripts_Inbox" / "f2.txt"
+            p2 = self.data_root / "00_Inbox" / "f2.txt"
             p2.write_bytes(b2)
 
             with self.assertRaises(ExtractionError) as cm:
-                resolve_first_export(self.data_root, "02_Transcripts_Inbox/nonexistent.txt", "1234567890abcdef")
+                resolve_first_export(self.data_root, "00_Inbox/nonexistent.txt", "1234567890abcdef")
             self.assertIn("Ambiguous hash prefix", str(cm.exception))
         finally:
             export_source_text.get_full_sha256 = orig_hash
@@ -294,7 +294,7 @@ class TestPhase4(unittest.TestCase):
 
         dummy_data = {
             "test_run_1:v1": {
-                "source_path": "00_Source_Docs/01_Meeting_Transcripts/f1.txt",
+                "source_path": "00_Inbox/f1.txt",
                 "queue_source_hash": "a"*16,
                 "source_sha256": "a"*64,
                 "text_sha256": "b"*64,

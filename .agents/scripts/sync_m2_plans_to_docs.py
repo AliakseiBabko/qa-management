@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Sync project/individual development plans from 00_Source_Docs into Google Docs.
+"""Sync project/individual development plans from extracted references into Google Docs.
 
 Development plans are narrative documents (business context, current state,
 a plan broken into review horizons, open decisions, risks) rather than
 tabular records, so they are stored as Google Docs instead of Google Sheets:
 
-- 20_M2_Project_Management/<Project>/project_development_plan
-- 20_M2_Project_Management/<Project>/people/<Person>/individual_development_plan
+- 20_M2_Project_Management/<Project>/private/project_development_plan
+- 20_M2_Project_Management/<Project>/people/<Person>/shared/individual_development_plan
 
 Any pre-existing Sheet with the same title is archived (renamed and moved into
 90_Archive/20_M2_Project_Management/<Project>/) rather than deleted, since it
@@ -23,6 +23,8 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
+from m2_workspace_layout import ensure_document_folder
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials, move_file_to_folder
 from generate_m2_outputs import read_manifest
@@ -47,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync development-plan Google Docs from extracted source docs.")
     parser.add_argument(
         "--extract-root",
-        default=rf"G:\My Drive\QA_Management\80_Exports\source_extracts\{today}",
+        default=rf"G:\My Drive\QA_Management\_System\extracts\source\{today}",
         help="Dated extraction folder produced by qa_source_extract.py.",
     )
     parser.add_argument(
@@ -312,9 +314,12 @@ def main() -> int:
         markdown = markdown_for(extract_root, item)
         project_folder = find_or_create_folder(drive, m2_folder["id"], project)
         archive_folder = archive_project_folder(drive, ROOT_FOLDER_ID, project)
+        target_folder = ensure_document_folder(
+            drive, project_folder["id"], "project_development_plan"
+        )
         meta = upsert_doc(
             services,
-            project_folder["id"],
+            target_folder["id"],
             archive_folder["id"],
             "project_development_plan",
             f"project_development_plan_{project}",
@@ -334,8 +339,9 @@ def main() -> int:
 
         project_folder = find_or_create_folder(drive, m2_folder["id"], project)
         archive_folder = archive_project_folder(drive, ROOT_FOLDER_ID, project)
-        people_folder = find_or_create_folder(drive, project_folder["id"], "people")
-        person_folder = find_or_create_folder(drive, people_folder["id"], folder_name)
+        person_folder = ensure_document_folder(
+            drive, project_folder["id"], "individual_development_plan", folder_name
+        )
 
         meta = upsert_doc(
             services,

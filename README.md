@@ -23,13 +23,9 @@ The desktop mirror / filesystem fallback is:
 
 Current Drive layout:
 
-- `00_Source_Docs/`: everything that came in about a project or the
-  business, organized by type:
-  - `01_Meeting_Transcripts/`: raw meeting transcripts
-  - `02_Chats_and_Emails/`: raw chat/email exports
-  - `03_Source_Documents/`: durable per-project source documents and
-    company-wide reference material (project folders, homework corpus,
-    assessment matrices, monthly report examples)
+- `00_Inbox/`: the single recursive intake folder. Drop transcripts,
+  chats, emails, spreadsheets, or other source files here without manually
+  classifying them. Empty means there is no unprocessed file intake.
 - `05_People_Management/`: `_people_registry` — the single workspace-wide
   people Sheet, covering everyone (M1-managed, M2-staffed, client-side)
   regardless of which skill is looking at it. Deliberately not nested under
@@ -38,14 +34,17 @@ Current Drive layout:
 - `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
   team member) — see M1 Person Layout below
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
-- `80_Exports/`: export packages and external copies
-- `90_Archive/`: archived legacy folders and backups
+- `30_Reference/`: durable source and training/reference material that is
+  not pending processing
+- `_System/`: generated extracts and review bundles used by the pipeline
+- `80_Exports/` (optional): created only when an explicit immutable package
+  or copy is prepared for external sharing; internal extracts do not belong here
+- `90_Archive/`: processed source originals, retired outputs, legacy
+  folders, and backups
 
-No raw video/multimedia is stored in Drive — only transcripts and
-documents. Some root-level folders were created outside this repo's
-Google API scope (via Drive Desktop sync or manually), so they can't be
-renamed/deleted through the API — Drive-side folder changes need to be
-applied manually. See
+No raw video/multimedia is stored in Drive - only transcripts and
+documents. Folder moves use the Drive API so file IDs, links, revisions,
+and existing permissions are preserved. See
 `.agents/skills/qa-management-roles/references/google-workspace-rules.md`
 for the full folder-mapping and Sharing Safety notes.
 
@@ -113,32 +112,36 @@ Each project folder follows this shape:
 
 ```text
 20_M2_Project_Management/<Project>/
-├─ project_risk.gsheet
-├─ process_checklist.gsheet     # living outsource QA process-maturity checklist (12 sections)
-├─ project_development_plan.gdoc
-├─ project_metrics.gsheet       # M2-only dashboard, see below — never shared with the team
-├─ qa_process_metrics.gsheet    # engineer-filled, project-wide QA-process facts
-├─ evidence_log.gsheet
-├─ m2_input/
-│  └─ m2_input.gdoc             # M2-only dated rounds of judgment/context
-├─ action_items.gsheet          # living list of dated events/deadlines/follow-ups
+├─ private/                      # M2-only; never share this folder
+│  ├─ project_risk.gsheet
+│  ├─ process_checklist.gsheet
+│  ├─ project_development_plan.gdoc
+│  ├─ project_metrics.gsheet
+│  ├─ evidence_log.gsheet
+│  ├─ action_items.gsheet
+│  ├─ m2_input/m2_input.gdoc
+│  ├─ status_reports/
+│  └─ people/<Person>/
+│     ├─ individual_metrics_internal.gsheet
+│     └─ <Person> 1to1.gsheet
+├─ team_shared/                  # share only with this project's QA team
+│  └─ qa_process_metrics.gsheet
 ├─ people/<Person>/
-│  ├─ individual_development_plan.gdoc   # employee-visible
-│  ├─ individual_metrics.gsheet          # employee-visible
-│  └─ individual_metrics_internal.gsheet # M2-only, never shared with the employee
-└─ status_reports/
+│  └─ shared/                    # share only with this person
+│     ├─ individual_development_plan.gdoc
+│     └─ individual_metrics.gsheet
 ```
 
-There is no per-project `source_docs/` or `archive/` folder — reference
-`00_Source_Docs/03_Source_Documents/<Project>` directly, and retired artifacts go to the
+There is no per-project `source_docs/` or `archive/` folder - reference
+`30_Reference/Source_Documents/<Project>` directly, and retired artifacts go to the
 single workspace-wide `90_Archive/20_M2_Project_Management/<Project>/`
 tree instead of a local copy that would go stale.
 
-**Employee-visibility boundary**: `individual_development_plan` and
-`individual_metrics` are shared with/seen by the employee they're about.
-`project_metrics`, `qa_process_metrics`'s aggregation, `individual_metrics_internal`,
-and `m2_input` are M2-only and must never be shared with that boundary in
-mind — see `google-workspace-rules.md`, Sharing Safety.
+**Visibility boundaries**: share only `team_shared/` with the project's QA
+team and only `people/<Person>/shared/` with that person. Never share the
+project root, `private/`, or `people/<Person>/`. `qa_process_metrics` is the
+team-editable factual input; its synthesized conclusion lives in the M2-only
+`private/project_metrics`. See `google-workspace-rules.md`, Sharing Safety.
 
 **Update chain**: `individual_metrics`/`individual_development_plan` (per
 person) → `project_metrics` (per project) → `_project_registry` (across
@@ -190,11 +193,11 @@ python .agents\scripts\qa_source_extract.py
 
 Default input:
 
-`G:\My Drive\QA_Management\00_Source_Docs`
+`G:\My Drive\QA_Management\00_Inbox`
 
 Default output:
 
-`G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD`
+`G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`
 
 The extractor does not modify source documents. It writes a `manifest.csv` and project-level
 subfolders with DOCX text as Markdown and XLSX sheets as CSV. These are intermediate
@@ -254,7 +257,7 @@ python .agents\scripts\generate_m2_outputs.py
 
 Default input:
 
-`G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD`
+`G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`
 
 Default output:
 
@@ -301,6 +304,25 @@ These are what actually runs day to day, once a project's folder already exists:
   manifests. Constrained entirely to the defined canonical root paths (`.md`
   and `.csv`) and `_source_text/blobs/v1/*.txt` source files. No vector/FTS
   indexes or model calls; powered entirely by `git --literal-pathspecs grep`.
+- `migrate_m2_visibility_layout.py` — one-time, idempotent Drive migration
+  for the M2 permission-boundary layout. `audit` is read-only and reports
+  planned moves plus unrecognized artifacts; `apply` creates only the
+  required `private`, `team_shared`, and per-person `shared` folders and
+  moves unambiguous canonical artifacts while preserving file IDs. It never
+  changes sharing permissions and never moves an unknown file.
+- `m2_workspace_layout.py` — not a script to run; canonical mapping from M2
+  document roles to visibility folders. Readers use canonical-first,
+  legacy-compatible lookup during migration; writers create only in the
+  canonical visibility folder.
+- `migrate_workspace_root_layout.py` — one-time root lifecycle migration.
+  `audit` is read-only; `apply` fails closed if any item lacks a queue-backed
+  disposition. It moves active sources to `00_Inbox`, processed originals to
+  `90_Archive/Processed_Sources`, non-intake references to `30_Reference`,
+  and internal generated folders from `80_Exports` to `_System`, preserving
+  Drive IDs and permissions. Unqueued items require an explicit runtime
+  `--override <item-id>=inbox|archive|reference`.
+- `workspace_root_layout.py` — not a script to run; pure root-folder
+  disposition and destination rules shared by the migration and tests.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
   (`load_credentials` + `build_services`); `get_people_registry_sheet()`
@@ -424,7 +446,11 @@ These are what actually runs day to day, once a project's folder already exists:
   `not_applicable`+reason) — only updated entries seed the cascade;
   `resolve-edge` records closure outcomes via `closure_outcomes`'s shared
   validation; `block`/`resume [--continue]` handle gates and report the
-  exact unfinished stage with everything already recorded. `complete` is
+  exact unfinished stage with everything already recorded. At closure,
+  `archive-source <run-id>` moves the original from `00_Inbox` to a
+  run-specific `90_Archive/Processed_Sources/YYYY/MM/<run-id>` folder,
+  records its current path/disposition without changing immutable source
+  identity, and requires a fresh workspace snapshot afterward. `complete` is
   a verification gate — requires stage=closure, valid entry outcomes and
   strict closure per every (project, person, variant) scope (a scope-less
   run is checked as the workspace scope — never zero iterations), the
@@ -447,8 +473,8 @@ These are what actually runs day to day, once a project's folder already exists:
   non_intake_course_material|reference_material|duplicate_data_quality|
   other` — not an intake source at all, reachable only from
   pre-processing states). Categorically non-intake subtrees (the M2
-  course homework folders) are also excluded from `scan` via
-  `SCAN_EXCLUDE`. All commands support `--json` for a strict programmatic contract:
+  course homework folders) live under `30_Reference`, outside the only
+  scanned root. All commands support `--json` for a strict programmatic contract:
   stdout is suppressed during execution, and exactly one JSON envelope containing
   the command status, structured data, warnings, and errors is
   emitted at the end. Transitions are validated against an explicit table
@@ -536,15 +562,14 @@ These are what actually runs day to day, once a project's folder already exists:
   transient failure, not a real one; the script is idempotent, so just
   rerun it rather than chasing the one sheet by hand.
 - `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
-  extractor; check `80_Exports/source_extracts/*/manifest.csv` for an
+  extractor; check `_System/extracts/source/*/manifest.csv` for an
   existing extraction before re-running it on the same source file.
 - `prepare_intake_review.py` — intake assistant: finds files in
-  `01_Meeting_Transcripts`/`02_Chats_and_Emails`/`03_Source_Documents` not
+  `00_Inbox` not
   yet in `evidence_log`, reuses an existing extraction by sha256 instead of
-  re-extracting, classifies each by project (folder-based under
-  `03_Source_Documents`, filename-matched against `_project_registry`/
-  `_people_registry` under the inbox folders), appends `evidence_log` rows,
-  and writes a review bundle to `80_Exports/intake_review/YYYY-MM-DD.md`.
+  re-extracting, classifies each by filename against `_project_registry`/
+  `_people_registry`, appends `evidence_log` rows,
+  and writes a review bundle to `_System/reviews/intake/YYYY-MM-DD.md`.
   Genuinely ambiguous files are left `UNCLASSIFIED` rather than guessed —
   route those manually. Stops there: does not touch `m2_input`,
   `project_risk`, `project_development_plan`, `project_metrics`, or status
@@ -557,7 +582,7 @@ These are what actually runs day to day, once a project's folder already exists:
   the file's date range (a heuristic against file mtime — Google Chat
   headers carry no year and use relative weekday-only timestamps for
   recent messages), appends one `evidence_log` row per new file, and writes
-  `80_Exports/intake_review/strategy_chats_YYYY-MM-DD.md`. Dedups by exact
+  `_System/reviews/intake/strategy_chats_YYYY-MM-DD.md`. Dedups by exact
   filename, not content — a new batch of messages must land in a new file,
   never appended into an already-logged one. Also stops at fact
   extraction; `--dry-run` previews without writing.
@@ -605,17 +630,18 @@ Short chat-ready M2 project status reports are handled by:
 
 - `.agents/skills/m2-project-status-report`
 
-Regular reports should be saved as Google Docs under `20_M2_Project_Management/status_reports`
+Regular reports should be saved as Google Docs under each project's
+`20_M2_Project_Management/<Project>/private/status_reports`
 when Google API access is available. Local Markdown fallback path:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\status_reports`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\private\status_reports`
 
 Use project name and report date in the filename.
 
 ## Department Traffic Light (Foreign Tracker)
 
 Filling M2's own row block on the department's shared "Auto staff.
-Светофор проектов" outstaff tracker (`00_Source_Docs\03_Source_Documents`,
+Светофор проектов" outstaff tracker (`00_Inbox`,
 tab `Outstaff`) — a document owned by the department, not generated by this
 workspace — is handled by:
 
@@ -640,7 +666,7 @@ other documents — a pending `m2_input` round, a `project_risk` action plan,
 a `Неизвестно` row in `project_metrics` — across every project in one pass,
 so open questions don't have to be tracked by memory. It's read-only by
 default (prints + writes a bundle to
-`80_Exports/open_questions_review/YYYY-MM-DD.md`); `--write` appends
+`_System/reviews/open_questions/YYYY-MM-DD.md`); `--write` appends
 candidates straight into `action_items`. Its wording/date/owner are
 mechanical placeholders — see `m2-timeline` SKILL.md for how to turn a raw
 candidate (e.g. an unclear benchmark status) into a real scheduled action
@@ -666,7 +692,7 @@ and closes 1 month later — see
 `m1_monthly_report_<Manager>_YYYY-MM` presence to surface an overdue
 monthly report. Same read-only-by-default / `--write` split as
 `scan_open_questions.py`, writing its bundle to
-`80_Exports/open_questions_review/YYYY-MM-DD_m1.md`.
+`_System/reviews/open_questions/YYYY-MM-DD_m1.md`.
 
 For a PR-only view (no other event types mixed in), `refresh_m1_pr_calendar.py`
 generates `_m1_pr_calendar` (template `Templates/m1_pr_calendar.csv`) from
@@ -727,8 +753,8 @@ CSV templates:
 
 Source examples:
 
-- `G:\My Drive\QA_Management\00_Source_Docs\M1_monthly_report.xlsx`
-- `G:\My Drive\QA_Management\00_Source_Docs\M2_monthly_report.xlsx`
+- `G:\My Drive\QA_Management\30_Reference\Source_Documents\M1_monthly_report.xlsx`
+- `G:\My Drive\QA_Management\30_Reference\Source_Documents\M2_monthly_report.xlsx`
 
 The M1 workbook contains real report examples. The M2 workbook is treated as an example/calculator
 unless explicitly provided as a real report for a target month.

@@ -1,7 +1,7 @@
 # Document Contract
 
 Primary final output is a Google Doc in
-`20_M2_Project_Management\<Project>\people\<Person>`, with local Markdown
+`20_M2_Project_Management\<Project>\people\<Person>\shared`, with local Markdown
 fallback. This is a narrative document: one living Doc per person, not a row
 per focus area.
 
@@ -21,7 +21,7 @@ Use this reference for the individual development-plan document family.
 
 Use this as the section skeleton for every individual development plan. It
 was derived from the real M2 homework corpus in
-`00_Source_Docs\M2_personal_development_plan` and the head of QA's recurring
+`30_Reference\Source_Documents\M2_personal_development_plan` and the head of QA's recurring
 review comments on that homework.
 
 ## Expected Output
@@ -31,7 +31,7 @@ scope.
 
 Suggested target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>\shared`
 
 Doc title (Drive file name): `individual_development_plan`
 

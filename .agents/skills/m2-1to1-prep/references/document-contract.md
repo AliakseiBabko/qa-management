@@ -33,7 +33,7 @@ line.
 - No default persistent artifact.
 - If the user asks to save the prep, write it as a Google Doc named
   `1to1_prep_<YYYY-MM-DD>` in
-  `20_M2_Project_Management\<Project>\people\<Person>\`. Do not overwrite a
+  `20_M2_Project_Management\<Project>\private\people\<Person>\`. Do not overwrite a
   prior date's prep — each date is its own file, since the whole point is
   what was still open going into that specific conversation.
 - Do not append prep questions into `individual_development_plan` or

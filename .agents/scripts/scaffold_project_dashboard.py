@@ -35,6 +35,7 @@ from sync_m2_plans_to_docs import (
     parse_blocks,
     build_doc_requests,
 )
+from m2_workspace_layout import ensure_document_folder, list_project_people
 
 EMPTY_ROUND_PLACEHOLDER = "(placeholder - раунд создан автоматически, вопросов ещё нет)"
 
@@ -105,12 +106,11 @@ def scaffold_qa_process_metrics(services: dict, project_folder_id: str, project:
     return "qa_process_metrics: created"
 
 
-def scaffold_individual_metrics_internal(services: dict, people_folder_id: str, project: str, person: str) -> str:
+def scaffold_individual_metrics_internal(services: dict, person_folder_id: str, project: str, person: str) -> str:
     drive = services["drive"]
-    person_folder = find_or_create_folder(drive, people_folder_id, person)
-    if find_sheet_in_folder(drive, person_folder["id"], "individual_metrics_internal"):
+    if find_sheet_in_folder(drive, person_folder_id, "individual_metrics_internal"):
         return f"individual_metrics_internal ({person}): already exists, skipped"
-    create_sheet(services, "individual_metrics_internal", person_folder["id"], [INTERNAL_HEADER])
+    create_sheet(services, "individual_metrics_internal", person_folder_id, [INTERNAL_HEADER])
     return f"individual_metrics_internal ({person}): created"
 
 
@@ -173,20 +173,10 @@ def main() -> int:
 
     m2_root = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
     project_folder = find_or_create_folder(drive, m2_root["id"], args.project)
-    people_folder = find_or_create_folder(drive, project_folder["id"], "people")
 
     people = args.people
     if not people:
-        people = sorted(
-            item["name"]
-            for item in drive.files()
-            .list(
-                q=f"'{people_folder['id']}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-                fields="files(name)",
-            )
-            .execute()
-            .get("files", [])
-        )
+        people = list_project_people(drive, project_folder["id"])
     if not people:
         raise SystemExit("No people found or given via --person; pass at least one --person for a new project.")
 
@@ -201,12 +191,19 @@ def main() -> int:
             )
 
     print(f"Scaffolding {args.project} ({len(people)} people, qa_process_metrics owner: {owner})")
-    print(" ", scaffold_project_metrics(services, project_folder["id"], args.project, people, period))
-    print(" ", scaffold_qa_process_metrics(services, project_folder["id"], args.project, owner, period))
+    private_folder = ensure_document_folder(drive, project_folder["id"], "project_metrics")
+    team_folder = ensure_document_folder(drive, project_folder["id"], "qa_process_metrics")
+    print(" ", scaffold_project_metrics(services, private_folder["id"], args.project, people, period))
+    print(" ", scaffold_qa_process_metrics(services, team_folder["id"], args.project, owner, period))
     for person in people:
-        print(" ", scaffold_individual_metrics_internal(services, people_folder["id"], args.project, person))
-    print(" ", scaffold_m2_input(services, project_folder["id"], args.project, period))
-    print(" ", scaffold_action_items(services, project_folder["id"], args.project))
+        private_person = ensure_document_folder(
+            drive, project_folder["id"], "individual_metrics_internal", person
+        )
+        print(" ", scaffold_individual_metrics_internal(
+            services, private_person["id"], args.project, person
+        ))
+    print(" ", scaffold_m2_input(services, private_folder["id"], args.project, period))
+    print(" ", scaffold_action_items(services, private_folder["id"], args.project))
     return 0
 
 

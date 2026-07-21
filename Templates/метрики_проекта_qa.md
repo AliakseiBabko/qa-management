@@ -127,8 +127,9 @@ document-contract (тот же словарь).
 
 ## 2. `qa_process_metrics` — project-wide QA-процесс (отдельный Sheet)
 
-Живёт в `20_M2_Project_Management\<Project>\qa_process_metrics`, рядом с
-`project_metrics`/`project_risk` — сознательно отдельный файл (не строки
+Живёт в `20_M2_Project_Management\<Project>\team_shared\qa_process_metrics`;
+`project_metrics`/`project_risk` находятся отдельно в `private\`. Это
+сознательно отдельный файл (не строки
 внутри `project_metrics`), потому что владелец заполнения другой: это
 данные из инструментов (CI, баг-трекер, test management), которые
 собирает команда проекта, а не M2. Даже когда на проекте всего один

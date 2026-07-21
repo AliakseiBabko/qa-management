@@ -1,7 +1,7 @@
 # Document Contract
 
 Primary final output is a Google Sheet in
-`20_M2_Project_Management\<Project>\people\<Person>`, with local CSV fallback.
+`20_M2_Project_Management\<Project>\people\<Person>\shared`, with local CSV fallback.
 Preserve the CSV template columns as the Sheet schema.
 
 This table is deliberately short and self-explanatory: every row should be
@@ -69,7 +69,7 @@ One individual metrics-oriented report format.
 
 Suggested target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>\shared`
 
 Suggested naming pattern:
 
@@ -140,7 +140,7 @@ nothing more:
 ## Internal Variant
 
 `individual_metrics_internal` is a second, separate Sheet per person —
-`people\<Person>\individual_metrics_internal`, same folder as the
+`private\people\<Person>\individual_metrics_internal`, separated from the
 employee-facing `individual_metrics` but never shared with that employee
 (see `google-workspace-rules.md` Sharing Safety). It exists because M2
 sometimes has a real, evidence-based read that isn't ready — or isn't

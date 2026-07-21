@@ -6,7 +6,7 @@ Scope, deliberately stopped at the same judgment boundary as
 prepare_intake_review.py (see m2-role-rules.md, Project-Level Rollups and
 Pipeline Architecture):
 
-- scans 00_Source_Docs/02_Chats_and_Emails for files matching
+- scans 00_Inbox recursively for files matching
   "<project>_strategy*.txt" (case-insensitive) not already logged in that
   project's evidence_log by filename
 - classifies the project by the literal prefix before "_strategy" in the
@@ -56,8 +56,8 @@ from sync_m2_source_docs_to_sheets import (
 )
 
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
-CHATS_FOLDER = "02_Chats_and_Emails"
-REVIEW_ROOT = DEFAULT_ROOT / "80_Exports" / "intake_review"
+INBOX_ROOT = "00_Inbox"
+REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "intake"
 
 STRATEGY_FILE_RE = re.compile(r"^(?P<project>.+)_strategy(?:_.*)?\.txt$", re.IGNORECASE)
 
@@ -215,13 +215,13 @@ def main() -> int:
     root = Path(args.root)
     today = dt.date.today().isoformat()
 
-    inbox_path = root / "00_Source_Docs" / CHATS_FOLDER
+    inbox_path = root / INBOX_ROOT
     if not inbox_path.exists():
         print(f"No such folder: {inbox_path}")
         return 0
 
     strategy_files = [
-        path for path in sorted(inbox_path.glob("*.txt")) if STRATEGY_FILE_RE.match(path.name)
+        path for path in sorted(inbox_path.rglob("*.txt")) if STRATEGY_FILE_RE.match(path.name)
     ]
     if not strategy_files:
         print("No '_strategy' chat files found.")

@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from m2_workspace_layout import SHEET_MIME, find_document
+
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
 from pipeline_common import reformat_sheet
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values
@@ -111,7 +113,9 @@ def main() -> int:
     rows = [REGISTRY_HEADER]
     for folder in sorted(project_folders, key=lambda f: f["name"]):
         project = folder["name"]
-        pm_sheet = find_sheet_in_folder(drive, folder["id"], "project_metrics")
+        pm_sheet = find_document(
+            drive, folder["id"], "project_metrics", "project_metrics", SHEET_MIME
+        )
         if not pm_sheet:
             print(f"{project}: no project_metrics yet, skipped")
             continue

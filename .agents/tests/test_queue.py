@@ -18,6 +18,7 @@ from qa_manage import (STATES, TRANSITIONS, check_snapshot, dedup_scopes,
                        enumerate_run_scopes, is_excluded, is_queue_only_dirt,
                        mint_run_id, missing_scope_fields, needed_scopes,
                        parse_outcome_args, resolve_route, resolve_scope_args,
+                       queue_discovery_indexes,
                        seeds_for_scope, validate_entry_outcomes,
                        validate_transition)
 
@@ -103,27 +104,40 @@ class TestDiscoveryIdentity(unittest.TestCase):
     def test_unknown_pair_is_new(self):
         self.assertEqual(self.act("b.txt", "h2"), ("new", ""))
 
+    def test_current_source_path_is_an_exact_known_pair(self):
+        rows = [{
+            "Run ID": "run-a",
+            "Source": "00_Source_Docs/old.txt",
+            "Current source": "00_Inbox/old.txt",
+            "Source hash": "h1",
+        }]
+        by_pair, by_path, by_hash = queue_discovery_indexes(rows)
+        self.assertEqual(
+            discovery_action("00_Inbox/old.txt", "h1", by_pair, by_path, by_hash),
+            ("skip", ""),
+        )
+
 
 class TestScanExclusion(unittest.TestCase):
-    def test_course_material_subtrees_excluded(self):
-        self.assertTrue(is_excluded(
-            r"00_Source_Docs\03_Source_Documents\M2_role_vision\Task 1.docx"))
-        self.assertTrue(is_excluded(
-            "00_Source_Docs/03_Source_Documents/M2_personal_development_plan/x.docx"))
+    def test_reference_tree_needs_no_special_exclusion(self):
+        self.assertFalse(is_excluded(
+            r"30_Reference\Source_Documents\M2_role_vision\Task 1.docx"))
+        self.assertFalse(is_excluded(
+            "30_Reference/Source_Documents/M2_personal_development_plan/x.docx"))
 
     def test_sibling_paths_not_excluded(self):
         self.assertFalse(is_excluded(
-            r"00_Source_Docs\03_Source_Documents\McKinsey\metrics.xlsx"))
+            r"00_Inbox\metrics.xlsx"))
         self.assertFalse(is_excluded(
-            r"00_Source_Docs\03_Source_Documents\M2_role_vision_notes.docx"))
+            r"00_Inbox\M2_role_vision_notes.docx"))
 
 
 class TestMintRunId(unittest.TestCase):
     def test_deterministic_and_slugged(self):
-        rid = mint_run_id(r"02_Transcripts_Inbox\Aslan 1to1 2026-07-17.txt",
+        rid = mint_run_id(r"00_Inbox\Person 1to1 2026-07-17.txt",
                           "abcdef0123456789", date="20260719")
-        self.assertTrue(rid.startswith("20260719-aslan-1to1-2026-07-17-abcdef"))
-        self.assertEqual(rid, mint_run_id(r"02_Transcripts_Inbox\Aslan 1to1 2026-07-17.txt",
+        self.assertTrue(rid.startswith("20260719-person-1to1-2026-07-17-abcdef"))
+        self.assertEqual(rid, mint_run_id(r"00_Inbox\Person 1to1 2026-07-17.txt",
                                           "abcdef0123456789", date="20260719"))
 
     def test_hash_suffix_disambiguates_same_name(self):

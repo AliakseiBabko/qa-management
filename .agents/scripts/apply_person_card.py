@@ -36,6 +36,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from m2_workspace_layout import DOC_MIME, SHEET_MIME, find_document
+
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
 from pipeline_common import (
@@ -224,11 +226,25 @@ def scan_track_level_mismatch(
                 continue
 
             blob_parts: list[str] = []
-            im_sheet = find_sheet_in_folder(drive, person_folder["id"], "individual_metrics")
+            im_sheet = find_document(
+                drive,
+                project_folder["id"],
+                "individual_metrics",
+                "individual_metrics",
+                SHEET_MIME,
+                person_folder["name"],
+            )
             if im_sheet:
                 rows = read_sheet_values(services, im_sheet["id"])
                 blob_parts.append(" ".join(" ".join(r) for r in rows))
-            idp = find_doc(services, person_folder["id"], "individual_development_plan")
+            idp = find_document(
+                drive,
+                project_folder["id"],
+                "individual_development_plan",
+                "individual_development_plan",
+                DOC_MIME,
+                person_folder["name"],
+            )
             if idp:
                 doc = services["docs"].documents().get(documentId=idp["id"]).execute()
                 blob_parts.append("".join(

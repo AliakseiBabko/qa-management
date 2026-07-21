@@ -19,6 +19,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from m2_workspace_layout import SHEET_MIME, find_document
+
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
 from sync_m2_source_docs_to_sheets import (
     ROOT_FOLDER_ID,
@@ -62,7 +64,9 @@ def main() -> int:
     open_rows: list[list[str]] = []
     for folder in sorted(project_folders, key=lambda f: f["name"]):
         project = folder["name"]
-        sheet = find_sheet_in_folder(drive, folder["id"], "action_items")
+        sheet = find_document(
+            drive, folder["id"], "action_items", "action_items", SHEET_MIME
+        )
         if not sheet:
             print(f"{project}: no action_items yet, skipped")
             continue
