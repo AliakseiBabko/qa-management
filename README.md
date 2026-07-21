@@ -788,13 +788,16 @@ These are what actually runs day to day, once a project's folder already exists:
   directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1)
   and `refresh_project_registry.py` propagating those rows onward.
 - `operator_telemetry_common.py` — not a script to run; Phase 11 shared
-  schema for the operator-telemetry measurement layer (see
-  `.agents/telemetry/README.md`): the canonical CSV column list, the
-  read-only measurement case catalog (`dashboard_overview`,
-  `guide_discovered`, `classify_discovered`, `pack_discovered`,
-  `triage_overview`, `triage_one`, `search_current`, `search_history`,
-  `show_project_state_targeted`, `show_project_state_full_project`), and the
-  append/validate/diff-guard helpers the three scripts below share.
+  schema for the operator-telemetry layer (see `.agents/telemetry/README.md`):
+  the canonical CSV column list, the read-only measurement case catalog
+  (`dashboard_overview`, `guide_discovered`, `classify_discovered`,
+  `pack_discovered`, `completed_run_review`, `triage_overview`, `triage_one`,
+  `search_current`, `search_history`, `show_project_state_targeted`,
+  `show_project_state_full_project`), and the append/validate/diff-guard
+  helpers the three scripts below share. Recording a `completed_run_review`
+  (or equivalent) row after every real intake/rollup pass finishes is a
+  mandatory closing step (see AGENTS.md's intake-workflow bullet), not just
+  ad hoc measurement.
 - `measure_operator_outputs.py` — runs one read-only case from the catalog
   above (or `--dry-run`s it, printing the redacted command with nothing
   executed) and measures its output footprint — elapsed time, stdout/stderr

@@ -1316,9 +1316,19 @@ _BRACKETED_TURN_RE = re.compile(
 _BRACKET_SPEAKER_LABEL_RE = re.compile(r"^Speaker\s+(\w+)", re.IGNORECASE)
 # Unbracketed timestamp-prefixed turn markers: "00:01:23 Name:" or
 # "00:01 Name" alone on their own line (a name, not a duration/timestamp
-# repeated - excludes a line that's just another timestamp).
+# repeated - excludes a line that's just another timestamp). Also covers a
+# dash-separated "Speaker" label shape seen on real recordings (e.g.
+# BlueDotHQ exports): "0:00 - Speaker: A", "00:00:12 - Speaker: A" - an
+# optional "-"/"–"/"—" separator, then either "Speaker: <id>" (captured as
+# speaker_id, normalized the same way as the bracketed "[Speaker 1]" shape
+# below) or a bare "<Name>:" (captured as name, same as the no-dash case).
 _TIMESTAMP_TURN_RE = re.compile(
-    r"^(?:\d{1,2}:)?\d{1,2}:\d{2}(?::\d{2})?\s+(?P<name>[^\s\d:][^\n:]{0,40})\s*:?\s*$"
+    r"^(?:\d{1,2}:)?\d{1,2}:\d{2}(?::\d{2})?"
+    r"\s*(?:[-–—]\s*)?"
+    r"(?:Speaker\s*:\s*(?P<speaker_id>\w{1,20})"
+    r"|(?P<name>[^\s\d:][^\n:]{0,40}))"
+    r"\s*:?\s*$",
+    re.IGNORECASE,
 )
 
 _EMPTY_SIGNALS = {
@@ -1359,8 +1369,11 @@ def _extract_turn_identities(lines: list[str]) -> set[str]:
                 identities.add(f"speaker {label.group(1)}".casefold())
             continue
         m = _TIMESTAMP_TURN_RE.match(stripped)
-        if m and m.group("name").strip():
-            identities.add(m.group("name").strip().casefold())
+        if m:
+            if m.group("speaker_id"):
+                identities.add(f"speaker {m.group('speaker_id')}".casefold())
+            elif m.group("name") and m.group("name").strip():
+                identities.add(m.group("name").strip().casefold())
     return identities
 
 

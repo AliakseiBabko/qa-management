@@ -126,6 +126,37 @@ TIMESTAMPED_TURNS = (
     "Great, let's continue next week.\n"
 )
 
+DASH_SPEAKER_TWO_SPEAKERS = (
+    "0:00 - Speaker: A\n"
+    "Hello, how are things going on <Project1>?\n\n"
+    "10:29 - Speaker: B\n"
+    "Good, we shipped the fix yesterday.\n\n"
+    "10:44 - Speaker: A\n"
+    "Great, let's continue next week.\n"
+)
+
+DASH_SPEAKER_THREE_SPEAKERS = (
+    "0:00 - Speaker: A\n"
+    "Status update please.\n\n"
+    "00:00:12 - Speaker: B\n"
+    "All green on my side.\n\n"
+    "00:01:02 - Speaker: C\n"
+    "Same here, no blockers.\n"
+)
+
+DASH_SPEAKER_NAME_VARIANT = (
+    "00:00:12 - <Person1>:\n"
+    "Let's walk through the architecture.\n\n"
+    "00:00:44 - <Person2>:\n"
+    "Sure, go ahead.\n"
+)
+
+LOW_CONTENT_DASH_SPEAKER_NOTE = (
+    "This is a short reference note.\n\n"
+    "0:00 - Speaker: A\n\n"
+    "Nothing else here worth flagging as a transcript.\n"
+)
+
 LOW_CONTENT_BRACKETED_NOTE = (
     "This is a short reference note.\n\n"
     "[Speaker 1]\n\n"
@@ -306,6 +337,29 @@ class SignalDetectionTests(unittest.TestCase):
         self.assertEqual(signals["bracketed_speaker_marker_count"], 1)
         self.assertFalse(signals["likely_transcript"])
 
+    def test_dash_speaker_timestamp_two_speakers(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_TWO_SPEAKERS, ".txt")
+        self.assertGreaterEqual(signals["timestamp_turn_marker_count"], 3)
+        self.assertEqual(signals["distinct_turn_identities"], 2)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_dash_speaker_timestamp_three_speakers(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_THREE_SPEAKERS, ".txt")
+        self.assertGreaterEqual(signals["timestamp_turn_marker_count"], 3)
+        self.assertEqual(signals["distinct_turn_identities"], 3)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_dash_speaker_name_variant_recognized(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_NAME_VARIANT, ".txt")
+        self.assertGreaterEqual(signals["timestamp_turn_marker_count"], 2)
+        self.assertEqual(signals["distinct_turn_identities"], 2)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_low_content_dash_speaker_note_does_not_over_trigger(self):
+        signals = qa_manage.detect_format_signals(LOW_CONTENT_DASH_SPEAKER_NOTE, ".txt")
+        self.assertEqual(signals["timestamp_turn_marker_count"], 1)
+        self.assertFalse(signals["likely_transcript"])
+
     def test_paragraph_turn_density_present_and_bounded(self):
         signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
         self.assertGreaterEqual(signals["paragraph_turn_density"], 0.0)
@@ -378,6 +432,19 @@ class CandidateRouteGenerationTests(unittest.TestCase):
         candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
         self.assertEqual(candidates, [])
 
+    def test_dash_speaker_two_speakers_yields_qa_1to1(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_TWO_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertIn(("qa_1to1", "m1"), types)
+        self.assertIn(("meeting_transcript", "multi_project"), types)
+
+    def test_dash_speaker_three_speakers_yields_meeting_transcript(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_THREE_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertEqual(types, {("meeting_transcript", "multi_project"), ("meeting_transcript", "single_project")})
+
     def test_candidates_never_carry_project_or_person_values(self):
         signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
         candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
@@ -385,6 +452,35 @@ class CandidateRouteGenerationTests(unittest.TestCase):
             self.assertNotIn("project", c)
             self.assertNotIn("person", c)
             self.assertIn(set(c["required_scope"]), [set(), {"project"}, {"person"}, {"project", "person"}])
+
+
+class RealGraphProjectKnowledgeSuggestionTests(unittest.TestCase):
+    """Uses the real document_graph.yaml (not the isolated fixture GRAPH
+    above) to confirm the production classify path now recognizes the
+    "0:00 - Speaker: A" transcript shape found on the first live Project
+    Knowledge run (20260721-cbs-intro-workshop-...) and suggests
+    project_knowledge_transcript for it - previously missed entirely,
+    yielding only a low-confidence project_knowledge_document guess."""
+
+    def setUp(self):
+        self.graph = qa_manage.load_graph()
+
+    def test_dash_speaker_transcript_suggests_project_knowledge_transcript(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_THREE_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(self.graph, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertIn(("project_knowledge_transcript", ""), types)
+        # still unranked alongside the M1/M2 candidates - never a final choice.
+        self.assertIn(("meeting_transcript", "multi_project"), types)
+
+    def test_candidate_never_picks_final_route_or_infers_project(self):
+        signals = qa_manage.detect_format_signals(DASH_SPEAKER_THREE_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(self.graph, signals, row("r1"))
+        pk_candidate = next(c for c in candidates if c["source_type"] == "project_knowledge_transcript")
+        self.assertTrue(pk_candidate["route_description"])
+        self.assertNotIn("project", pk_candidate)
+        # classify_candidate_routes never calls start / never returns a single winner.
+        self.assertGreater(len(candidates), 1)
 
 
 class LowConfidenceTests(unittest.TestCase):

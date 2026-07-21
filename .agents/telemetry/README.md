@@ -1,12 +1,15 @@
 # Operator Telemetry (Phase 11)
 
-Measurement-only layer for the QA-management operator workflow: does
+Measurement layer for the QA-management operator workflow: does
 `dashboard`/`guide`/`classify`/`pack`/`triage`/`search_workspace`/
 `show_project_state` actually reduce output size and token usage versus an
-older full-read/manual workflow? This directory holds the canonical CSV and
-run-note template; the scripts live in `.agents/scripts/` alongside every
-other pipeline script (this repo's convention - scripts are not nested under
-per-topic subfolders).
+older full-read/manual workflow - and, since Phase 13.1's follow-up fixes,
+a mandatory closing step: **every real intake/rollup pass records one
+telemetry row after `complete`/its own mirror snapshot** (see AGENTS.md's
+intake-workflow bullet), not just ad hoc measurement runs. This directory
+holds the canonical CSV and run-note template; the scripts live in
+`.agents/scripts/` alongside every other pipeline script (this repo's
+convention - scripts are not nested under per-topic subfolders).
 
 Methodology adapted from the erp-web-tests repo's
 `benchmark-playwright-debugging` skill (canonical append-only CSV,
@@ -59,11 +62,13 @@ Any live raw output inspected during measurement goes under `tmp/telemetry/`
 
 See `operator_telemetry_common.CASES` for the authoritative catalog:
 `dashboard_overview`, `guide_discovered`, `classify_discovered`,
-`pack_discovered`, `triage_overview`, `triage_one`, `search_current`,
-`search_history`, `show_project_state_targeted`,
-`show_project_state_full_project` (the last one doubles as the baseline for
-`guide`/`classify`/`pack`/`show_project_state_targeted` - the "read the whole
-project state by hand" comparison point).
+`pack_discovered`, `completed_run_review` (`qa_manage.py review` - the case
+to use for the mandatory post-`complete` telemetry row), `triage_overview`,
+`triage_one`, `search_current`, `search_history`,
+`show_project_state_targeted`, `show_project_state_full_project` (the last
+one doubles as the baseline for `guide`/`classify`/`pack`/
+`show_project_state_targeted` - the "read the whole project state by hand"
+comparison point).
 
 ```sh
 python .agents/scripts/measure_operator_outputs.py --list
@@ -81,6 +86,12 @@ python .agents/scripts/measure_operator_outputs.py --case dashboard_overview \
 
 # Real run, also append a redacted row to the committed CSV
 python .agents/scripts/measure_operator_outputs.py --case dashboard_overview --append-csv
+
+# Mandatory closing step after a real intake/rollup pass completes and its
+# own mirror snapshot is committed - record a review-command measurement
+# for that run, tagged with the same run id used elsewhere in the pass
+python .agents/scripts/measure_operator_outputs.py --case completed_run_review \
+    --target <run-id> --runtime "Claude Code" --model-label claude-sonnet-5 --append-csv
 
 # Enrich with actual token telemetry after the fact (Claude Code sessions only -
 # see extract_agent_telemetry.py's documented limitation for Codex/Antigravity)
@@ -115,3 +126,10 @@ python .agents/scripts/check_operator_csv.py --diff-guard --run-id <run_id>
 4. Real names/projects/output text never go in the CSV, run notes template,
    or any committed file under this directory - only under gitignored
    `tmp/telemetry/`.
+5. Every real intake/rollup pass records one telemetry row after it
+   completes (see AGENTS.md's intake-workflow bullet) - this is a mandatory
+   closing step, not optional instrumentation. Never invent actual token
+   numbers to fill a row faster: leave `actual_*` token fields blank unless
+   you have real agent-log data for that pass (`extract_agent_telemetry.py`
+   or manual entry from the runtime's own reporting) - the deterministic
+   byte/char/token estimate columns are always populated regardless.

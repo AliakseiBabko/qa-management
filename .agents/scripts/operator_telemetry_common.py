@@ -119,6 +119,13 @@ CASES: dict[str, dict] = {
         "baseline_of": "show_project_state_full_project",
         "requires_target": "run_id",
     },
+    "completed_run_review": {
+        "command_name": "qa_manage.py review",
+        "argv": ["qa_manage.py", "review", "{target}", "--json"],
+        "json_mode": True,
+        "baseline_of": None,
+        "requires_target": "run_id",
+    },
     "triage_overview": {
         "command_name": "qa_manage.py triage",
         "argv": ["qa_manage.py", "triage", "--json"],
@@ -178,8 +185,13 @@ MUTATING_VERBS = {
 # It is a defense-in-depth backstop, not the primary safeguard - the primary
 # safeguard is that measure_operator_outputs.py substitutes {target} back to
 # a placeholder token before writing anything, so a live --target value never
-# reaches a written field in the first place.
-_ASCII_SAFE_RE = re.compile(r"^[A-Za-z0-9_\-\.\s/:,<>=\[\]]*$")
+# reaches a written field in the first place. {}/() are allowlisted because
+# every {target}-templated case's own redacted command string (e.g.
+# "qa_manage.py review {target} --json") legitimately contains the literal
+# placeholder braces - excluding them meant no {target} case could ever
+# actually be --append-csv'd (found live: only the two no-target cases,
+# dashboard_overview/triage_overview, had ever produced a row).
+_ASCII_SAFE_RE = re.compile(r"^[A-Za-z0-9_\-\.\s/:,<>=\[\]{}()]*$")
 
 
 def is_ascii_safe(value: str) -> bool:
