@@ -27,10 +27,8 @@ Use the same folder names under the Google Drive root as the local mirror:
 - `00_Inbox`
 - `10_M1_People_Management`
 - `20_M2_Project_Management`
-- `30_Reference`
-- `_System`
 - `80_Exports` (optional; create only for an actual external package)
-- `90_Archive`
+- `90_Storage` (`Reference`, `Processed_Sources`, `_System`, `Backups`, `Retired`)
 
 No raw video/multimedia is stored in Drive — only transcripts and
 documents.
@@ -49,10 +47,10 @@ A filename ending `_strategy`
   already-logged file in place makes the new content invisible to it.
 
 After successful processing, the original moves to
-`90_Archive\Processed_Sources`; its immutable queue `Source` value and
+`90_Storage\Processed_Sources`; its immutable queue `Source` value and
 content hash remain the audit identity. Durable non-intake references live
-under `30_Reference`. Generated source extracts and review bundles live
-under `_System`, never `80_Exports`. Create `80_Exports` only when an
+under `90_Storage\Reference`. Generated source extracts and review bundles live
+under `90_Storage\_System`, never `80_Exports`. Create `80_Exports` only when an
 explicit package or copy will actually be shared outside the management
 workspace; otherwise the root is intentionally absent.
 
@@ -159,19 +157,19 @@ Standard project folder shape:
   Sheet — that moved into `project_metrics`, see above.)
 - `private\status_reports` for saved project status Google Docs / Markdown fallback
 
-Do not create a project-local `source_docs` folder. `30_Reference\Source_Documents\<Project>`
+Do not create a project-local `source_docs` folder. `90_Storage\Reference\Source_Documents\<Project>`
 is already the canonical source layer — a per-project copy has no automated
 way to stay in sync with it and will just go stale (this happened once
 already: a one-off script copied a project's source files into
 `20_M2_Project_Management\<Project>\source_docs`, and it was never kept
-current or repeated for any other project). Reference `30_Reference`
+current or repeated for any other project). Reference `90_Storage\Reference`
 directly instead of copying from it.
 
 Do not create a project-local `archive` folder either. Superseded generated
 outputs (e.g. a Sheet retired in favor of a Doc of the same name) go to the
 single workspace-wide archive tree instead:
 
-`90_Archive\20_M2_Project_Management\<Project>\...`
+`90_Storage\Retired\20_M2_Project_Management\<Project>\...`
 
 This keeps one place to look for retired artifacts rather than two, and
 mirrors the live `20_M2_Project_Management\<Project>` shape so it stays easy
@@ -410,7 +408,7 @@ For broad cross-project KT, status, or management sessions:
 - split extracted facts by project first;
 - update each relevant project folder separately;
 - append the source and routed outputs to the project `evidence_log`;
-- archive aggregate KT/batch outputs under `90_Archive\20_M2_Project_Management`
+- retire aggregate KT/batch outputs under `90_Storage\Retired\20_M2_Project_Management`
   as evidence rather than treating them as final documents.
 
 Use living canonical project files for current state. Use append-only rows/tabs
@@ -626,7 +624,7 @@ file paths, or literal evidence citations.
   filter matches same-named folders/files anywhere in the whole Drive, which
   can look like a duplicate-folder problem when the match is actually
   correctly nested somewhere else entirely (e.g. already filed under
-  `90_Archive`).
+  `90_Storage\Retired`).
 - The Sheets API read-request quota is 60/min per user/project. Any script
   that iterates every Sheet in the workspace (`format_all_sheets.py`) costs
   at least 2 read calls per sheet (`spreadsheets().get` +
@@ -695,7 +693,7 @@ Instead:
 
 ## Source Extraction
 
-Source extraction writes Markdown, CSV, JSON, and manifests under `_System\extracts\source`. Those files are intermediate analysis artifacts, not final business documents.
+Source extraction writes Markdown, CSV, JSON, and manifests under `90_Storage\_System\extracts\source`. Those files are intermediate analysis artifacts, not final business documents.
 
 When asked to analyze a `.docx` or `.xlsx` source file, use
 `.agents\scripts\qa_source_extract.py` (its `extract_docx`/`extract_xlsx`
@@ -708,7 +706,7 @@ install anything.
 
 Before extracting, check whether the file has already been processed:
 look for its path (and `sha256`, via `sha256_file()`) in an existing
-`manifest.csv`/`manifest.json` under `_System\extracts\source\*`. A
+`manifest.csv`/`manifest.json` under `90_Storage\_System\extracts\source\*`. A
 matching `source_file` + `sha256` means the extraction is already
 available at that row's `extract_file` — reuse it instead of
 re-extracting. A matching path with a different `sha256` means the file

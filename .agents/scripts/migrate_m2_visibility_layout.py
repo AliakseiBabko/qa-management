@@ -228,7 +228,7 @@ def apply_plan(drive: Any, m2_root: dict[str, Any], moves: list[PlannedMove]) ->
         if item.get("mimeType") == FOLDER_MIME
     }
     archive_m2 = ensure_folder_path(
-        drive, ROOT_FOLDER_ID, ("90_Archive", M2_ROOT_NAME)
+        drive, ROOT_FOLDER_ID, ("90_Storage", "Retired", M2_ROOT_NAME)
     )
     applied: list[dict[str, str]] = []
     for move in moves:

@@ -68,8 +68,8 @@ then copy-pastes the result back into the shared table by hand.
    destructive action on a file that isn't fully M2's own artifact even
    when it's their copy - confirm the target file and scope with the user
    first if there's any doubt.
-3. For each project, find real pending sources under `00_Inbox`, durable references under `30_Reference` (and
-   `90_Archive` for anything already archived) - look for a
+3. For each project, find real pending sources under `00_Inbox`, durable references under `90_Storage/Reference` (and
+   `90_Storage/Processed_Sources` for anything already processed) - look for a
    `<Name> case chat.txt` / `<Person> case at <Project>.txt`-style file
    under `02_Chats_and_Emails` first, then the project's own
    `<Project>_strategy.txt`. Do not source `Risks/comments`/`Action Plan`

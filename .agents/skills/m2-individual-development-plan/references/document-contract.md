@@ -21,7 +21,7 @@ Use this reference for the individual development-plan document family.
 
 Use this as the section skeleton for every individual development plan. It
 was derived from the real M2 homework corpus in
-`30_Reference\Source_Documents\M2_personal_development_plan` and the head of QA's recurring
+`90_Storage\Reference\Source_Documents\M2_personal_development_plan` and the head of QA's recurring
 review comments on that homework.
 
 ## Expected Output

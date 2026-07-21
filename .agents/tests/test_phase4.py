@@ -253,7 +253,7 @@ class TestPhase4(unittest.TestCase):
 
         # Relocate (rename + move)
         src.unlink()
-        dest = self.data_root / "90_Archive" / "Processed_Sources" / "renamed.txt"
+        dest = self.data_root / "90_Storage" / "Processed_Sources" / "renamed.txt"
         dest.write_bytes(b)
 
         # Relocation search

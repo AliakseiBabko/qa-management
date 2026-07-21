@@ -27,14 +27,14 @@ re-consenting once) removes the caveat entirely.
 `_manifest.json` at the mirror root maps restore-layer paths to Drive file
 IDs. Non-native files (txt transcripts, recordings) are skipped - Drive
 itself preserves those; this mirror is for the documents skills rewrite.
-`90_Archive` and `01_Recordings` are excluded.
+`90_Storage` and `01_Recordings` are excluded.
 
 The mirror repo lives OUTSIDE both the public skills repo (it holds real
 names - it must never share a git history with anything public) and the
 synced Drive folder (Drive sync chokes on `.git` object files). Default:
 `~/Documents/qa-drive-mirror`, auto-initialized on first run. After every
 commit the full history is packed into a single-file `git bundle` under
-`90_Archive/_git_mirror_backups/` on Drive, so a dead laptop costs nothing:
+`90_Storage/Backups/` on Drive, so a dead laptop costs nothing:
 restore with `git clone mirror.bundle`.
 
 Usage (from the skills-repo root, where .local/google lives):
@@ -78,8 +78,8 @@ from pipeline_common import get_services
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
 
 DEFAULT_MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
-BUNDLE_DIR = Path(r"G:\My Drive\QA_Management\90_Archive\_git_mirror_backups")
-SKIP_FOLDERS = {"90_Archive", "01_Recordings"}
+BUNDLE_DIR = Path(r"G:\My Drive\QA_Management\90_Storage\Backups")
+SKIP_FOLDERS = {"90_Storage", "01_Recordings"}
 
 MIME_FOLDER = "application/vnd.google-apps.folder"
 MIME_GSHEET = "application/vnd.google-apps.spreadsheet"

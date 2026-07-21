@@ -97,7 +97,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate M2 output CSVs from extracted source corpus.")
     parser.add_argument(
         "--extract-root",
-        default=rf"G:\My Drive\QA_Management\_System\extracts\source\{today}",
+        default=rf"G:\My Drive\QA_Management\90_Storage\_System\extracts\source\{today}",
         help="Dated extraction folder containing manifest.csv.",
     )
     parser.add_argument(

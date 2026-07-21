@@ -41,7 +41,7 @@ editing an already-logged file in place makes new content invisible to it.
    timestamps for recent messages — resolved against the file's mtime, a
    heuristic worth a sanity check if the range looks off), logs one
    `evidence_log` row per file, and writes a review bundle under
-   `_System\reviews\intake\strategy_chats_<date>.md`. It does not
+   `90_Storage\_System\reviews\intake\strategy_chats_<date>.md`. It does not
    extract facts or touch any other document — see its own docstring.
 3. Read the flagged file(s) from the bundle in full, chronologically —
    these chats mix languages and jump between topics message-to-message;

@@ -18,8 +18,8 @@ Default transcript location:
 - raw intake: `G:\My Drive\QA_Management\00_Inbox`
 
 Once a transcript's facts are extracted, move it to
-`30_Reference\Source_Documents\<Project>` (if still useful as durable
-reference) or `90_Archive` — there is no separate "processed" holding
+`90_Storage\Reference\Source_Documents\<Project>` (if still useful as durable
+reference) or `90_Storage\Processed_Sources` — there is no separate "processed" holding
 folder.
 
 ## Required Start

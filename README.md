@@ -34,13 +34,14 @@ Current Drive layout:
 - `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
   team member) — see M1 Person Layout below
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
-- `30_Reference/`: durable source and training/reference material that is
-  not pending processing
-- `_System/`: generated extracts and review bundles used by the pipeline
 - `80_Exports/` (optional): created only when an explicit immutable package
   or copy is prepared for external sharing; internal extracts do not belong here
-- `90_Archive/`: processed source originals, retired outputs, legacy
-  folders, and backups
+- `90_Storage/`: the single non-actionable storage root:
+  - `Reference/`: durable source and training/reference material
+  - `Processed_Sources/`: originals already processed by the intake pipeline
+  - `_System/`: generated extracts and review bundles
+  - `Backups/`: private-mirror recovery bundle
+  - `Retired/`: retired outputs and legacy folders
 
 No raw video/multimedia is stored in Drive - only transcripts and
 documents. Folder moves use the Drive API so file IDs, links, revisions,
@@ -133,8 +134,8 @@ Each project folder follows this shape:
 ```
 
 There is no per-project `source_docs/` or `archive/` folder - reference
-`30_Reference/Source_Documents/<Project>` directly, and retired artifacts go to the
-single workspace-wide `90_Archive/20_M2_Project_Management/<Project>/`
+`90_Storage/Reference/Source_Documents/<Project>` directly, and retired artifacts go to the
+single workspace-wide `90_Storage/Retired/20_M2_Project_Management/<Project>/`
 tree instead of a local copy that would go stale.
 
 **Visibility boundaries**: share only `team_shared/` with the project's QA
@@ -180,7 +181,7 @@ service-menu filler.
 Broad KT/session sources should be split by project before updating final files.
 Use `evidence_log` as the append-only trace of which source changed which project
 files — including conversational updates, not just automated syncs. Keep
-aggregate KT outputs in `90_Archive`, not as canonical final documents.
+aggregate KT outputs in `90_Storage/Retired`, not as canonical final documents.
 
 ## Source extraction
 
@@ -197,7 +198,7 @@ Default input:
 
 Default output:
 
-`G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`
+`G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD`
 
 The extractor does not modify source documents. It writes a `manifest.csv` and project-level
 subfolders with DOCX text as Markdown and XLSX sheets as CSV. These are intermediate
@@ -257,7 +258,7 @@ python .agents\scripts\generate_m2_outputs.py
 
 Default input:
 
-`G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`
+`G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD`
 
 Default output:
 
@@ -314,15 +315,20 @@ These are what actually runs day to day, once a project's folder already exists:
   document roles to visibility folders. Readers use canonical-first,
   legacy-compatible lookup during migration; writers create only in the
   canonical visibility folder.
-- `migrate_workspace_root_layout.py` — one-time root lifecycle migration.
+- `migrate_workspace_root_layout.py` — legacy-to-current source lifecycle migration.
   `audit` is read-only; `apply` fails closed if any item lacks a queue-backed
   disposition. It moves active sources to `00_Inbox`, processed originals to
-  `90_Archive/Processed_Sources`, non-intake references to `30_Reference`,
-  and internal generated folders from `80_Exports` to `_System`, preserving
+  `90_Storage/Processed_Sources`, non-intake references to `90_Storage/Reference`,
+  and internal generated folders from `80_Exports` to `90_Storage/_System`, preserving
   Drive IDs and permissions. Unqueued items require an explicit runtime
   `--override <item-id>=inbox|archive|reference`.
 - `workspace_root_layout.py` — not a script to run; pure root-folder
   disposition and destination rules shared by the migration and tests.
+- `migrate_workspace_storage_layout.py` — one-time consolidation from the
+  former `30_Reference`, `_System`, and `90_Archive` roots into
+  `90_Storage`. `audit` is read-only; `apply` renames/moves folders while
+  preserving Drive IDs and updates only `_intake_queue.Current source`,
+  leaving immutable source identity untouched.
 - `pipeline_common.py` — not a script to run; shared helpers other scripts
   should import instead of re-inlining them: `get_services()`
   (`load_credentials` + `build_services`); `get_people_registry_sheet()`
@@ -393,7 +399,7 @@ These are what actually runs day to day, once a project's folder already exists:
   new document type or dependency means editing `document_graph.yaml` in
   the same commit as the skill that introduces it.
 - `commit_workspace_state.py` — data-side git history: exports every
-  canonical Google Sheet/Doc under the Drive root (skipping `90_Archive`,
+  canonical Google Sheet/Doc under the Drive root (skipping `90_Storage`,
   `01_Recordings`, and non-native files) into the local private mirror repo
   (`~/Documents/qa-drive-mirror`, auto-initialized) and commits. Two layers
   per document: diffable (CSV per Sheet tab, Markdown/text per Doc) and
@@ -404,7 +410,7 @@ These are what actually runs day to day, once a project's folder already exists:
   extract and commit the text of any pending queue source. An extraction failure skips
   global pruning (leaving stale files) to guarantee partial snapshots safely fail
   verification instead of pretending to be complete. After each commit the full history
-  is packed into a single-file bundle at `90_Archive\_git_mirror_backups\mirror.bundle`
+  is packed into a single-file bundle at `90_Storage\Backups\mirror.bundle`
   on Drive (disaster recovery: `git clone mirror.bundle`). Run with `-m` describing
   the pass at the end of any pass that wrote canonical documents; a no-op
   when nothing changed. One commit per pass = the whole cascade rolls back
@@ -448,7 +454,7 @@ These are what actually runs day to day, once a project's folder already exists:
   validation; `block`/`resume [--continue]` handle gates and report the
   exact unfinished stage with everything already recorded. At closure,
   `archive-source <run-id>` moves the original from `00_Inbox` to a
-  run-specific `90_Archive/Processed_Sources/YYYY/MM/<run-id>` folder,
+  run-specific `90_Storage/Processed_Sources/YYYY/MM/<run-id>` folder,
   records its current path/disposition without changing immutable source
   identity, and requires a fresh workspace snapshot afterward. `complete` is
   a verification gate — requires stage=closure, valid entry outcomes and
@@ -473,7 +479,7 @@ These are what actually runs day to day, once a project's folder already exists:
   non_intake_course_material|reference_material|duplicate_data_quality|
   other` — not an intake source at all, reachable only from
   pre-processing states). Categorically non-intake subtrees (the M2
-  course homework folders) live under `30_Reference`, outside the only
+  course homework folders) live under `90_Storage/Reference`, outside the only
   scanned root. All commands support `--json` for a strict programmatic contract:
   stdout is suppressed during execution, and exactly one JSON envelope containing
   the command status, structured data, warnings, and errors is
@@ -562,14 +568,14 @@ These are what actually runs day to day, once a project's folder already exists:
   transient failure, not a real one; the script is idempotent, so just
   rerun it rather than chasing the one sheet by hand.
 - `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
-  extractor; check `_System/extracts/source/*/manifest.csv` for an
+  extractor; check `90_Storage/_System/extracts/source/*/manifest.csv` for an
   existing extraction before re-running it on the same source file.
 - `prepare_intake_review.py` — intake assistant: finds files in
   `00_Inbox` not
   yet in `evidence_log`, reuses an existing extraction by sha256 instead of
   re-extracting, classifies each by filename against `_project_registry`/
   `_people_registry`, appends `evidence_log` rows,
-  and writes a review bundle to `_System/reviews/intake/YYYY-MM-DD.md`.
+  and writes a review bundle to `90_Storage/_System/reviews/intake/YYYY-MM-DD.md`.
   Genuinely ambiguous files are left `UNCLASSIFIED` rather than guessed —
   route those manually. Stops there: does not touch `m2_input`,
   `project_risk`, `project_development_plan`, `project_metrics`, or status
@@ -582,7 +588,7 @@ These are what actually runs day to day, once a project's folder already exists:
   the file's date range (a heuristic against file mtime — Google Chat
   headers carry no year and use relative weekday-only timestamps for
   recent messages), appends one `evidence_log` row per new file, and writes
-  `_System/reviews/intake/strategy_chats_YYYY-MM-DD.md`. Dedups by exact
+  `90_Storage/_System/reviews/intake/strategy_chats_YYYY-MM-DD.md`. Dedups by exact
   filename, not content — a new batch of messages must land in a new file,
   never appended into an already-logged one. Also stops at fact
   extraction; `--dry-run` previews without writing.
@@ -666,7 +672,7 @@ other documents — a pending `m2_input` round, a `project_risk` action plan,
 a `Неизвестно` row in `project_metrics` — across every project in one pass,
 so open questions don't have to be tracked by memory. It's read-only by
 default (prints + writes a bundle to
-`_System/reviews/open_questions/YYYY-MM-DD.md`); `--write` appends
+`90_Storage/_System/reviews/open_questions/YYYY-MM-DD.md`); `--write` appends
 candidates straight into `action_items`. Its wording/date/owner are
 mechanical placeholders — see `m2-timeline` SKILL.md for how to turn a raw
 candidate (e.g. an unclear benchmark status) into a real scheduled action
@@ -692,7 +698,7 @@ and closes 1 month later — see
 `m1_monthly_report_<Manager>_YYYY-MM` presence to surface an overdue
 monthly report. Same read-only-by-default / `--write` split as
 `scan_open_questions.py`, writing its bundle to
-`_System/reviews/open_questions/YYYY-MM-DD_m1.md`.
+`90_Storage/_System/reviews/open_questions/YYYY-MM-DD_m1.md`.
 
 For a PR-only view (no other event types mixed in), `refresh_m1_pr_calendar.py`
 generates `_m1_pr_calendar` (template `Templates/m1_pr_calendar.csv`) from
@@ -753,8 +759,8 @@ CSV templates:
 
 Source examples:
 
-- `G:\My Drive\QA_Management\30_Reference\Source_Documents\M1_monthly_report.xlsx`
-- `G:\My Drive\QA_Management\30_Reference\Source_Documents\M2_monthly_report.xlsx`
+- `G:\My Drive\QA_Management\90_Storage\Reference\Source_Documents\M1_monthly_report.xlsx`
+- `G:\My Drive\QA_Management\90_Storage\Reference\Source_Documents\M2_monthly_report.xlsx`
 
 The M1 workbook contains real report examples. The M2 workbook is treated as an example/calculator
 unless explicitly provided as a real report for a target month.

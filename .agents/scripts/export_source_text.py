@@ -32,7 +32,7 @@ SOURCE_TEXT_TYPES = {"qa_1to1", "strategy_chat", "meeting_transcript", "people_c
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
 SOURCE_TEXT_SEARCH_ROOTS = (
     "00_Inbox",
-    "90_Archive/Processed_Sources",
+    "90_Storage/Processed_Sources",
 )
 
 MAX_ZIP_MEMBERS = 1000

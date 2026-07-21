@@ -176,7 +176,7 @@ def build_plan(
         moves.append(PlannedMove(
             item_id=str(vscode["id"]),
             source=".vscode",
-            target=(ARCHIVE_ROOT, "VSCode_Settings_Backup", "Current"),
+            target=(ARCHIVE_ROOT, "Retired", "VSCode_Settings_Backup", "Current"),
             disposition="system",
             rename_to="Current",
         ))
@@ -221,7 +221,7 @@ def apply_plan(services: dict[str, Any], moves: list[PlannedMove]) -> list[dict[
 
     legacy = find_child_folder(drive, ROOT_FOLDER_ID, LEGACY_SOURCE_ROOT)
     if legacy:
-        retired = ensure_folder_path(drive, ROOT_FOLDER_ID, (ARCHIVE_ROOT, "Retired_Roots"))
+        retired = ensure_folder_path(drive, ROOT_FOLDER_ID, (ARCHIVE_ROOT, "Retired", "Roots"))
         collision = find_child_folder(drive, str(retired["id"]), LEGACY_SOURCE_ROOT)
         if collision and collision.get("id") != legacy.get("id"):
             raise RuntimeError(f"Retired root {LEGACY_SOURCE_ROOT!r} already exists")
@@ -231,7 +231,7 @@ def apply_plan(services: dict[str, Any], moves: list[PlannedMove]) -> list[dict[
     if exports:
         if list_children(drive, str(exports["id"])):
             raise RuntimeError(f"Refusing to retire non-empty {EXPORTS_ROOT}")
-        retired = ensure_folder_path(drive, ROOT_FOLDER_ID, (ARCHIVE_ROOT, "Retired_Roots"))
+        retired = ensure_folder_path(drive, ROOT_FOLDER_ID, (ARCHIVE_ROOT, "Retired", "Roots"))
         move_item(drive, str(exports["id"]), str(retired["id"]))
 
     queue = find_queue(services)

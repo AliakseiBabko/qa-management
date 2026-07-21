@@ -6,7 +6,7 @@ Project-Level Rollups and Pipeline Architecture):
 
 - scans 00_Inbox recursively for files not yet seen
 - reuses an existing extraction by sha256 (checks every
-  _System/extracts/source/*/manifest.csv) instead of re-extracting
+  90_Storage/_System/extracts/source/*/manifest.csv) instead of re-extracting
 - classifies each new file by project (folder-based under
   03_Source_Documents, filename-matched against _project_registry /
   _people_registry under 01/02) using substring matching only — genuinely
@@ -44,8 +44,8 @@ from sync_m2_source_docs_to_sheets import (
 
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
 INBOX_ROOT = "00_Inbox"
-EXTRACT_ROOT = DEFAULT_ROOT / "_System" / "extracts" / "source"
-REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "intake"
+EXTRACT_ROOT = DEFAULT_ROOT / "90_Storage" / "_System" / "extracts" / "source"
+REVIEW_ROOT = DEFAULT_ROOT / "90_Storage" / "_System" / "reviews" / "intake"
 
 
 def parse_args() -> argparse.Namespace:

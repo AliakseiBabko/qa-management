@@ -39,9 +39,9 @@ status now is also writing next month's raw material for that skill.
 3. Project QA metrics and individual QA metrics that affect the project picture.
 4. Project risk summaries.
 5. Workbook status rows, strategy-chat notes, 1to1 analysis findings, transcripts, or source extracts.
-6. Pending sources under `00_Inbox`, durable references under `30_Reference`, and extracted copies under `_System/extracts/source`.
+6. Pending sources under `00_Inbox`, durable references under `90_Storage/Reference`, and extracted copies under `90_Storage/_System/extracts/source`.
 
-For DOCX/XLSX sources, prefer existing extracted files under `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD\<Project>\...`. If no suitable extract exists, use `.agents/scripts/qa_source_extract.py`.
+For DOCX/XLSX sources, prefer existing extracted files under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\...`. If no suitable extract exists, use `.agents/scripts/qa_source_extract.py`.
 
 ## Workflow
 

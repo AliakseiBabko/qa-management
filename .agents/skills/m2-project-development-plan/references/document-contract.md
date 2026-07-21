@@ -13,7 +13,7 @@ Use this reference for the project-level development-plan document family.
 `<repo-root>\Templates\план_развития_проекта.md`
 
 Use this as the section skeleton for every project development plan. It was
-derived from the real M2 homework corpus in `30_Reference\Source_Documents\M2_project_development_plan`
+derived from the real M2 homework corpus in `90_Storage\Reference\Source_Documents\M2_project_development_plan`
 and the head of QA's recurring review comments on that homework (see Normalization
 below for what those comments actually said).
 

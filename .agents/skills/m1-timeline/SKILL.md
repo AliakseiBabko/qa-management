@@ -49,7 +49,7 @@ two-tier structure M2 needs to avoid one giant cross-project Sheet.
 
 Review, don't blindly log:
 
-1. Run `scan_m1_events.py` (`--person <Name>` to scope it). It prints candidates and writes a bundle to `_System/reviews/open_questions/YYYY-MM-DD_m1.md`. It skips anything already logged (matched by a `scan:<kind>:<key>` tag in `Источник`).
+1. Run `scan_m1_events.py` (`--person <Name>` to scope it). It prints candidates and writes a bundle to `90_Storage/_System/reviews/open_questions/YYYY-MM-DD_m1.md`. It skips anything already logged (matched by a `scan:<kind>:<key>` tag in `Источник`).
 2. A Performance Review candidate whose date has already passed means the OKR cycle should have closed — treat it as overdue, not a future reminder; confirm with M1 whether the PR happened and the OKR was actually closed before just re-logging the same date forward. Once confirmed, update `Дата последнего PR` in `_people_registry` — this is what keeps the cadence cross-check accurate on the next run, and nothing else updates it automatically.
 3. A missing-OKR candidate needs M1 to actually draft one (`m1-individual-development-plan`) — the scan only tells you it's missing, it doesn't draft it.
 4. A cadence-mismatch note (registry-computed date vs. OKR Doc title date) needs a human call on which one is stale — don't just overwrite one from the other without checking which fact is actually wrong.
