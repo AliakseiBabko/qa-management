@@ -319,7 +319,7 @@ class TerminalStatesGuideTests(unittest.TestCase):
     def test_failed_offers_historical_correction(self):
         r = row("r1", "failed", Reason="gave up")
         res, _ = run_guide(r)
-        self.assertEqual(res.data["commands"], ['historical r1 --evidence "..."'])
+        self.assertEqual(res.data["commands"], ['mark-historical r1 --evidence "..."'])
 
 
 class ReadOnlyEnforcementTests(unittest.TestCase):

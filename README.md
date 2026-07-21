@@ -463,7 +463,7 @@ These are what actually runs day to day, once a project's folder already exists:
   edges still need `resolve-edge`, parsed straight out of `review`'s own
   evaluation; `commit_workspace_state.py` when closure is clean but the
   snapshot/invocation token isn't; `complete`; `resume --continue` for a
-  blocked run; `historical` for a `failed` run), and only the guardrails
+  blocked run; `mark-historical` for a `failed` run), and only the guardrails
   relevant to that stage (never a generic checklist dump). A completed run
   with no integrity problem gets "no operational action needed"; one with
   a real snapshot/invocation problem gets repair/audit guidance, never a
@@ -542,11 +542,19 @@ These are what actually runs day to day, once a project's folder already exists:
   legitimately discovered. For a multi-scope run, `record-apply` and
   `resolve-edge` require an explicit `--project`/`--person` (a default
   would collapse into a wildcard). The other terminal states: `fail`;
-  `historical` (evidence required — asserts prior processing; also
-  corrects a mistaken `fail`); and `ignored` (`--category
-  non_intake_course_material|reference_material|duplicate_data_quality|
-  other` — not an intake source at all, reachable only from
-  pre-processing states). Categorically non-intake subtrees (the M2
+  `mark-historical` (concrete `--evidence` required — an evidence_log row,
+  a `_skill_invocations` date, a document revision, never a vague reason
+  or unverified memory — asserts prior processing; also corrects a
+  mistaken `fail`; reachable only from a pre-processing state, never once
+  `processing`/`blocked` has actually started — "this predates the queue"
+  stops being a truthful claim the moment work begins); and `ignore`
+  (`--category non_intake_course_material|reference_material|
+  duplicate_data_quality|other --reason "..."` with a concrete reason
+  required — a category alone is not a reason, optional `--evidence` —
+  not an intake source at all, reachable only from pre-processing states).
+  Neither mutation moves or deletes the source file — a terminal-status
+  queue row's (path, hash) identity already keeps `scan` from
+  rediscovering it. Categorically non-intake subtrees (the M2
   course homework folders) live under `90_Storage/Reference`, outside the only
   scanned root. All commands support `--json` for a strict programmatic contract:
   stdout is suppressed during execution, and exactly one JSON envelope containing

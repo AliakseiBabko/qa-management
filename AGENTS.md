@@ -132,7 +132,7 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      which edges a `processing/closure` run still needs `resolve-edge`
      for, `commit_workspace_state.py` when closure is clean but the
      snapshot/invocation token isn't, `complete`/`complete` retry,
-     `resume --continue`, `historical`), and only the guardrails relevant
+     `resume --continue`, `mark-historical`), and only the guardrails relevant
      to that stage. Never creates or mutates anything. Use this once
      `dashboard` (or a direct find) has pointed you at a specific run;
      once you know the exact command, the full intake workflow below is
@@ -172,6 +172,27 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `dashboard`/`guide`/`classify`/`review` exclusively; never creates,
      writes, or mutates anything, and never includes full source text -
      only the same capped preview `classify` returns.
+   - Cleaning up the `00_Inbox` backlog itself (not processing a specific
+     source right now)? — `.agents\scripts\qa_manage.py triage
+     [--category discovered|needs_scope|blocked|all] [--limit N]
+     [--project P] [--person X]` (add `--json`). Read-only overview built
+     from the same dashboard/classify helpers: every backlog candidate
+     with its recommended command and the exact terminal-action commands
+     (`ignore`/`mark-historical`) `TRANSITIONS` actually allows from its
+     status - never a suggestion to auto-apply one, and never an inference
+     from filename/extension alone. Drill into one with `qa_manage.py
+     triage-one <run-id>` for source access/age, `classify`-style signals
+     and candidate routes, a capped preview, and the same allowed-action
+     commands, all for a single run. Both are strictly read-only - the
+     only way to actually change a run's state is the explicit `ignore`
+     (`--category C --reason "..." [--evidence "..."]`, required reason,
+     only reachable from `discovered`/`needs_scope`/`ready`) or
+     `mark-historical` (`--evidence "..."`, required concrete evidence -
+     not a vague reason or memory - only reachable from a pre-processing
+     state or as a correction of a mistaken `fail`; invalid once
+     `processing`/`blocked` has actually started) command below, one run
+     at a time. Neither moves or deletes the source file - a
+     terminal-status queue row already keeps `scan` from rediscovering it.
    - Processing a new source (picked via `dashboard`/`guide`/`classify`/
      `pack`, or found directly)? —
      the intake workflow runs through

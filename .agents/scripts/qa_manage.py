@@ -20,8 +20,11 @@ State model (per run, in the workspace `_intake_queue` Sheet):
 
 `historical` is the terminal state for sources that were already processed
 before the queue existed (with evidence) - being pre-queue is not a
-processing failure. `failed` may be corrected to `historical` when
-migration evidence turns up. `ignored` (with a category:
+processing failure. It is only reachable from a pre-processing state
+(`discovered`/`needs_scope`/`ready`) or as a correction from `failed` -
+never from `processing`/`blocked`, since by the time a run has actually
+started, "this predates the queue" is no longer a truthful claim. `ignored`
+(with a category:
 non_intake_course_material / reference_material / duplicate_data_quality /
 other) is for sources that are not intake at all - distinct from
 historical, which asserts prior processing. Subtrees that are categorically
@@ -81,11 +84,24 @@ Commands (all support --json for machine-readable output):
                                   failure leaves the run retryable in
                                   finalizing - never a false success
     fail <run-id> --reason "..."  give up explicitly (kept in history)
-    ignore <run-id> --category C [--reason "..."]
-                                  terminal: not an intake source at all
-    historical <run-id> --evidence "..."
+    ignore <run-id> --category C --reason "..." [--evidence "..."]
+                                  terminal: not an intake source at all;
+                                  only reachable from a pre-processing
+                                  state; --reason is required (a category
+                                  alone is not a reason); leaves the
+                                  source file where it is - its (path,
+                                  hash) identity keeps `scan` from
+                                  rediscovering it
+    mark-historical <run-id> --evidence "..."
                                   terminal: processed before the queue
-                                  existed; evidence required
+                                  existed; only reachable from a
+                                  pre-processing state or as a correction
+                                  of a mistaken `fail` - never from
+                                  `processing`/`blocked`; --evidence must
+                                  name something concrete (an
+                                  evidence_log row, a _skill_invocations
+                                  date, a document revision), never a
+                                  vague reason or unverified memory
     dashboard [--limit N] [--include-completed] [--include-ignored]
           [--project P] [--person X]
                                   read-only operator summary: actionable
@@ -165,6 +181,29 @@ Commands (all support --json for machine-readable output):
                                   writes, or mutates anything, and never
                                   includes full source text - only the
                                   same capped preview `classify` returns.
+    triage [--limit N] [--project P] [--person X]
+          [--category discovered|needs_scope|blocked|all]
+                                  read-only backlog overview across
+                                  discovered/needs_scope/blocked (or all
+                                  three): per-candidate recommended
+                                  command plus the exact terminal-action
+                                  commands (`ignore`/`mark-historical`)
+                                  TRANSITIONS actually allows from each
+                                  row's status - never a suggestion to
+                                  auto-apply one. Never creates, writes,
+                                  or mutates anything.
+    triage-one <run-id> [--max-preview-chars N]
+                                  read-only detailed triage view for one
+                                  run: source access + age, classify-style
+                                  signals/candidate_routes, a capped
+                                  preview, and the exact terminal-action
+                                  commands available from its current
+                                  status. Never creates, writes, or
+                                  mutates anything, and never infers
+                                  ignore/mark-historical from filename or
+                                  extension alone - only ever a hint,
+                                  applied explicitly and separately via
+                                  `ignore`/`mark-historical`.
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -239,8 +278,15 @@ TRANSITIONS = {
     "discovered": {"needs_scope", "ready", "processing", "failed", "historical", "ignored"},
     "needs_scope": {"ready", "processing", "failed", "historical", "ignored"},
     "ready": {"processing", "failed", "historical", "ignored"},
-    "processing": {"blocked", "finalizing", "failed", "historical"},
-    "blocked": {"processing", "failed", "historical"},
+    # historical is deliberately NOT reachable from processing/blocked - by
+    # the time a run has started, "this was already processed before the
+    # queue existed" is no longer a truthful claim (that's what `historical`
+    # asserts). A run that needs to stop mid-processing goes to `failed`
+    # instead; `failed` can still be corrected to `historical` below, for
+    # the narrow case where the failed mark itself was the mistake (the
+    # source was never real live work in the first place).
+    "processing": {"blocked", "finalizing", "failed"},
+    "blocked": {"processing", "failed"},
     # All verification passed; only the terminal mirror bookkeeping remains.
     # Retryable: a failed export leaves the run here, complete re-runs it.
     "finalizing": {"completed", "failed"},
@@ -1191,7 +1237,7 @@ def guide_stage_details(row: dict, graph: dict, route: dict,
                      f"Reason on file: {row.get('Reason', '')}"]
         if status == "failed":
             checklist.append("A failed run may later be corrected to historical if migration evidence turns up.")
-            commands.append(f'historical {run_id} --evidence "..."')
+            commands.append(f'mark-historical {run_id} --evidence "..."')
 
     else:
         checklist = [f"Unrecognized status {status!r}."]
@@ -1812,29 +1858,56 @@ def cmd_fail(args) -> CommandResult:
 
 
 def cmd_ignore(args) -> CommandResult:
+    """Terminal: not an intake source at all. Explicit mutation, only
+    reachable from a pre-processing state (see TRANSITIONS) - never
+    auto-inferred from a filename or extension. Requires a concrete
+    --reason (not just a category); leaves the source file exactly where
+    it is - a queue row's (path, hash) identity keeps it from being
+    rediscovered by a later `scan`, so no move/delete is needed to keep it
+    out of the backlog."""
+    reason = (args.reason or "").strip()
+    if not reason:
+        raise SystemExit("ignore requires --reason with a concrete reason - not blank, "
+                         "not just repeating the --category.")
+
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "ignored")
         row["Status"] = "ignored"
-        row["Reason"] = (f"ignored ({args.category})"
-                         + (f": {args.reason}" if args.reason else ""))
+        evidence = (getattr(args, "evidence", "") or "").strip()
+        row["Reason"] = (f"ignored ({args.category}): {reason}"
+                         + (f"  [evidence: {evidence}]" if evidence else ""))
     row = _update_run(args, mutate)
     return CommandResult(
         ok=True,
-        data={"run_id": row["Run ID"], "status": "ignored", "category": args.category},
+        data={"run_id": row["Run ID"], "status": "ignored", "category": args.category,
+              "reason": reason},
         human_lines=[row_brief(row)],
         exit_code=0
     )
 
 
-def cmd_historical(args) -> CommandResult:
+def cmd_mark_historical(args) -> CommandResult:
+    """Terminal: processed before the queue existed. Explicit mutation,
+    only reachable from a pre-processing state or as a correction of a
+    mistaken `fail` (see TRANSITIONS) - never from `processing`/`blocked`,
+    since a run that has actually started is not "pre-queue" by
+    definition. Requires concrete --evidence (a specific evidence_log row,
+    _skill_invocations date, document revision, etc.) - never a vague
+    reason or "I remember doing this"."""
+    evidence = (args.evidence or "").strip()
+    if not evidence:
+        raise SystemExit("mark-historical requires --evidence naming something concrete "
+                         "(an evidence_log row, a _skill_invocations date, a document revision) - "
+                         "not a vague reason or unverified memory.")
+
     def mutate(row: dict) -> None:
         validate_transition(row["Status"], "historical")
         row["Status"] = "historical"
-        row["Reason"] = f"pre-queue history: {args.evidence}"
+        row["Reason"] = f"pre-queue history: {evidence}"
     row = _update_run(args, mutate)
     return CommandResult(
         ok=True,
-        data={"run_id": row["Run ID"], "status": "historical", "evidence": args.evidence},
+        data={"run_id": row["Run ID"], "status": "historical", "evidence": evidence},
         human_lines=[row_brief(row)],
         exit_code=0
     )
@@ -2836,6 +2909,189 @@ def cmd_pack(args) -> CommandResult:
     return CommandResult(ok=True, data=data, warnings=preview_warnings, human_lines=lines, exit_code=0)
 
 
+# ---------- triage (read-only backlog overview + explicit terminal actions) ----------
+
+def allowed_terminal_actions_for_status(status: str) -> list[str]:
+    """Which of the two explicit triage terminal actions (`ignore`,
+    `mark-historical`) TRANSITIONS actually allows from this status - read
+    straight from the same table `start`/`complete` validate against, so
+    triage can never suggest an action the state machine would reject."""
+    reachable = TRANSITIONS.get(status, set())
+    actions: list[str] = []
+    if "ignored" in reachable:
+        actions.append("ignore")
+    if "historical" in reachable:
+        actions.append("mark-historical")
+    return actions
+
+
+def triage_terminal_action_commands(run_id: str, allowed: list[str]) -> list[str]:
+    commands: list[str] = []
+    if "ignore" in allowed:
+        commands.append(f'ignore {run_id} --category <non_intake_course_material|reference_material|'
+                        f'duplicate_data_quality|other> --reason "..." [--evidence "..."]')
+    if "mark-historical" in allowed:
+        commands.append(f'mark-historical {run_id} --evidence "..."')
+    return commands
+
+
+def cmd_triage(args) -> CommandResult:
+    """Read-only backlog overview, built from the same dashboard/classify
+    helpers - never a new source of truth, never an auto-classification.
+    Lists candidates in discovered/needs_scope/blocked (or all three) with
+    the exact terminal-action commands TRANSITIONS actually allows for
+    each; applying one is always a separate, explicit `ignore`/
+    `mark-historical` call."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+
+    project, person = (args.project or "").strip(), (args.person or "").strip()
+    if project or person:
+        rows = [r for r in rows if row_matches_scope_filter(r, project, person)]
+
+    category = (args.category or "discovered").strip().lower()
+    valid_categories = {"discovered", "needs_scope", "blocked", "all"}
+    if category not in valid_categories:
+        raise SystemExit(f"--category must be one of {sorted(valid_categories)} (got {category!r})")
+    statuses = {"discovered", "needs_scope", "blocked"} if category == "all" else {category}
+
+    candidate_rows = [r for r in rows if r.get("Status") in statuses]
+    limit = args.limit if getattr(args, "limit", None) and args.limit > 0 else DEFAULT_DASHBOARD_LIMIT
+
+    items = []
+    for row in candidate_rows[:limit]:
+        status = row.get("Status", "")
+        path_used, path_field_used, file_exists = "", "", None
+        try:
+            path_used, path_field_used = resolve_source_path(row)
+            file_exists = resolve_source_file_path(path_used).is_file()
+        except SystemExit:
+            pass
+        allowed = allowed_terminal_actions_for_status(status)
+        items.append({
+            **dashboard_row_summary(row),
+            "current_source": row.get("Current source", ""),
+            "source_path_used": path_used,
+            "source_path_field_used": path_field_used,
+            "file_exists": file_exists,
+            "recommended_command": dashboard_recommended_command(row),
+            "allowed_terminal_actions": allowed,
+            "terminal_action_commands": triage_terminal_action_commands(row["Run ID"], allowed),
+        })
+
+    counts = {s: sum(1 for r in rows if r.get("Status") == s) for s in ("discovered", "needs_scope", "blocked")}
+
+    data = {
+        "category": category,
+        "counts": counts,
+        "total_candidates": len(candidate_rows),
+        "items": items,
+        "limit": limit,
+        "guardrails": [
+            "Never infer a terminal action (ignore/mark-historical) from filename or extension alone - "
+            "read the source (`classify`/`triage-one`) first.",
+            "ignore requires a concrete --reason; mark-historical requires concrete --evidence - neither "
+            "accepts a blank or vague value.",
+            "This command never mutates anything - apply ignore/mark-historical explicitly, one run at a time.",
+        ],
+    }
+
+    lines = [f"Triage ({category}): {len(items)} of {len(candidate_rows)} candidate(s) shown "
+             f"(discovered={counts['discovered']}, needs_scope={counts['needs_scope']}, "
+             f"blocked={counts['blocked']})"]
+    for item in items:
+        lines.append(f"  {item['run_id']}  [{item['status']}]  {item['source']}")
+        lines.append(f"    -> {item['recommended_command']}")
+        lines += [f"    ! {c}" for c in item["terminal_action_commands"]]
+    if not items:
+        lines.append("  (none)")
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
+def cmd_triage_one(args) -> CommandResult:
+    """Read-only detailed triage view for one run: source access/age,
+    classify-style signals and candidate routes, a capped preview, and the
+    exact terminal-action commands actually available from its current
+    status per TRANSITIONS - never a suggestion to auto-apply one."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    row = get_run(rows, args.run_id)
+
+    max_chars = (args.max_preview_chars if getattr(args, "max_preview_chars", None)
+                 and args.max_preview_chars > 0 else DEFAULT_MAX_PREVIEW_CHARS)
+    preview, text, preview_warnings = build_source_preview(row, max_chars)
+
+    graph = load_graph()
+    signals = detect_format_signals(text, preview["extension"])
+    candidates = classify_candidate_routes(graph, signals, row)
+    reason_field = str(row.get("Reason", ""))
+    ignore_suggestion = None
+    if "duplicate content of" in reason_field:
+        ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+    classify_block = {
+        "signals": signals,
+        "confidence": "signals_detected" if candidates else "low",
+        "candidate_routes": candidates,
+        "routed_source_types": sorted((graph.get("sources") or {}).keys()),
+        "ignore_suggestion": ignore_suggestion,
+    }
+
+    status = row.get("Status", "")
+    allowed = allowed_terminal_actions_for_status(status)
+    terminal_commands = triage_terminal_action_commands(args.run_id, allowed)
+    if ignore_suggestion and "ignore" in allowed:
+        terminal_commands.insert(0, f'ignore {args.run_id} --category {ignore_suggestion["category"]} '
+                                    f'--reason "..."  (row Reason already flags: '
+                                    f'{ignore_suggestion["reason_hint"]})')
+    process_commands = [f'classify {args.run_id}', f'guide {args.run_id}', f'pack {args.run_id}']
+
+    identity = dashboard_row_summary(row)
+    identity["current_source"] = row.get("Current source", "")
+    identity["source_hash"] = row.get("Source hash", "")
+    age_days = None
+    discovered_ts = parse_ts(row.get("Discovered", ""))
+    if discovered_ts:
+        age_days = round((dt.datetime.now().timestamp() - discovered_ts) / 86400, 2)
+    identity["age_days"] = age_days
+
+    guardrails = [
+        "Never infer a terminal action from filename or extension alone - the preview/signals below are "
+        "hints, not a decision; read the source before choosing.",
+        "ignore requires a concrete --reason; mark-historical requires concrete --evidence.",
+        "This command never mutates anything.",
+    ]
+
+    data = {
+        "run_id": args.run_id,
+        "identity": identity,
+        "source_preview": preview,
+        "classify": classify_block,
+        "allowed_terminal_actions": allowed,
+        "terminal_action_commands": terminal_commands,
+        "process_commands": process_commands,
+        "guardrails": guardrails,
+    }
+
+    lines = [f"Triage detail for {args.run_id}  [{status}]",
+             f"  source: {preview['source_path_used']}  (from {preview['source_path_field_used']})",
+             f"  age: {age_days} day(s) since discovered" if age_days is not None else "  age: unknown"]
+    if preview["text_readable"]:
+        lines.append(f"  lines: {preview['line_count']}  confidence: {classify_block['confidence']}")
+    lines.append("  candidate_routes:")
+    lines += [f"    - {c['source_type']}" + (f"/{c['variant']}" if c["variant"] else "")
+              + f"  ({c['reason']})" for c in candidates] or ["    (none - manual review required)"]
+    lines.append("  allowed terminal actions: " + (", ".join(allowed) or "(none from this status)"))
+    lines.append("  commands:")
+    lines += [f"    $ {c}" for c in terminal_commands + process_commands]
+    lines.append("  guardrails:")
+    lines += [f"    ! {g}" for g in guardrails]
+
+    return CommandResult(ok=True, data=data, warnings=preview_warnings, human_lines=lines, exit_code=0)
+
+
 def main() -> int:
     parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -2902,9 +3158,11 @@ def main() -> int:
     p = sub.add_parser("ignore", help="terminal: not an intake source at all", parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--category", required=True, choices=sorted(IGNORE_CATEGORIES))
-    p.add_argument("--reason", default="")
+    p.add_argument("--reason", required=True, help="concrete reason - required, not just the category")
+    p.add_argument("--evidence", default="", help="optional supporting evidence for the audit trail")
 
-    p = sub.add_parser("historical", help="terminal: processed before the queue existed", parents=[parent])
+    p = sub.add_parser("mark-historical", help="terminal: processed before the queue existed",
+                       parents=[parent])
     p.add_argument("run_id")
     p.add_argument("--evidence", required=True,
                    help="where the pre-queue processing is recorded "
@@ -2952,6 +3210,22 @@ def main() -> int:
     p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
                    help=f"cap on the returned source preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
 
+    p = sub.add_parser("triage", help="read-only backlog overview (discovered/needs_scope/blocked)",
+                       parents=[parent])
+    p.add_argument("--limit", type=int, default=DEFAULT_DASHBOARD_LIMIT,
+                   help=f"candidates listed (default {DEFAULT_DASHBOARD_LIMIT})")
+    p.add_argument("--project", default="", help="filter to one project")
+    p.add_argument("--person", default="", help="filter to one person")
+    p.add_argument("--category", default="discovered",
+                   choices=["discovered", "needs_scope", "blocked", "all"],
+                   help="which backlog bucket to list (default discovered)")
+
+    p = sub.add_parser("triage-one", help="read-only detailed triage view for one run",
+                       parents=[parent])
+    p.add_argument("run_id")
+    p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
+                   help=f"cap on the returned preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
+
     args = parser.parse_args()
 
     commands = {
@@ -2960,10 +3234,10 @@ def main() -> int:
         "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
         "add-scope": cmd_add_scope,
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
-        "historical": cmd_historical, "archive-source": cmd_archive_source,
+        "mark-historical": cmd_mark_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
         "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,
-        "pack": cmd_pack
+        "pack": cmd_pack, "triage": cmd_triage, "triage-one": cmd_triage_one
     }
 
     if not args.json:
