@@ -342,6 +342,18 @@ def parse_ts(text: str) -> float:
 # ---------- pure helpers (unit-tested) ----------
 
 
+def filter_boilerplate_problems(problems: list[str]) -> list[str]:
+    """Strip evaluate_run's generic "Run cannot be completed from state X"
+    entry - true for any non-processing/closure status but never an actual
+    finding, so every consumer that curates a "problems" list (guide's
+    completed-stage checklist, dashboard's integrity_issues, pack's
+    review_summary) must drop it the same way. Factored out (qa-retro,
+    2026-07-21) after the same one-line filter was independently added
+    three times - once per command's own commit (dashboard, guide, pack) -
+    instead of being written once at the source."""
+    return [p for p in problems if "Run cannot be completed from state" not in p]
+
+
 def check_source_text_snapshot(sha: str, row: dict) -> list[str]:
     v = str(row.get("Source text version", "")).strip()
     req = source_text_requirement(row)
@@ -1216,7 +1228,7 @@ def guide_stage_details(row: dict, graph: dict, route: dict,
         extra["invocation_present"] = eval_res.invocation_present
 
     elif status == "completed":
-        real_problems = [p for p in eval_res.all_problems if "Run cannot be completed from state" not in p]
+        real_problems = filter_boilerplate_problems(eval_res.all_problems)
         if real_problems or eval_res.warnings:
             checklist = [
                 "This completed run has an integrity problem - do NOT edit its terminal Snapshot/queue row.",
@@ -2342,7 +2354,7 @@ def cmd_dashboard(args) -> CommandResult:
             # completed run; filter the boilerplate so it doesn't drown out
             # real issues (found live: every completed row otherwise showed
             # up here even when perfectly healthy).
-            problems = [p for p in problems if "Run cannot be completed from state" not in p]
+            problems = filter_boilerplate_problems(problems)
         if not problems and not eval_res.warnings:
             return None
         return {**dashboard_row_summary(row), "problems": problems, "warnings": eval_res.warnings}
@@ -2849,7 +2861,7 @@ def cmd_pack(args) -> CommandResult:
     # completed, ...) - true and expected, never an actual finding (same
     # filter `guide`/`dashboard` already apply to completed rows), so it
     # never belongs in the curated "problems" summary regardless of status.
-    review_problems = [p for p in eval_res.all_problems if "Run cannot be completed from state" not in p]
+    review_problems = filter_boilerplate_problems(eval_res.all_problems)
     review_summary = {
         "unresolved_edges": eval_res.unresolved_edges,
         "entry_problems": eval_res.entry_problems,
