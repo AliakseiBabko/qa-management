@@ -111,7 +111,19 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      It provides deterministic literal-path search across the canonical `.md`/`.csv` corpus
      and `_source_text` blobs using Git. Output can be limited by path, kind, run-id, or dates.
      Passing `--json` emits a strict JSON envelope buffering output for programmatic consumption.
-   - Processing a new source? — the intake workflow runs through
+   - Starting a session, or not sure what needs attention right now? —
+     run `.agents\scripts\qa_manage.py dashboard` first, before `scan`,
+     `next`, `start`, `review`, or `complete`. It's the default operator
+     entry point: a read-only summary of every run needing the next agent
+     action (grouped with the exact next command), blocked/finalizing
+     runs, integrity issues on finalizing/completed runs (reusing
+     `review`'s own evaluation, bounded by `--limit`), and a read-only
+     `00_Inbox`/`90_Storage` file-count summary (add `--json` for the
+     strict envelope). Never creates or mutates anything. Use it to decide
+     *which* run/action needs attention; once you've picked one, the full
+     intake workflow below is how you actually process it.
+   - Processing a new source (picked via `dashboard`, or found directly)? —
+     the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>
      --source-type ... [--variant] [--scope "Project|Person" ...]` →
@@ -129,15 +141,6 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
-   - Starting a session and not sure what's actionable across the whole
-     queue? — `qa_manage.py dashboard` (add `--json` for the strict
-     envelope). Read-only operator summary: every run needing the next
-     agent action, grouped with the exact next command; blocked/finalizing
-     runs; integrity issues on finalizing/completed runs (reusing `review`'s
-     own evaluation, bounded by `--limit`); and a read-only `00_Inbox`/
-     `90_Storage` file-count summary. Never creates or mutates anything —
-     run this before `scan`/`next` to see the whole picture, not just the
-     single most-actionable run.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`

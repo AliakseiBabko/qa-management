@@ -437,7 +437,23 @@ These are what actually runs day to day, once a project's folder already exists:
   the restored docs, then `commit_workspace_state.py` to record the
   post-rollback state.
 - `qa_manage.py` — intake queue and run state machine (the durable-state
-  layer; the agent keeps all judgment). `scan` discovers sources into the
+  layer; the agent keeps all judgment). **Default daily/operator command:
+  `dashboard`** — run this first, before `scan`/`next`/`start`/`review`/
+  `complete`, to see what needs attention. Read-only summary across the
+  whole queue: runs needing the next agent action (grouped with the exact
+  next command — `start` / `record-analysis` / `record-apply` /
+  `resolve-edge` / `commit_workspace_state.py` / `complete`, decided by
+  reusing `review`'s own evaluate-run logic), `blocked` runs with their
+  reason, `finalizing` runs needing a `complete` retry, `integrity_issues`
+  found by that same evaluation on finalizing/completed rows (bounded by
+  `--limit`, default 20, so it stays cheap), plus a read-only `00_Inbox`
+  file count (grouped by queue-known source type) and a
+  `90_Storage/Processed_Sources` count by month. `--include-completed`/
+  `--include-ignored` add optional listings; `--project`/`--person` filter
+  to one scope. Never creates, writes, or mutates anything — it only calls
+  the same find/read helpers `review` does. Once `dashboard` points at a
+  run to process, the rest of this entry is the workflow that actually
+  processes it. `scan` discovers sources into the
   workspace `_intake_queue` Sheet with (path, content-hash) identity:
   exact pairs are skipped, changed content at a known path becomes a
   superseding run, identical content at a new path is recorded as a
@@ -486,19 +502,7 @@ These are what actually runs day to day, once a project's folder already exists:
   emitted at the end. Transitions are validated against an explicit table
   (unit-tested in `.agents/tests`). The `review <run-id>` command provides a
   read-only evaluation of a run's closure/completion readiness (missing invocation
-  evidence, snapshot problems, unresolved edges) without mutation. `dashboard`
-  is the read-only operator summary across the whole queue: runs needing the
-  next agent action (grouped with the exact next command — `start` /
-  `record-analysis` / `record-apply` / `resolve-edge` /
-  `commit_workspace_state.py` / `complete`, decided by reusing `review`'s own
-  evaluate-run logic), `blocked` runs with their reason, `finalizing` runs
-  needing a `complete` retry, `integrity_issues` found by that same
-  evaluation on finalizing/completed rows (bounded by `--limit`, default 20,
-  so it stays cheap), plus a read-only `00_Inbox` file count (grouped by
-  queue-known source type) and a `90_Storage/Processed_Sources` count by
-  month. `--include-completed`/`--include-ignored` add optional listings;
-  `--project`/`--person` filter to one scope. Never creates, writes, or
-  mutates anything — it only calls the same find/read helpers `review` does.
+  evidence, snapshot problems, unresolved edges) without mutation.
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,
