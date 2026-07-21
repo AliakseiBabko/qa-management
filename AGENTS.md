@@ -104,7 +104,10 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      level, last evidence_log date) to triage before pulling a full dump.
      For programmatic targeted reads (Phase 3), use `--document <Name>`,
      `--person <Name>`, `--since YYYY-MM-DD`, and `--limit N` along with `--json`
-     to emit a strict JSON envelope.
+     to emit a strict JSON envelope. Pass `--lane project_knowledge` (default
+     `m2`) for a project under `30_Project_Knowledge` instead of
+     `20_M2_Project_Management` - see the Project Knowledge lane below;
+     `--registries`/`--summary`/`--person` are not supported for that lane.
    - Need to search the entire workspace or view historical changes? —
      `.agents\scripts\search_workspace.py search <query>` (current state) or
      `.agents\scripts\search_workspace.py history <query>` (first-parent commit traversal).
@@ -115,7 +118,31 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      ("where was X last mentioned", "what changed since date", canonical-only vs.
      source-only, one run by run-id) and when to prefer
      `show_project_state.py` instead (live Drive state vs. the mirror's last
-     committed snapshot, which can be stale).
+     committed snapshot, which can be stale). Unprocessed-inbox inspection
+     (a source not yet processed) goes through `triage`/`triage-one`/
+     `classify`/`pack` instead - `search_workspace.py` only sees what's
+     already in the mirror.
+   - Working on project understanding/onboarding rather than M1/M2
+     management reporting? — the **Project Knowledge lane**
+     (`30_Project_Knowledge\<Project>\`, Phase 13.1). Builds a project
+     knowledge base gradually from whatever sources actually exist
+     (transcripts, documents, chats, owner notes) - a formal
+     knowledge-transfer session (`project_knowledge_transcript`) is one
+     possible input, never a prerequisite; a project can start in this
+     lane with poor/incomplete documentation. Reuses the normal intake
+     queue/archive/mirror pipeline: `scan`/`triage`/`classify`/`guide`/
+     `pack` all work unchanged (`route_description` surfaces for these
+     routes the same way it does for M1/M2 ones); `dashboard`/`triage`
+     have no `--lane` filter yet, and `qa_manage.py gates` stays M2-only
+     (this lane has no `m2_input`-style two-phase gate). Four source
+     types: `project_knowledge_transcript`, `project_knowledge_document`,
+     `project_knowledge_chat`, `project_knowledge_notes`; skills
+     `project-knowledge-roles` (shared rules) and
+     `project-knowledge-intake` (source-triggered). Private by default
+     (no shared/team_shared split) - sharing an individual Doc is a
+     deliberate, one-off action outside automation. No Google Slides in
+     this phase - presentation output is explicitly deferred to a later
+     phase, not part of Phase 13.1.
    - Want to know what M2 still owes an answer on — pending `m2_input`
      rounds gating `project_risk`/`project_development_plan` across
      projects? — `.agents\scripts\qa_manage.py gates [--project <Name>]
@@ -317,6 +344,8 @@ Current canonical skills:
 | `m2-monthly-report` | M2 | Monthly M2 KPI/bonus Google Sheet, with CSV fallback, based on monthly report example structure and evidence-backed project-management data | `.agents/skills/m2-monthly-report/SKILL.md` |
 | `qa-retro` | Common | Improvement-loop retro pass: turns repeated friction/feedback since the last retro (via `prepare_retro.py` over `_skill_invocations`) into proposed skill/reference/graph edits, presented as diffs for user review | `.agents/skills/qa-retro/SKILL.md` |
 | `repo-maintenance` | Common | Consistency checklist for any structural change to this repo (skill/script/template/document-type/dependency), keeping AGENTS.md, README, `document_graph.yaml`, and source-type lists in sync in the same commit | `.agents/skills/repo-maintenance/SKILL.md` |
+| `project-knowledge-roles` | Project Knowledge | Shared rules for the Project Knowledge lane (`30_Project_Knowledge`) - gradual knowledge accumulation from diverse sources, durable-vs-one-off distinction, open questions, M1/M2 boundary, QA docs as downstream products | `.agents/skills/project-knowledge-roles/SKILL.md` |
+| `project-knowledge-intake` | Project Knowledge | Source-triggered intake for `project_knowledge_transcript`/`document`/`chat`/`notes`: summary (where appropriate), `pk_source_index` row, `pk_knowledge_base` update, optional QA-doc update | `.agents/skills/project-knowledge-intake/SKILL.md` |
 
 Load only the skill needed for the current outcome. Do not preload other role skills.
 

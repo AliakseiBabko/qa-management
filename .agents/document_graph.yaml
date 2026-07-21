@@ -35,6 +35,20 @@
 # variant when the same source_type legitimately fans out differently
 # (role for a 1:1, meeting shape for a transcript). The agent picks the
 # variant; the graph defines what each variant must touch.
+#
+# `lane` (optional on a source entry, defaults to `m2_project_management`
+# when absent) says which Drive root a `project` scope for that source
+# resolves against - see `lanes:` below. Only scripts that resolve a
+# project name to an actual Drive folder (show_project_state.py,
+# project_knowledge_workspace_layout.py) need to know this; the intake
+# queue/cascade-closure machinery treats `project` as a plain string
+# regardless of lane.
+lanes:
+  m2_project_management:
+    root_folder: 20_M2_Project_Management
+  project_knowledge:
+    root_folder: 30_Project_Knowledge
+
 sources:
   qa_1to1:
     routes:
@@ -151,6 +165,50 @@ sources:
     # action_items.
     skills: [qa-management-roles, m2-timeline]
     entry: [m2_input, action_items, evidence_log, _skill_invocations]
+
+  project_knowledge_transcript:
+    lane: project_knowledge
+    scope_required: [project]
+    description: >-
+      A recorded/transcribed conversation used to build project
+      understanding (a KT session, a status call, a 1:1 covering project
+      context) - one input among several, not a required prerequisite for
+      this lane. Summarized and folded into the project knowledge base;
+      never routed to any M1/M2 management document.
+    skills: [project-knowledge-intake]
+    entry: [pk_source_index, pk_summary, pk_knowledge_base, _skill_invocations]
+
+  project_knowledge_document:
+    lane: project_knowledge
+    scope_required: [project]
+    description: >-
+      A written artifact used to build project understanding (a design
+      doc, a presentation export, a runbook, a spec) - same
+      summarize-and-fold-into-knowledge-base treatment as
+      project_knowledge_transcript, without transcript turn parsing.
+    skills: [project-knowledge-intake]
+    entry: [pk_source_index, pk_summary, pk_knowledge_base, _skill_invocations]
+
+  project_knowledge_chat:
+    lane: project_knowledge
+    scope_required: [project]
+    description: >-
+      A chat/message-thread export used to build project understanding -
+      same treatment as project_knowledge_document, distinguished only by
+      its chat-header shape.
+    skills: [project-knowledge-intake]
+    entry: [pk_source_index, pk_summary, pk_knowledge_base, _skill_invocations]
+
+  project_knowledge_notes:
+    lane: project_knowledge
+    scope_required: [project]
+    description: >-
+      The owner's own short notes/observations about a project (not a
+      full transcript or document) - folded into the knowledge base
+      directly; too short to warrant a separate summary document of its
+      own.
+    skills: [project-knowledge-intake]
+    entry: [pk_source_index, pk_knowledge_base, _skill_invocations]
 
 documents:
   # ---- per-person (M2 project scope) ----
@@ -352,6 +410,54 @@ documents:
     # Generated PR-only view of _m1_timeline; never edited directly.
     scope: workspace
     generated: true
+    downstream: []
+
+  # ---- Project Knowledge lane (30_Project_Knowledge) ----
+  pk_source_index:
+    scope: project
+    append_only: true
+    downstream: []
+    note: >-
+      One row per processed source, same ground-truth role evidence_log
+      plays in the M2 lane - a no_change outcome (source added no durable
+      knowledge) still gets a row.
+
+  pk_summary:
+    scope: project
+    downstream:
+      - to: pk_knowledge_base
+        kind: judgment
+        note: >-
+          Fold durable facts into the knowledge base in the same pass; a
+          summary that adds nothing new to the knowledge base is a valid
+          no_change outcome - not every source moves the knowledge base.
+
+  pk_knowledge_base:
+    scope: project
+    downstream:
+      - to: pk_performance_test_plan
+        kind: judgment
+        note: >-
+          Only when the source knowledge actually affects performance-test
+          scope/approach - not an automatic output of every knowledge-base
+          update.
+      - to: pk_test_plan
+        kind: judgment
+        note: Same rule as pk_performance_test_plan - update only when the source knowledge affects test scope.
+      - to: pk_test_strategy
+        kind: judgment
+        note: Same rule as pk_performance_test_plan - update only when the source knowledge affects overall test approach.
+
+  pk_performance_test_plan:
+    scope: project
+    downstream: []
+
+  pk_test_plan:
+    scope: project
+    downstream: []
+
+  pk_test_strategy:
+    scope: project
     downstream: []
 
 # Documents produced on a calendar cadence, not per intake. Excluded from

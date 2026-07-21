@@ -85,6 +85,10 @@ SKILL_INVOCATION_SOURCE_TYPES = {
     # newly-discovered files ("pending M2 review" evidence rows). A source
     # keeps one of these only until it's classified into a type above.
     "raw_transcript", "raw_chat", "source_document",
+    # Project Knowledge lane (30_Project_Knowledge) - see document_graph.yaml's
+    # `lanes:` mapping and google-workspace-rules.md.
+    "project_knowledge_transcript", "project_knowledge_document",
+    "project_knowledge_chat", "project_knowledge_notes",
 }
 
 
