@@ -81,7 +81,8 @@ def git_bytes(mirror: Path, *args: str) -> bytes:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    module_doc = __doc__ or "Restore workspace data from the private mirror"
+    parser = argparse.ArgumentParser(description=module_doc.splitlines()[0])
     parser.add_argument("--mirror", default=str(DEFAULT_MIRROR), help="mirror repo path")
     parser.add_argument("--history", metavar="PATH",
                         help="list commits that changed this mirror path, then exit")

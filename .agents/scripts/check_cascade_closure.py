@@ -221,7 +221,8 @@ def walk(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    module_doc = __doc__ or "Check cascade closure"
+    parser = argparse.ArgumentParser(description=module_doc.splitlines()[0])
     parser.add_argument("--touched", default="", help="comma-separated document names that were updated")
     parser.add_argument("--from-log", type=int, default=0, metavar="N",
                         help="also read the last N _skill_invocations rows' Documents touched")

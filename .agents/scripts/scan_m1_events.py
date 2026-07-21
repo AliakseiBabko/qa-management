@@ -260,8 +260,9 @@ def scan_person_okr(
             "notes": f"Расчёт из _people_registry ({basis})",
         }]
 
-    has_window = window_open is not None and window_close is not None
-    mismatch = has_window and not (window_open <= doc_date <= window_close)
+    mismatch = False
+    if window_open is not None and window_close is not None:
+        mismatch = not (window_open <= doc_date <= window_close)
     due = doc_date
     overdue = doc_date < dt.date.today()
     what = (
