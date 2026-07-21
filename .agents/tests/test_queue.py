@@ -121,9 +121,9 @@ class TestDiscoveryIdentity(unittest.TestCase):
 class TestScanExclusion(unittest.TestCase):
     def test_reference_tree_needs_no_special_exclusion(self):
         self.assertFalse(is_excluded(
-            r"30_Reference\Source_Documents\M2_role_vision\Task 1.docx"))
+            r"90_Storage\Reference\Source_Documents\M2_role_vision\Task 1.docx"))
         self.assertFalse(is_excluded(
-            "30_Reference/Source_Documents/M2_personal_development_plan/x.docx"))
+            "90_Storage/Reference/Source_Documents/M2_personal_development_plan/x.docx"))
 
     def test_sibling_paths_not_excluded(self):
         self.assertFalse(is_excluded(

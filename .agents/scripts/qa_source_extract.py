@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-root",
         default=None,
-        help="Extraction output folder. Defaults to G:\\My Drive\\QA_Management\\_System\\extracts\\source\\YYYY-MM-DD.",
+        help="Extraction output folder. Defaults to G:\\My Drive\\QA_Management\\90_Storage\\_System\\extracts\\source\\YYYY-MM-DD.",
     )
     parser.add_argument(
         "--overwrite",
@@ -319,7 +319,7 @@ def main() -> int:
         output_root = Path(args.output_root)
     else:
         output_root = (
-            Path(r"G:\My Drive\QA_Management\_System\extracts\source")
+            Path(r"G:\My Drive\QA_Management\90_Storage\_System\extracts\source")
             / dt.date.today().isoformat()
         )
 

@@ -25,7 +25,7 @@ owners and different audiences — never merge them into one file.
   Sheet column schema.
 - `<repo-root>\Templates\метрики_проекта_qa.md` — catalogue covering both
   artifacts and how to choose among their candidate metrics. Derived from
-  `30_Reference\Source_Documents\M2_project_development_plan` and real project content.
+  `90_Storage\Reference\Source_Documents\M2_project_development_plan` and real project content.
 - `<repo-root>\Templates\метрики_qa_по_проекту.csv` / `.md`
   For individual QA metrics inside the project scope.
 
@@ -178,11 +178,11 @@ here — §3 is `_project_registry`, not this catalog).
 
 ## Source Extraction Strategy
 
-- Before reading an original DOCX/XLSX file, check whether the source was already extracted under `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD\<Project>\`.
+- Before reading an original DOCX/XLSX file, check whether the source was already extracted under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\`.
 - For extracted workbooks, start from the workbook JSON file. Use sheet names, row counts, column counts, `document_role`, source path, and preview rows to decide which CSV sheet files matter.
 - For extracted workbooks with many sheets or many rows, do not read all CSV files end to end. First inspect the JSON manifest, then search candidate CSV files for metric labels, dates, scorecard sections, owners, blockers, trend words, or project-specific keywords.
 - For extracted DOCX files, search headings and key phrases before reading long sections. Prefer sections that mention metrics, scorecard, plan progress, QA process, automation, manual testing, feedback, risks, blockers, owners, and review dates.
-- If no suitable extract exists, run `.agents/scripts/qa_source_extract.py` with the source root and an output root under `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`. Do not re-extract into a non-empty folder without `--overwrite` unless the user explicitly wants to refresh the extract.
+- If no suitable extract exists, run `.agents/scripts/qa_source_extract.py` with the source root and an output root under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD`. Do not re-extract into a non-empty folder without `--overwrite` unless the user explicitly wants to refresh the extract.
 - Preserve extracted source paths in `evidence_log`, not in `Пояснение` — neither table has an evidence/path column.
 - If an extracted file is stale compared with the source document modified date, say so and decide whether the stale extract is sufficient or a refreshed extract is needed.
 

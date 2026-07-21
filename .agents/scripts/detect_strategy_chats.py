@@ -57,7 +57,7 @@ from sync_m2_source_docs_to_sheets import (
 
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
 INBOX_ROOT = "00_Inbox"
-REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "intake"
+REVIEW_ROOT = DEFAULT_ROOT / "90_Storage" / "_System" / "reviews" / "intake"
 
 STRATEGY_FILE_RE = re.compile(r"^(?P<project>.+)_strategy(?:_.*)?\.txt$", re.IGNORECASE)
 

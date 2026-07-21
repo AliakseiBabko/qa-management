@@ -9,9 +9,9 @@ tabular records, so they are stored as Google Docs instead of Google Sheets:
 - 20_M2_Project_Management/<Project>/people/<Person>/shared/individual_development_plan
 
 Any pre-existing Sheet with the same title is archived (renamed and moved into
-90_Archive/20_M2_Project_Management/<Project>/) rather than deleted, since it
+90_Storage/Retired/20_M2_Project_Management/<Project>/) rather than deleted, since it
 may still be useful history. Archives live under the single workspace-wide
-90_Archive tree rather than inside each active project folder, so there is
+90_Storage/Retired tree rather than inside each active project folder, so there is
 one place to look for retired artifacts instead of two.
 """
 
@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync development-plan Google Docs from extracted source docs.")
     parser.add_argument(
         "--extract-root",
-        default=rf"G:\My Drive\QA_Management\_System\extracts\source\{today}",
+        default=rf"G:\My Drive\QA_Management\90_Storage\_System\extracts\source\{today}",
         help="Dated extraction folder produced by qa_source_extract.py.",
     )
     parser.add_argument(
@@ -285,8 +285,9 @@ def upsert_doc(
 
 
 def archive_project_folder(drive: Any, root_folder_id: str, project: str) -> dict[str, Any]:
-    archive_90 = find_or_create_folder(drive, root_folder_id, "90_Archive")
-    archive_m2 = find_or_create_folder(drive, archive_90["id"], "20_M2_Project_Management")
+    storage = find_or_create_folder(drive, root_folder_id, "90_Storage")
+    retired = find_or_create_folder(drive, storage["id"], "Retired")
+    archive_m2 = find_or_create_folder(drive, retired["id"], "20_M2_Project_Management")
     return find_or_create_folder(drive, archive_m2["id"], project)
 
 

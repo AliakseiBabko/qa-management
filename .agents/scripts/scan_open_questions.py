@@ -27,7 +27,7 @@ still M2's call - this script's dates/wording are a starting point, not a
 finished row.
 
 Default mode is read-only: prints candidates grouped by project and writes
-a review bundle to _System/reviews/open_questions/YYYY-MM-DD.md. Pass
+a review bundle to 90_Storage/_System/reviews/open_questions/YYYY-MM-DD.md. Pass
 --write to also append new candidates into each project's action_items
 Sheet (creating it if missing); run refresh_timeline_registry.py afterward
 to fold them into _timeline.
@@ -52,7 +52,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
-REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "open_questions"
+REVIEW_ROOT = DEFAULT_ROOT / "90_Storage" / "_System" / "reviews" / "open_questions"
 
 
 def parse_args() -> argparse.Namespace:

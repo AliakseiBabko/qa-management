@@ -121,7 +121,7 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      edge → `archive-source <run-id>` →
      `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
      `archive-source` moves the original from `00_Inbox` to a run-specific
-     `90_Archive/Processed_Sources` folder while preserving Drive identity;
+     `90_Storage/Processed_Sources` folder while preserving Drive identity;
      the snapshot must be created after this move.
      Put the exact token `run:<run-id>` in the `_skill_invocations`
      Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
@@ -220,10 +220,9 @@ Expected data folders under that root:
 - `00_Inbox`: the only intake folder; recursively scanned, and empty means there are no unprocessed files
 - `10_M1_People_Management`: person-based, `<Person>\` subfolder per team member (1to1, OKR, salary-review self-feedback); the living `Светофор рисков` sheet, `_m1_timeline`, and M1's own monthly report stay at the root — see `google-workspace-rules.md`, M1 Person-Based Layout
 - `20_M2_Project_Management`: M2 project-management outputs
-- `30_Reference`: durable source/reference material that is not pending intake
-- `_System`: generated extracts and review bundles; internal implementation artifacts
 - `80_Exports` (optional): created only when an explicit immutable package/copy is prepared for external sharing
-- `90_Archive`: processed source originals, retired outputs, legacy folders, and backups
+- `90_Storage`: the single non-actionable storage root, containing `Reference`,
+  `Processed_Sources`, `_System`, `Backups`, and `Retired`
 
 M2 project-management outputs are project-based. Each active project should have
 its own folder under `20_M2_Project_Management`, for example:
@@ -258,8 +257,8 @@ source/output as evidence.
 
 Archived legacy locations:
 
-- `90_Archive/VSCode_Settings_Backup`: former top-level `.vscode`
-- `90_Archive/03_Projects_DC_old_empty_placeholder`: preserved old empty DC placeholder
+- `90_Storage/Retired/VSCode_Settings_Backup`: former top-level `.vscode`
+- `90_Storage/Retired/03_Projects_DC_old_empty_placeholder`: preserved old empty DC placeholder
 
 ## General Rules
 

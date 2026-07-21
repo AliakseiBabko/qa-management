@@ -16,7 +16,7 @@ or explicitly not applicable, and why.
 `<repo-root>\Templates\аутсорс_чек_лист_qa.csv`
 
 A parallel `.xlsx` copy convention is referenced by the source article
-(`30_Reference\Source_Documents\Аутсорс чек-лист QA.xlsx`) — treat
+(`90_Storage\Reference\Source_Documents\Аутсорс чек-лист QA.xlsx`) — treat
 this repo's CSV/Sheet as the canonical machine-readable version; if a
 project already has the `.xlsx` copy filled in locally, transcribe it into
 the Sheet rather than maintaining both.

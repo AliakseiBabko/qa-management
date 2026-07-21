@@ -41,7 +41,7 @@ happened, or the report deadline is genuinely still open, is still M1's
 call.
 
 Default mode is read-only: prints candidates and writes a review bundle to
-_System/reviews/open_questions/YYYY-MM-DD_m1.md. Pass --write to also
+90_Storage/_System/reviews/open_questions/YYYY-MM-DD_m1.md. Pass --write to also
 append new candidates into _m1_timeline (creating it if missing); no
 separate refresh step is needed since, unlike m2-timeline, this is a
 single flat Sheet, not a per-project Sheet plus rollup.
@@ -67,7 +67,7 @@ DOC_MIME = "application/vnd.google-apps.document"
 SHEET_MIME = "application/vnd.google-apps.spreadsheet"
 TIMELINE_HEADER = ["Сотрудник", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
-REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "open_questions"
+REVIEW_ROOT = DEFAULT_ROOT / "90_Storage" / "_System" / "reviews" / "open_questions"
 
 OKR_DOC_PREFIX = "OKR к Perfomance review "
 MONTHLY_REPORT_RE = re.compile(r"^m1_monthly_report_(?P<manager>.+)_(?P<month>\d{4}-\d{2})(?:_v\d+)?$")

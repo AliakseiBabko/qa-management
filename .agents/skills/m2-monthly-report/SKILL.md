@@ -11,7 +11,7 @@ Use this skill for one output family only:
 
 Default source example:
 
-`G:\My Drive\QA_Management\30_Reference\Source_Documents\M2_monthly_report.xlsx`
+`G:\My Drive\QA_Management\90_Storage\Reference\Source_Documents\M2_monthly_report.xlsx`
 
 ## Required Start
 

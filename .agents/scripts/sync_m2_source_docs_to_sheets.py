@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync source-aligned M2 project files from extracted reference material into Google Sheets.
 
-This script uses extracted DOCX/XLSX content from _System/extracts/source and
+This script uses extracted DOCX/XLSX content from 90_Storage/_System/extracts/source and
 updates the canonical project-based M2 workspace in Google Drive:
 
 - 20_M2_Project_Management/<Project>/private/project_metrics
@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync source-aligned M2 Sheets from extracted source docs.")
     parser.add_argument(
         "--extract-root",
-        default=rf"G:\My Drive\QA_Management\_System\extracts\source\{today}",
+        default=rf"G:\My Drive\QA_Management\90_Storage\_System\extracts\source\{today}",
         help="Dated extraction folder produced by qa_source_extract.py.",
     )
     parser.add_argument(

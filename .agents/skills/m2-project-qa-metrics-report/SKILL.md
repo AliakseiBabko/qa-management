@@ -15,7 +15,7 @@ Use this skill for one output family only:
 2. Read `../qa-management-roles/references/google-workspace-rules.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Identify the target project and reporting period.
-5. For DOCX/XLSX sources, first check whether an extracted copy already exists under `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD\<Project>\...`.
+5. For DOCX/XLSX sources, first check whether an extracted copy already exists under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\...`.
 6. If no suitable extract exists, use `.agents/scripts/qa_source_extract.py` to extract source documents into text-friendly Markdown, CSV, JSON, and manifest files before analysis.
 7. Read project metrics first, then supporting development plans, risk summaries, business/project context, and workbook status rows.
 8. Read individual QA metrics when they exist and use them as inputs to the project picture where they affect capacity, coverage, quality, visibility, delivery predictability, or risk.
