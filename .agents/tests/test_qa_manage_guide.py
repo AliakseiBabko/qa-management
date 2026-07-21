@@ -108,6 +108,66 @@ class DiscoveredGuideTests(unittest.TestCase):
         # scope guardrail applies to discovered
         self.assertTrue(any("default" in g.lower() for g in res.data["guardrails"]))
 
+    def test_checklist_reads_current_source_when_it_differs_from_source(self):
+        r = row("r1", "discovered",
+                Source="00_Source_Docs\\01_Meeting_Transcripts\\legacy name.txt",
+                **{"Current source": "00_Inbox/legacy name.txt"})
+        res, _ = run_guide(r)
+        self.assertEqual(res.data["identity"]["source"], "00_Source_Docs\\01_Meeting_Transcripts\\legacy name.txt")
+        self.assertEqual(res.data["identity"]["current_source"], "00_Inbox/legacy name.txt")
+        read_step = res.data["checklist"][0]
+        self.assertIn("Current source: 00_Inbox/legacy name.txt", read_step)
+        self.assertNotIn("00_Source_Docs", read_step)
+
+    def test_checklist_falls_back_to_source_when_current_source_blank(self):
+        r = row("r1", "discovered", Source="00_Inbox/original name.txt",
+                **{"Current source": ""})
+        res, _ = run_guide(r)
+        read_step = res.data["checklist"][0]
+        self.assertIn("Current source is blank", read_step)
+        self.assertIn("read original Source: 00_Inbox/original name.txt", read_step)
+
+    def test_human_output_never_says_ambiguous_path_above(self):
+        r = row("r1", "discovered",
+                Source="00_Source_Docs\\01_Meeting_Transcripts\\legacy name.txt",
+                **{"Current source": "00_Inbox/legacy name.txt"})
+        rows = [r]
+        eval_res = ready_eval()
+
+        def fake_load_review_context(services, run_id, rows=None):
+            return SimpleNamespace(row=next(x for x in (rows or []) if x["Run ID"] == run_id), all_rows=[])
+
+        mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
+        with patch("qa_manage.get_services_cached", return_value=mock_services), \
+             patch("qa_manage.find_queue", return_value={"id": "sheet_id"}), \
+             patch("qa_manage.read_queue", return_value=rows), \
+             patch("qa_manage.load_graph", return_value=GRAPH), \
+             patch("qa_manage.load_review_context", side_effect=fake_load_review_context), \
+             patch("qa_manage.evaluate_run", return_value=eval_res):
+            res = qa_manage.cmd_guide(Args("r1", json=False))
+
+        human_text = "\n".join(res.human_lines)
+        self.assertNotIn("path above", human_text)
+        self.assertIn("Current source: 00_Inbox/legacy name.txt", human_text)
+
+    def test_json_identity_keeps_both_fields_while_checklist_names_current_source(self):
+        r = row("r1", "discovered",
+                Source="00_Source_Docs\\01_Meeting_Transcripts\\legacy name.txt",
+                **{"Current source": "00_Inbox/legacy name.txt"})
+        res, _ = run_guide(r)
+        self.assertEqual(res.data["identity"]["source"], "00_Source_Docs\\01_Meeting_Transcripts\\legacy name.txt")
+        self.assertEqual(res.data["identity"]["current_source"], "00_Inbox/legacy name.txt")
+        self.assertIn("Current source: 00_Inbox/legacy name.txt", res.data["checklist"][0])
+
+    def test_discovered_guardrails_include_current_source_and_summary_rules(self):
+        r = row("r1", "discovered")
+        res, _ = run_guide(r)
+        joined = " ".join(res.data["guardrails"]).lower()
+        self.assertIn("current source", joined)
+        self.assertIn("immutable discovery identity", joined)
+        self.assertIn("short summaries", joined)
+        self.assertIn("never full transcript", joined)
+
 
 class NeedsScopeGuideTests(unittest.TestCase):
     def test_needs_scope_shows_missing_fields_and_command(self):

@@ -987,8 +987,19 @@ def guide_stage_details(row: dict, graph: dict, route: dict,
 
     if status == "discovered":
         routed_types = sorted((graph.get("sources") or {}).keys())
+        current_source = str(row.get("Current source", "")).strip()
+        source = str(row.get("Source", "")).strip()
+        if current_source:
+            # Current source tracks the live file location and is updated on
+            # every move (e.g. archive-source); Source is the immutable
+            # (path, hash) discovery identity and can point at a stale/
+            # legacy path once a run's file has moved - reading it directly
+            # once caused an agent to try opening a nonexistent file.
+            read_step = f"Read the source at Current source: {current_source}"
+        else:
+            read_step = f"Current source is blank; read original Source: {source}"
         checklist = [
-            "Read the source at the path above.",
+            read_step,
             "Classify source_type and route variant from the CONTENT, not the filename.",
             f"Routed source types: {', '.join(routed_types)}.",
             "Determine the (project, person) scope the chosen route requires.",
@@ -1135,6 +1146,11 @@ def guide_guardrails(row: dict, interpretation: dict) -> list[str]:
     if status in ("discovered", "needs_scope"):
         guardrails.append("Never default a missing project/person scope - a route that needs it must land in "
                           "needs_scope, not a silently-defaulted scope.")
+        guardrails.append("Use Current source for live file access; Source is the immutable discovery identity "
+                          "and may be historical.")
+    if status == "discovered" or (status == "processing" and stage in ("", "analysis")):
+        guardrails.append("Queue rows must contain short summaries/status only, never full transcript text or "
+                          "full analysis.")
     if status == "processing" and stage == "apply":
         guardrails.append("no_change/not_applicable entry outcomes require a reason.")
     if status == "processing" and stage == "closure":
