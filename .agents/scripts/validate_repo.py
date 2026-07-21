@@ -155,6 +155,11 @@ def check_graph(source_types: set[str]) -> None:
         if p in docs:
             fail(f"graph periodic entry {p!r} collides with a document node")
     def check_route(stype: str, label: str, spec: dict) -> None:
+        description = (spec or {}).get("description", "")
+        if not str(description).strip():
+            fail(f"graph source {stype!r}{label} has no 'description' - every routed variant "
+                 "(and flat source) needs one for classify/pack/guide's route_description output "
+                 "(Phase 12)")
         for doc in (spec or {}).get("entry") or []:
             if doc not in docs:
                 fail(f"graph source {stype!r}{label} entry {doc!r} is not a defined document node")

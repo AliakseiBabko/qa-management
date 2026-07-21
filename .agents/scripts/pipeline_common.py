@@ -414,6 +414,60 @@ def get_pending_round_questions(docs_service: Any, doc_id: str) -> str:
     return "".join(text for _, text in paragraphs[questions_idx + 1 : answer_idx]).strip()
 
 
+def get_pending_round_summary(docs_service: Any, doc_id: str) -> dict[str, Any]:
+    """Content-free summary of the CURRENT pending round, for `qa_manage.py
+    gates` (Phase 12): never returns the actual question/addendum text,
+    only counts and the first addendum heading label (itself just a dated
+    section title, not question content) - safe to print/log without
+    leaking business content.
+
+    Returns {"round_date": str | None, "pending": bool | None,
+    "addenda_count": int, "block_chars": int, "first_heading": str | None}.
+    addenda_count/block_chars/first_heading are 0/0/None when no round is
+    pending (mirrors get_last_round_status's None-means-no-signal
+    convention)."""
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    paragraphs: list[tuple[str, str]] = []
+    for element in doc["body"]["content"]:
+        if "paragraph" not in element:
+            continue
+        style = element["paragraph"].get("paragraphStyle", {}).get("namedStyleType", "NORMAL_TEXT")
+        text = "".join(run.get("textRun", {}).get("content", "") for run in element["paragraph"]["elements"])
+        paragraphs.append((style, text))
+
+    round_date = None
+    questions_idx = answer_idx = None
+    for i, (style, text) in enumerate(paragraphs):
+        stripped = text.strip()
+        if style == "HEADING_2" and stripped.startswith("Раунд:"):
+            round_date = stripped.split(":", 1)[1].strip()
+        if style == "HEADING_2" and stripped == QUESTIONS_HEADING:
+            questions_idx = i
+        elif style == "HEADING_2" and stripped == ANSWER_HEADING:
+            answer_idx = i
+
+    if answer_idx is None:
+        return {"round_date": round_date, "pending": None, "addenda_count": 0,
+                "block_chars": 0, "first_heading": None}
+
+    after_answer = "".join(text for _, text in paragraphs[answer_idx + 1:]).strip()
+    if after_answer or questions_idx is None or answer_idx <= questions_idx:
+        return {"round_date": round_date, "pending": False, "addenda_count": 0,
+                "block_chars": 0, "first_heading": None}
+
+    window = paragraphs[questions_idx + 1: answer_idx]
+    block_chars = len("".join(text for _, text in window).strip())
+    addenda_headings = [text.strip() for style, text in window
+                         if style == "HEADING_2" and text.strip().startswith("Дополнение (")]
+    return {
+        "round_date": round_date,
+        "pending": True,
+        "addenda_count": len(addenda_headings),
+        "block_chars": block_chars,
+        "first_heading": addenda_headings[0] if addenda_headings else None,
+    }
+
+
 def get_last_round_status(docs_service: Any, doc_id: str) -> dict[str, Any]:
     """Read an m2_input Doc and report the most recent round's date and
     whether it's still waiting on an answer (the text after the last
