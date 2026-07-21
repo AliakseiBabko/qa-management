@@ -487,9 +487,25 @@ These are what actually runs day to day, once a project's folder already exists:
   never writes anywhere, and never puts the preview text or full source
   content into the queue or this repo — only short operational summaries
   belong there; the classification decision, made after actually reading
-  the source, stays with the agent. Once you know the exact command, the
-  rest of this entry is the workflow that actually processes it. `scan`
-  discovers sources into the
+  the source, stays with the agent. Handing a run off to another agent
+  session, or resuming one cold? **`pack <run-id>`** (`--max-preview-chars
+  N`, same default) is one compact read-only handoff packet: identity
+  (status/stage, `Source` vs `Current source`, source_type/variant,
+  scopes, source hash, source text version, Snapshot SHA, disposition),
+  `dashboard`'s category for this run, `guide`'s checklist/commands/
+  guardrails, `review`'s evaluate_run summary (unresolved edges, entry
+  problems, invocation/snapshot status), a `classify`-style signals+
+  candidate_routes block only when the route isn't resolved yet, graph
+  context (skills/entry docs/required scope, plus downstream closure
+  expectations once at the closure stage), a capped source preview
+  (`Current source` preferred, metadata-only for non-text files), and a
+  short `agent_handoff` prose block naming what to read first, which
+  skill(s) to load, the exact next command, and what not to do. Reuses
+  `dashboard`/`guide`/`classify`/`review` exclusively; never creates,
+  writes, or mutates anything, and never includes full source text — only
+  the same capped preview `classify` returns. Once you know the exact
+  command, the rest of this entry is the workflow that actually processes
+  it. `scan` discovers sources into the
   workspace `_intake_queue` Sheet with (path, content-hash) identity:
   exact pairs are skipped, changed content at a known path becomes a
   superseding run, identical content at a new path is recorded as a

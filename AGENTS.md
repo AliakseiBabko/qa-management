@@ -154,8 +154,26 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      anywhere, and never puts the preview text or full source content into
      the queue or this repo - the classification decision, made after
      actually reading the source, stays with the agent.
-   - Processing a new source (picked via `dashboard`/`guide`/`classify`, or
-     found directly)? —
+   - Handing a run off to another agent session (or resuming one cold)? —
+     `.agents\scripts\qa_manage.py pack <run-id>` (add `--json` for the
+     strict envelope; `--max-preview-chars N` caps the source preview,
+     default 2000). One compact read-only packet combining identity
+     (status/stage, `Source` vs `Current source`, source_type/variant,
+     scopes, source hash, source text version, Snapshot SHA,
+     disposition), `dashboard`'s category for this run, `guide`'s
+     checklist/commands/guardrails, `review`'s evaluate_run summary
+     (unresolved edges, entry problems, invocation/snapshot status), a
+     `classify`-style signals+candidate_routes block *only* when the
+     route isn't resolved yet, graph context (skills/entry docs/required
+     scope, plus downstream closure expectations once at the closure
+     stage), a capped source preview (`Current source` preferred), and a
+     short `agent_handoff` block naming what to read first, which skill(s)
+     to load, the exact next command, and what not to do. Reuses
+     `dashboard`/`guide`/`classify`/`review` exclusively; never creates,
+     writes, or mutates anything, and never includes full source text -
+     only the same capped preview `classify` returns.
+   - Processing a new source (picked via `dashboard`/`guide`/`classify`/
+     `pack`, or found directly)? —
      the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>

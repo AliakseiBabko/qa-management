@@ -136,6 +136,35 @@ Commands (all support --json for machine-readable output):
                                   returned is capped (small, to avoid
                                   token waste); nothing here is ever
                                   written into the queue or this repo.
+    pack <run-id> [--max-preview-chars N]
+                                  read-only cross-agent handoff/resume
+                                  packet for one run - compact enough to
+                                  paste into a fresh session and continue.
+                                  Combines: identity (status/stage, Source
+                                  vs Current source, source_type/variant,
+                                  scopes, source hash, source text
+                                  version, Snapshot SHA, disposition);
+                                  dashboard's category for this run;
+                                  guide's stage-specific checklist and
+                                  guardrails; review/evaluate_run's
+                                  unresolved edges/entry problems/
+                                  invocation/snapshot status; a
+                                  classify-style signals+candidate_routes
+                                  block only when the route isn't resolved
+                                  yet; graph context (skills/entry docs/
+                                  required scope, plus downstream closure
+                                  expectations when already at the
+                                  closure stage); a capped source preview
+                                  (Current source preferred, metadata-only
+                                  for non-text files); and a short
+                                  `agent_handoff` prose block naming what
+                                  to read first, which skill(s) to load,
+                                  the exact next command, and what not to
+                                  do. Reuses dashboard/guide/classify/
+                                  review exclusively; never creates,
+                                  writes, or mutates anything, and never
+                                  includes full source text - only the
+                                  same capped preview `classify` returns.
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -2430,6 +2459,76 @@ def cmd_guide(args) -> CommandResult:
     return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
 
 
+def resolve_source_path(row: dict) -> tuple[str, str]:
+    """(path_used, path_field_used) - Current source preferred, Source
+    fallback (Current source tracks the live file location; Source is the
+    immutable discovery identity and can go stale after a move/archive -
+    see guide's discovered-stage checklist). Raises only when the row
+    records neither at all (a queue data-integrity issue, not a normal
+    missing-file case)."""
+    current_source = str(row.get("Current source", "")).strip()
+    source = str(row.get("Source", "")).strip()
+    if current_source:
+        return current_source, "current_source"
+    if source:
+        return source, "source"
+    raise SystemExit(f"Run {row.get('Run ID', '')!r} has neither Current source nor Source recorded - "
+                     "nothing to read.")
+
+
+def resolve_source_file_path(path_used: str) -> Path:
+    normalized = path_used.replace("\\", "/").strip("/")
+    parts = [p for p in normalized.split("/") if p]
+    if not parts or ".." in parts:
+        raise SystemExit(f"Unsafe source path recorded: {path_used!r}")
+    return DATA_ROOT.joinpath(*parts)
+
+
+def build_source_preview(row: dict, max_chars: int) -> tuple[dict, str | None, list[str]]:
+    """Read-only source access + capped preview, shared by `classify` and
+    `pack`. Unlike `classify` (which is useless without the file and fails
+    outright), this degrades gracefully: a missing file becomes a warning,
+    not an exception, since callers like `pack` are still useful without a
+    preview (identity/operator-state/graph-context don't need the file).
+    Returns (output-safe preview dict, full text or None - for internal
+    signal detection only, NEVER put in output/queue/repo, warnings)."""
+    path_used, path_field_used = resolve_source_path(row)
+    preview: dict = {
+        "source_path_used": path_used,
+        "source_path_field_used": path_field_used,
+        "file_exists": False,
+        "extension": "",
+        "size_bytes": None,
+        "text_readable": False,
+        "line_count": None,
+        "preview": "",
+        "preview_max_chars": max_chars,
+        "preview_truncated": False,
+    }
+    warnings: list[str] = []
+    try:
+        file_path = resolve_source_file_path(path_used)
+    except SystemExit as exc:
+        warnings.append(str(exc))
+        return preview, None, warnings
+
+    preview["extension"] = file_path.suffix.lower()
+    if not file_path.is_file():
+        warnings.append(f"Source file not found on disk: {file_path} (read from {path_field_used}={path_used!r})")
+        return preview, None, warnings
+
+    preview["file_exists"] = True
+    preview["size_bytes"] = file_path.stat().st_size
+    text = None
+    if preview["extension"] in TEXT_READABLE_EXTS:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        preview["text_readable"] = True
+        preview["line_count"] = len(text.splitlines())
+    preview["preview"] = text[:max_chars] if text is not None else ""
+    preview["preview_truncated"] = text is not None and len(text) > max_chars
+    return preview, text, warnings
+
+
 def cmd_classify(args) -> CommandResult:
     """Read-only pre-`start` helper: deterministic signals + candidate
     route hints for one discovered run. Never chooses a final source_type/
@@ -2441,21 +2540,11 @@ def cmd_classify(args) -> CommandResult:
     rows = read_queue(services, sheet) if sheet else []
     row = get_run(rows, args.run_id)
 
+    path_used, path_field_used = resolve_source_path(row)
     current_source = str(row.get("Current source", "")).strip()
     source = str(row.get("Source", "")).strip()
-    if current_source:
-        path_field_used, path_used = "current_source", current_source
-    elif source:
-        path_field_used, path_used = "source", source
-    else:
-        raise SystemExit(f"Run {args.run_id!r} has neither Current source nor Source recorded - "
-                         "nothing to read.")
 
-    normalized = path_used.replace("\\", "/").strip("/")
-    parts = [p for p in normalized.split("/") if p]
-    if not parts or ".." in parts:
-        raise SystemExit(f"Unsafe source path recorded on {args.run_id!r}: {path_used!r}")
-    file_path = DATA_ROOT.joinpath(*parts)
+    file_path = resolve_source_file_path(path_used)
     if not file_path.is_file():
         raise SystemExit(f"Source file not found on disk: {file_path} (read from {path_field_used}={path_used!r})")
 
@@ -2535,6 +2624,216 @@ def cmd_classify(args) -> CommandResult:
     lines += [f"    ! {g}" for g in guardrails]
 
     return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
+# ---------- pack (read-only cross-agent handoff, one run) ----------
+
+def dashboard_category_for_row(row: dict) -> str:
+    """Same section a run would land in under `dashboard` - lets `pack`
+    tell a receiving agent "this is what dashboard would call it" without
+    re-scanning the whole queue."""
+    status = row.get("Status", "")
+    if status in ("discovered", "needs_scope", "processing"):
+        return "action_required"
+    if status == "blocked":
+        return "blocked"
+    if status == "finalizing":
+        return "finalizing"
+    if status == "completed":
+        return "completed"
+    if status in ("ignored", "historical", "failed"):
+        return "terminal"
+    return "unknown"
+
+
+def build_closure_expectations(graph: dict, entry_documents: list[str]) -> list[dict]:
+    """Each entry document's own immediate downstream cascade edges, read
+    straight out of document_graph.yaml - lets a receiving agent see what
+    will eventually need resolving without re-deriving it."""
+    docs = graph.get("documents") or {}
+    expectations: list[dict] = []
+    for doc in entry_documents:
+        for edge in (docs.get(doc) or {}).get("downstream") or []:
+            expectations.append({"from": doc, "to": edge.get("to"), "kind": edge.get("kind")})
+    return expectations
+
+
+def build_agent_handoff(run_id: str, identity: dict, interpretation: dict,
+                        commands: list[str], classify_block: dict | None) -> str:
+    """Concise prose block for a receiving agent in another session - what
+    to read first, what to load, what to run next, what not to do. Every
+    fact in it is already present elsewhere in the pack; this just orders
+    it for a cold start."""
+    read_first = identity["current_source"] or identity["source"] or "(no source path recorded on this run)"
+    if interpretation["skills"]:
+        skill_line = f"Load skill(s): {', '.join(interpretation['skills'])}."
+    elif classify_block and classify_block["candidate_routes"]:
+        hinted = sorted({s for c in classify_block["candidate_routes"] for s in c["skills"]})
+        skill_line = ("Route not yet chosen - skills depend on it. Candidate routes hint at: "
+                      f"{', '.join(hinted) if hinted else '(none)'}. Read the source and classify before "
+                      "assuming any of these.")
+    else:
+        skill_line = "Route not yet known - read and classify the source before any skill can be named."
+    next_cmd = commands[0] if commands else "(none - see checklist/guardrails)"
+    lines = [
+        f"Handoff for run {run_id} [{identity['status']}" + (f":{identity['stage']}" if identity["stage"] else "") + "]",
+        f"Read first: {read_first}",
+        skill_line,
+        f"Run next: {next_cmd}",
+        "Do not: start on an unread/unclassified source, default a missing project/person scope, write full "
+        "transcript/source text or full analysis into the queue or this repo, or hand-edit a completed run's "
+        "own Snapshot/queue row.",
+        "Guardrails: prefer Current source over Source for live file access (Source may be historical); "
+        "put the exact token run:<run-id> in _skill_invocations before completing; commit_workspace_state.py's "
+        "message must include the run id in brackets, e.g. [<run-id>]; real business data belongs only in "
+        "Drive/the private mirror, never this public repo.",
+    ]
+    return "\n".join(lines)
+
+
+def cmd_pack(args) -> CommandResult:
+    """Read-only cross-agent handoff/resume packet for one run - compact
+    enough to paste into a fresh session and continue. Reuses dashboard/
+    guide/classify/review logic exclusively; never creates, writes, or
+    mutates _intake_queue, _closure_outcomes, _skill_invocations, mirror
+    files, or the public repo. Never includes full source text - only a
+    preview capped by --max-preview-chars."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    row = get_run(rows, args.run_id)
+
+    graph = load_graph()
+    try:
+        route = resolve_route(graph, row.get("Source type", ""), row.get("Route variant", ""))
+    except SystemExit:
+        route = {}
+
+    ctx = load_review_context(services, args.run_id, rows=rows)
+    eval_res = evaluate_run(ctx)
+
+    max_chars = (args.max_preview_chars if getattr(args, "max_preview_chars", None)
+                 and args.max_preview_chars > 0 else DEFAULT_MAX_PREVIEW_CHARS)
+    preview, text, preview_warnings = build_source_preview(row, max_chars)
+
+    identity = {
+        "run_id": row.get("Run ID", ""),
+        "status": row.get("Status", ""),
+        "stage": row.get("Stage", ""),
+        "source": row.get("Source", ""),
+        "current_source": row.get("Current source", ""),
+        "source_path_used": preview["source_path_used"],
+        "source_path_field_used": preview["source_path_field_used"],
+        "source_type": row.get("Source type", ""),
+        "route_variant": row.get("Route variant", ""),
+        "scopes": parse_scopes_cell(row.get("Scopes", "")),
+        "source_hash": row.get("Source hash", ""),
+        "source_text_version": row.get("Source text version", ""),
+        "snapshot_sha": row.get("Snapshot", ""),
+        "source_disposition": row.get("Source disposition", ""),
+    }
+    interpretation = {
+        "skills": route.get("skills") or [],
+        "entry_documents": route.get("entry") or [],
+        "declared_scopes": parse_scopes_cell(row.get("Scopes", "")),
+        "source_disposition": row.get("Source disposition", ""),
+        "source_still_in_inbox": row.get("Source disposition", "") != "archived",
+        "route_resolved": bool(route),
+    }
+
+    checklist, guide_commands, guide_extra = guide_stage_details(row, graph, route, eval_res, ctx)
+    guardrails = guide_guardrails(row, interpretation)
+    dashboard_category = dashboard_category_for_row(row)
+
+    classify_block = None
+    if not route:
+        signals = detect_format_signals(text, preview["extension"])
+        candidates = classify_candidate_routes(graph, signals, row)
+        reason_field = str(row.get("Reason", ""))
+        ignore_suggestion = None
+        if "duplicate content of" in reason_field:
+            ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+        classify_block = {
+            "signals": signals,
+            "confidence": "signals_detected" if candidates else "low",
+            "candidate_routes": candidates,
+            "routed_source_types": sorted((graph.get("sources") or {}).keys()),
+            "ignore_suggestion": ignore_suggestion,
+            "commands": classify_commands(args.run_id, candidates, ignore_suggestion),
+        }
+
+    commands = classify_block["commands"] if classify_block else guide_commands
+
+    # evaluate_run always appends "Run cannot be completed from state X"
+    # for any non-processing/closure status (discovered, blocked,
+    # completed, ...) - true and expected, never an actual finding (same
+    # filter `guide`/`dashboard` already apply to completed rows), so it
+    # never belongs in the curated "problems" summary regardless of status.
+    review_problems = [p for p in eval_res.all_problems if "Run cannot be completed from state" not in p]
+    review_summary = {
+        "unresolved_edges": eval_res.unresolved_edges,
+        "entry_problems": eval_res.entry_problems,
+        "problems": review_problems,
+        "warnings": eval_res.warnings,
+        "invocation_present": eval_res.invocation_present,
+        "snapshot_sha": eval_res.snapshot_sha,
+        "snapshot_problem": eval_res.snapshot_problem,
+        "ready_for_completion": eval_res.ready_for_completion,
+    }
+
+    if route:
+        graph_context = {
+            "route_resolved": True,
+            "skills": interpretation["skills"],
+            "entry_documents": interpretation["entry_documents"],
+            "required_scope": sorted(needed_scopes(graph, route)),
+        }
+        if row.get("Stage") == "closure":
+            graph_context["closure_expectations"] = build_closure_expectations(graph, interpretation["entry_documents"])
+    else:
+        graph_context = {
+            "route_resolved": False,
+            "candidate_source_types": sorted({c["source_type"]
+                                             for c in (classify_block or {}).get("candidate_routes", [])}),
+            "routed_source_types": (classify_block or {}).get("routed_source_types",
+                                                               sorted((graph.get("sources") or {}).keys())),
+        }
+
+    agent_handoff = build_agent_handoff(args.run_id, identity, interpretation, commands, classify_block)
+
+    data = {
+        "run_id": args.run_id,
+        "identity": identity,
+        "interpretation": interpretation,
+        "dashboard_category": dashboard_category,
+        "checklist": checklist,
+        "commands": commands,
+        "guardrails": guardrails,
+        "review_summary": review_summary,
+        "classify": classify_block,
+        "graph_context": graph_context,
+        "source_preview": preview,
+        "agent_handoff": agent_handoff,
+    }
+
+    stage_label = identity["status"] + (f":{identity['stage']}" if identity["stage"] else "")
+    lines = [f"Pack for {args.run_id}  [{stage_label}]  ({dashboard_category})",
+             f"  source: {preview['source_path_used']}  (from {preview['source_path_field_used']})"]
+    if preview["text_readable"]:
+        lines.append(f"  lines: {preview['line_count']}  size: {preview['size_bytes']} bytes"
+                     f"  preview_truncated: {preview['preview_truncated']}")
+    elif preview["file_exists"]:
+        lines.append(f"  size: {preview['size_bytes']} bytes  (binary/unsupported - metadata only)")
+    else:
+        lines.append("  (source file not found on disk - see warnings)")
+    lines.append("  commands:")
+    lines += [f"    $ {c}" for c in commands] or ["    (none)"]
+    lines.append("  guardrails:")
+    lines += [f"    ! {g}" for g in guardrails]
+    lines.append("  agent_handoff:")
+    lines += [f"    {line}" for line in agent_handoff.splitlines()]
+
+    return CommandResult(ok=True, data=data, warnings=preview_warnings, human_lines=lines, exit_code=0)
 
 
 def main() -> int:
@@ -2647,6 +2946,12 @@ def main() -> int:
     p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
                    help=f"cap on the returned preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
 
+    p = sub.add_parser("pack", help="read-only cross-agent handoff/resume packet for one run",
+                       parents=[parent])
+    p.add_argument("run_id")
+    p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
+                   help=f"cap on the returned source preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
+
     args = parser.parse_args()
 
     commands = {
@@ -2657,7 +2962,8 @@ def main() -> int:
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
         "historical": cmd_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
-        "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify
+        "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,
+        "pack": cmd_pack
     }
 
     if not args.json:
