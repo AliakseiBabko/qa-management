@@ -129,6 +129,15 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
+   - Starting a session and not sure what's actionable across the whole
+     queue? — `qa_manage.py dashboard` (add `--json` for the strict
+     envelope). Read-only operator summary: every run needing the next
+     agent action, grouped with the exact next command; blocked/finalizing
+     runs; integrity issues on finalizing/completed runs (reusing `review`'s
+     own evaluation, bounded by `--limit`); and a read-only `00_Inbox`/
+     `90_Storage` file-count summary. Never creates or mutates anything —
+     run this before `scan`/`next` to see the whole picture, not just the
+     single most-actionable run.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
