@@ -248,7 +248,12 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      unit later (`rollback_from_mirror.py`). The mirror automatically stores exact,
      content-addressed text representations of source chats and transcripts, which means it
      contains real conversation text and must remain strictly private. Harmless when nothing
-     changed.
+     changed. Before treating the commit as done, check the "Changed files" list the
+     script prints (or `git -C ~/Documents/qa-drive-mirror status`/`diff`)
+     against what this pass was actually supposed to touch, and report
+     anything outside that scope as unrelated Drive drift instead of
+     silently committing it - standing practice (qa-retro, 2026-07-21),
+     not something to be asked for on each individual pass.
    - Writing a new one-off inspection/update script anyway? Reuse
      `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
      re-inlining `load_credentials`/`build_services` boilerplate.
