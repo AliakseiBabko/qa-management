@@ -338,7 +338,8 @@ def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts
     return written, manifest, removed, warnings, errors
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    module_doc = __doc__ or "Commit the Google Workspace state to the private mirror"
+    parser = argparse.ArgumentParser(description=module_doc.splitlines()[0])
     parser.add_argument("-m", "--message", default="",
                         help="commit message; describe the pass that caused the changes "
                              "(skill, source), same info as the _skill_invocations row")

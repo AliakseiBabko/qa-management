@@ -156,7 +156,8 @@ def fetch_outcomes(services, run_id: str, project: str = "", person: str = "",
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    module_doc = __doc__ or "Persist cascade closure outcomes"
+    parser = argparse.ArgumentParser(description=module_doc.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     rec = sub.add_parser("record", help="record one edge outcome")

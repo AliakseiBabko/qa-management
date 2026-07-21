@@ -54,7 +54,7 @@ def load_watch_strings(services: dict[str, Any]) -> set[str]:
 
 def added_lines(diff_args: list[str]) -> list[tuple[str, int, str]]:
     """Return (file, line_no, text) for every added line in a unified diff."""
-    result = subprocess.run(
+    result: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "diff", "--unified=0", *diff_args, "--", ".agents"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )

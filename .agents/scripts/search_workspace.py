@@ -6,6 +6,7 @@ Read-only, deterministic query interface over the private git mirror.
 """
 
 import argparse
+import io
 import json
 import subprocess
 import sys
@@ -14,6 +15,7 @@ from datetime import datetime, timezone
 import collections
 import re
 import os
+from typing import Literal, NoReturn, overload
 
 # Exclusions
 EXCLUDED_EXTS = {".xlsx", ".docx", ".gsheet"}
@@ -32,7 +34,21 @@ import export_source_text
 
 DEFAULT_MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
 
-def run_git(mirror: Path, args: list[str], check=True, text=False) -> subprocess.CompletedProcess:
+@overload
+def run_git(
+    mirror: Path, args: list[str], check: bool = True, text: Literal[False] = False
+) -> subprocess.CompletedProcess[bytes]: ...
+
+
+@overload
+def run_git(
+    mirror: Path, args: list[str], check: bool = True, *, text: Literal[True]
+) -> subprocess.CompletedProcess[str]: ...
+
+
+def run_git(
+    mirror: Path, args: list[str], check: bool = True, text: bool = False
+) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
     res = subprocess.run(
         ["git", "--literal-pathspecs"] + args,
         cwd=mirror,
@@ -72,7 +88,7 @@ def build_envelope(command, query, regex, case_sensitive, kind, resolved_ref, ok
     }
 
 def print_envelope(env):
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     print(json.dumps(env, ensure_ascii=False, indent=2))
 
@@ -470,7 +486,7 @@ def main():
             sys.stderr.write(f"{msg}\n")
         sys.exit(1)
 
-    def exit_err(msg):
+    def exit_err(msg: str) -> NoReturn:
         if is_json:
             print_envelope(build_envelope(parsed.command, parsed.query, getattr(parsed, 'regex', False), getattr(parsed, 'case_sensitive', False), getattr(parsed, 'kind', 'all'), "", False, errors=[msg]))
         else:
