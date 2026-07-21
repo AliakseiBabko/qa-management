@@ -63,13 +63,34 @@ def dashboard_value(rows: list[list[str]], metric: str, default: str = "") -> st
 
 
 def contribution_summary(rows: list[list[str]]) -> tuple[str, list[str]]:
-    known: dict[str, list[str]] = {status: [] for status in STATUS_ORDER}
-    unknown: list[str] = []
+    # project_metrics is meant to hold at most one current "Вклад в
+    # проект: <Имя>" row per person (see m2-role-rules.md, Cascading
+    # Updates - update in place, don't append a new dated row per pass).
+    # A stale duplicate can still slip in upstream, though (this happened
+    # on a real project once); dedupe defensively here by name, keeping
+    # only the latest-dated row per person, so a duplicate never renders
+    # as "<Имя>, <Имя>" in the registry even if project_metrics itself
+    # temporarily has two rows for the same key.
+    latest_by_name: dict[str, tuple[str, str]] = {}  # name -> (date, status)
+    order: list[str] = []
     for row in rows:
         if len(row) <= 3 or not row[2].startswith(CONTRIBUTION_PREFIX):
             continue
         name = row[2][len(CONTRIBUTION_PREFIX):].strip()
+        date = row[1].strip() if len(row) > 1 else ""
         status = row[3].strip()
+        if name not in latest_by_name:
+            order.append(name)
+        elif date >= latest_by_name[name][0]:
+            pass  # newer or equal (later row wins ties) - falls through to overwrite below
+        else:
+            continue  # existing entry has a strictly later date - keep it
+        latest_by_name[name] = (date, status)
+
+    known: dict[str, list[str]] = {status: [] for status in STATUS_ORDER}
+    unknown: list[str] = []
+    for name in order:
+        status = latest_by_name[name][1]
         if status in known:
             known[status].append(name)
         else:
