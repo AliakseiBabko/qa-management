@@ -452,8 +452,26 @@ These are what actually runs day to day, once a project's folder already exists:
   `--include-ignored` add optional listings; `--project`/`--person` filter
   to one scope. Never creates, writes, or mutates anything — it only calls
   the same find/read helpers `review` does. Once `dashboard` points at a
-  run to process, the rest of this entry is the workflow that actually
-  processes it. `scan` discovers sources into the
+  run to process, **`guide <run-id>`** is the next step — read-only,
+  deterministic "exactly what do I do for THIS run": identity (status,
+  stage, source/current-source path, source type, route variant, scopes,
+  source text version, snapshot SHA), the graph route's interpretation
+  (skills, entry documents, declared scopes, whether the source is still
+  in `00_Inbox`), a stage-specific checklist with exact command templates
+  (missing scope fields for `needs_scope`; `record-analysis`; which entry
+  documents still need `record-apply` and for which scope; which cascade
+  edges still need `resolve-edge`, parsed straight out of `review`'s own
+  evaluation; `commit_workspace_state.py` when closure is clean but the
+  snapshot/invocation token isn't; `complete`; `resume --continue` for a
+  blocked run; `historical` for a `failed` run), and only the guardrails
+  relevant to that stage (never a generic checklist dump). A completed run
+  with no integrity problem gets "no operational action needed"; one with
+  a real snapshot/invocation problem gets repair/audit guidance, never a
+  mutation command — a completed run's Snapshot is treated as immutable.
+  Reuses `review`/`evaluate_run` exclusively; never creates, writes, or
+  mutates anything. Once you know the exact command, the rest of this
+  entry is the workflow that actually processes it. `scan` discovers
+  sources into the
   workspace `_intake_queue` Sheet with (path, content-hash) identity:
   exact pairs are skipped, changed content at a known path becomes a
   superseding run, identical content at a new path is recorded as a

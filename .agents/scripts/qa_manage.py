@@ -99,6 +99,22 @@ Commands (all support --json for machine-readable output):
                                   plus a read-only 00_Inbox/90_Storage
                                   filesystem summary. Never creates,
                                   writes, or mutates anything.
+    guide <run-id>                read-only deterministic next-steps for
+                                  ONE selected run (dashboard says what
+                                  needs attention across the queue; guide
+                                  drills into a single run_id): identity,
+                                  the graph route's interpretation
+                                  (skills/entry docs/scopes), a
+                                  stage-specific checklist with exact
+                                  command templates (start/needs_scope
+                                  scope requirements, record-analysis,
+                                  per-scope record-apply gaps, per-edge
+                                  resolve-edge, commit_workspace_state.py,
+                                  complete, resume, historical), and only
+                                  the guardrails relevant to that stage.
+                                  Reuses review/evaluate_run exclusively;
+                                  never creates, writes, or mutates
+                                  anything.
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -112,6 +128,7 @@ import datetime as dt
 import hashlib
 import io
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -895,6 +912,243 @@ def storage_snapshot(data_root: Path) -> dict:
                     by_month[f"{year_dir.name}-{month_dir.name}"] = count
                     total += count
     return {"total_processed_runs": total, "by_month": by_month}
+
+
+# ---------- guide (read-only, one run) ----------
+
+# These two patterns parse evaluate_run()'s own problem-string format back
+# into structured fields - the format is owned by evaluate_run/
+# check_cascade_closure.walk (see their f-string construction), never
+# reverse-engineered from free text. A non-match returns None rather than
+# guessing, so a future wording change fails closed (no command shown)
+# instead of emitting a wrong command.
+_UNRESOLVED_EDGE_RE = re.compile(
+    r"^scope \((?P<project>.*?), (?P<person>.*?), (?P<variant>.*?)\): "
+    r"unresolved edge (?P<source>\S+) -> (?P<target>\S+) \[(?P<kind>\w+)\]$"
+)
+_MISSING_ENTRY_RE = re.compile(
+    r"^scope \((?P<project>.*?), (?P<person>.*?), (?P<variant>.*?)\): "
+    r"entry document '(?P<doc>[^']+)' has no recorded outcome"
+)
+
+
+def _scope_placeholder_to_empty(value: str) -> str:
+    return "" if value == "-" else value
+
+
+def parse_unresolved_edge_entry(entry: str) -> dict | None:
+    """One evaluate_run() unresolved_edges string -> structured fields for
+    an exact resolve-edge command. None if the string doesn't match this
+    exact shape (never guess)."""
+    m = _UNRESOLVED_EDGE_RE.match(entry)
+    if not m:
+        return None
+    d = m.groupdict()
+    return {"project": _scope_placeholder_to_empty(d["project"]),
+            "person": _scope_placeholder_to_empty(d["person"]),
+            "variant": _scope_placeholder_to_empty(d["variant"]),
+            "source": d["source"], "target": d["target"], "kind": d["kind"]}
+
+
+def parse_missing_entry_document(entry: str) -> dict | None:
+    """One evaluate_run() entry_problems string for a missing record-apply
+    outcome -> structured fields. None if it doesn't match this exact
+    shape (e.g. it's the archive-source hint instead)."""
+    m = _MISSING_ENTRY_RE.match(entry)
+    if not m:
+        return None
+    d = m.groupdict()
+    return {"project": _scope_placeholder_to_empty(d["project"]),
+            "person": _scope_placeholder_to_empty(d["person"]),
+            "variant": _scope_placeholder_to_empty(d["variant"]), "doc": d["doc"]}
+
+
+def guide_scope_cli_args(project: str, person: str) -> str:
+    """Both flags together whenever either side is non-empty, so the CLI's
+    own exact-tuple scope matching (resolve_scope_args) is unambiguous -
+    passing only one side of a declared (project, person) tuple would not
+    match it."""
+    if not project and not person:
+        return ""
+    return f' --project "{project}" --person "{person}"'
+
+
+def guide_stage_details(row: dict, graph: dict, route: dict,
+                        eval_res: EvaluationResult, ctx: "ReviewContext") -> tuple[list[str], list[str], dict]:
+    """(checklist, commands, extra_data) for one run's current
+    status/stage - the deterministic "what do I do next" logic guide
+    exists for. Pure given (row, graph, route, eval_res, ctx); no I/O."""
+    status = row.get("Status", "")
+    stage = row.get("Stage", "")
+    run_id = row.get("Run ID", "")
+    checklist: list[str] = []
+    commands: list[str] = []
+    extra: dict = {}
+
+    if status == "discovered":
+        routed_types = sorted((graph.get("sources") or {}).keys())
+        checklist = [
+            "Read the source at the path above.",
+            "Classify source_type and route variant from the CONTENT, not the filename.",
+            f"Routed source types: {', '.join(routed_types)}.",
+            "Determine the (project, person) scope the chosen route requires.",
+        ]
+        commands = [f'start {run_id} --source-type <type> [--variant <variant>] '
+                    f'--scope "Project|Person" [--scope "Project|Person" ...]']
+        extra["routed_source_types"] = routed_types
+
+    elif status == "needs_scope":
+        need = needed_scopes(graph, route) if route else set()
+        scopes = parse_scopes_cell(row.get("Scopes", ""))
+        if scopes:
+            missing = sorted({m for proj, pers in scopes for m in missing_scope_fields(need, proj, pers)})
+        else:
+            missing = sorted(need)
+        checklist = [
+            f"Missing required scope field(s): {', '.join(missing) or '(see Reason)'}.",
+            f"Reason on file: {row.get('Reason', '')}",
+            "Re-run start with a corrected --scope tuple that carries every required field.",
+        ]
+        commands = [f'start {run_id} --source-type {row.get("Source type") or "<type>"} '
+                    f'--scope "Project|Person"  (must carry: {", ".join(missing) or "see Reason"})']
+        extra["missing_scope_fields"] = missing
+
+    elif status == "processing" and stage in ("", "analysis"):
+        checklist = [
+            f"Apply the route skills: {', '.join(route.get('skills') or []) or '(none listed)'}.",
+            f"Update the entry documents: {', '.join(route.get('entry') or []) or '(none listed)'}.",
+            "Record a short OPERATIONAL summary (not the full analysis body).",
+        ]
+        commands = [f'record-analysis {run_id} --summary "..."']
+
+    elif status == "processing" and stage == "apply":
+        entries = parse_entries_cell(row.get("Entries", ""))
+        entry_docs = route.get("entry") or []
+        scopes = enumerate_run_scopes(ctx.all_rows, parse_scopes_cell(row.get("Scopes", "")),
+                                      entries, row.get("Route variant", ""))
+        per_scope_missing = []
+        for proj, pers, variant in scopes:
+            scoped = entries_for_scope(entries, proj, pers)
+            missing_docs = [d for d in entry_docs if d not in scoped]
+            per_scope_missing.append({"project": proj, "person": pers, "variant": variant,
+                                      "missing_documents": missing_docs})
+            if missing_docs:
+                commands.append(f'record-apply {run_id}{guide_scope_cli_args(proj, pers)} '
+                                f'--updated {",".join(missing_docs)}'
+                                f'  (or --no-change/--not-applicable "doc=reason" per doc)')
+        checklist = [f"Entry documents required by the route: {', '.join(entry_docs) or '(none)'}."]
+        scope_lines = [
+            f"scope ({m['project'] or '-'}, {m['person'] or '-'}): "
+            f"missing outcome for {', '.join(m['missing_documents'])}"
+            for m in per_scope_missing if m["missing_documents"]
+        ]
+        checklist += scope_lines or ["All entry documents already have an outcome for every scope."]
+        extra["missing_entry_documents_by_scope"] = per_scope_missing
+
+    elif status == "processing" and stage == "closure":
+        archive_needed = any("archive-source" in p for p in eval_res.entry_problems)
+        missing_entries = [m for m in (parse_missing_entry_document(p) for p in eval_res.entry_problems) if m]
+        unresolved = [u for u in (parse_unresolved_edge_entry(e) for e in eval_res.unresolved_edges) if u]
+
+        if archive_needed:
+            checklist.append("Source is still in 00_Inbox - archive it before taking the closure snapshot.")
+            commands.append(f'archive-source {run_id}')
+        if missing_entries:
+            checklist.append(f"{len(missing_entries)} entry document(s) still have no recorded outcome.")
+            for m in missing_entries:
+                commands.append(f'record-apply {run_id}{guide_scope_cli_args(m["project"], m["person"])} '
+                                f'--updated {m["doc"]}  (or --no-change/--not-applicable "{m["doc"]}=reason")')
+        if unresolved:
+            checklist.append(f"{len(unresolved)} cascade edge(s) unresolved.")
+            for u in unresolved:
+                commands.append(f'resolve-edge {run_id} --source {u["source"]} --target {u["target"]} '
+                                f'--outcome <updated|no_change|gated|regenerated> [--reason "..."]'
+                                f'{guide_scope_cli_args(u["project"], u["person"])}')
+        if not archive_needed and not missing_entries and not unresolved:
+            if eval_res.invocation_present is False or eval_res.snapshot_problem:
+                checklist.append("Cascade closed, but the mirror snapshot/invocation token is missing or stale.")
+                commands.append(f'commit_workspace_state.py -m "<skill>: <source> [{run_id}]"')
+            elif eval_res.ready_for_completion:
+                checklist.append("Everything verified - ready to complete.")
+                commands.append(f'complete {run_id}')
+            else:
+                checklist.append("Unresolved warning(s) reported by review - inspect before completing.")
+                commands.append(f'review {run_id} --json')
+
+        extra.update({
+            "unresolved_edges": unresolved,
+            "missing_entry_documents": missing_entries,
+            "existing_outcomes": ctx.all_rows,
+            "snapshot_problem": eval_res.snapshot_problem,
+            "invocation_present": eval_res.invocation_present,
+            "ready_for_completion": eval_res.ready_for_completion,
+        })
+
+    elif status == "blocked":
+        checklist = [f"Blocked: {row.get('Reason', '')}",
+                     "Resolve the underlying gate/question, then reactivate the run."]
+        commands = [f'resume {run_id} --continue']
+
+    elif status == "finalizing":
+        checklist = ["Verification already passed; only the terminal mirror bookkeeping is unfinished.",
+                     "Re-run complete to retry it - the terminal transition is idempotent by design."]
+        commands = [f'complete {run_id}']
+        extra["snapshot_problem"] = eval_res.snapshot_problem
+        extra["invocation_present"] = eval_res.invocation_present
+
+    elif status == "completed":
+        real_problems = [p for p in eval_res.all_problems if "Run cannot be completed from state" not in p]
+        if real_problems or eval_res.warnings:
+            checklist = [
+                "This completed run has an integrity problem - do NOT edit its terminal Snapshot/queue row.",
+                "Investigate with review/search_workspace.py, then repair with a NEW dated pass "
+                "(evidence_log entry + a fresh commit_workspace_state.py snapshot) - same as any other "
+                "data-quality repair, never by mutating this run's own completed row.",
+            ]
+            commands = [f'review {run_id} --json  (see problems below)']
+            extra["problems"] = real_problems
+            extra["warnings"] = eval_res.warnings
+        else:
+            checklist = ["Completed and healthy - no operational action needed."]
+        extra["snapshot_sha"] = eval_res.snapshot_sha
+        extra["invocation_present"] = eval_res.invocation_present
+
+    elif status in ("historical", "ignored", "failed"):
+        checklist = [f"Terminal state ({status}) - not part of normal processing.",
+                     f"Reason on file: {row.get('Reason', '')}"]
+        if status == "failed":
+            checklist.append("A failed run may later be corrected to historical if migration evidence turns up.")
+            commands.append(f'historical {run_id} --evidence "..."')
+
+    else:
+        checklist = [f"Unrecognized status {status!r}."]
+
+    return checklist, commands, extra
+
+
+def guide_guardrails(row: dict, interpretation: dict) -> list[str]:
+    """Guardrails relevant to this run's current status/stage only - never
+    the full generic list, so the operator sees what actually applies."""
+    status = row.get("Status", "")
+    stage = row.get("Stage", "")
+    guardrails: list[str] = []
+    if status in ("discovered", "needs_scope"):
+        guardrails.append("Never default a missing project/person scope - a route that needs it must land in "
+                          "needs_scope, not a silently-defaulted scope.")
+    if status == "processing" and stage == "apply":
+        guardrails.append("no_change/not_applicable entry outcomes require a reason.")
+    if status == "processing" and stage == "closure":
+        guardrails.append("no_change/gated cascade outcomes require a reason.")
+        guardrails.append("Put the exact token `run:<run-id>` in _skill_invocations before completing.")
+        guardrails.append("commit_workspace_state.py's message must include the run id in brackets, e.g. [<run-id>].")
+        if interpretation.get("source_still_in_inbox"):
+            guardrails.append("archive-source must run BEFORE the closure snapshot is taken, not after.")
+    if status == "finalizing":
+        guardrails.append("complete is safe to retry here - the terminal transition is idempotent by design.")
+    if status == "completed":
+        guardrails.append("A completed run's recorded Snapshot is immutable evidence - a later repair needs its "
+                          "own new evidence_log entry and mirror commit, never editing this run's own row.")
+    return guardrails
 
 
 # ---------- commands ----------
@@ -1827,6 +2081,80 @@ def cmd_dashboard(args) -> CommandResult:
     return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
 
 
+def cmd_guide(args) -> CommandResult:
+    """Read-only deterministic "what do I do next for THIS run" - dashboard
+    answers "what needs attention" across the queue; guide drills into one
+    selected run_id. Reuses review/evaluate_run exclusively; never creates,
+    writes, or mutates _intake_queue, _closure_outcomes,
+    _skill_invocations, mirror files, or the public repo."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    row = get_run(rows, args.run_id)  # raises SystemExit for an unknown run_id, same as every other command
+
+    graph = load_graph()
+    try:
+        route = resolve_route(graph, row.get("Source type", ""), row.get("Route variant", ""))
+    except SystemExit:
+        route = {}
+
+    ctx = load_review_context(services, args.run_id, rows=rows)
+    eval_res = evaluate_run(ctx)
+
+    identity = {
+        "run_id": row.get("Run ID", ""),
+        "status": row.get("Status", ""),
+        "stage": row.get("Stage", ""),
+        "source": row.get("Source", ""),
+        "current_source": row.get("Current source", ""),
+        "source_type": row.get("Source type", ""),
+        "route_variant": row.get("Route variant", ""),
+        "scopes": parse_scopes_cell(row.get("Scopes", "")),
+        "source_text_version": row.get("Source text version", ""),
+        "snapshot_sha": row.get("Snapshot", ""),
+    }
+    interpretation = {
+        "skills": route.get("skills") or [],
+        "entry_documents": route.get("entry") or [],
+        "declared_scopes": parse_scopes_cell(row.get("Scopes", "")),
+        "source_disposition": row.get("Source disposition", ""),
+        "source_still_in_inbox": row.get("Source disposition", "") != "archived",
+        "route_resolved": bool(route),
+    }
+
+    checklist, commands, extra = guide_stage_details(row, graph, route, eval_res, ctx)
+    guardrails = guide_guardrails(row, interpretation)
+
+    data = {
+        "run_id": args.run_id,
+        "identity": identity,
+        "interpretation": interpretation,
+        "checklist": checklist,
+        "commands": commands,
+        "guardrails": guardrails,
+        **extra,
+    }
+
+    stage_label = identity["status"] + (f":{identity['stage']}" if identity["stage"] else "")
+    lines = [f"Guide for {args.run_id}  [{stage_label}]",
+             f"  source: {identity['source']}"]
+    if identity["current_source"] and identity["current_source"] != identity["source"]:
+        lines.append(f"  current source: {identity['current_source']}")
+    if interpretation["skills"]:
+        lines.append(f"  skills: {', '.join(interpretation['skills'])}")
+    if interpretation["entry_documents"]:
+        lines.append(f"  entry documents: {', '.join(interpretation['entry_documents'])}")
+    lines.append("  next steps:")
+    lines += [f"    - {c}" for c in checklist] or ["    (none)"]
+    lines.append("  commands:")
+    lines += [f"    $ {c}" for c in commands] or ["    (none)"]
+    if guardrails:
+        lines.append("  guardrails:")
+        lines += [f"    ! {g}" for g in guardrails]
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
 def main() -> int:
     parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -1927,6 +2255,10 @@ def main() -> int:
     p.add_argument("--project", default="", help="filter to one project")
     p.add_argument("--person", default="", help="filter to one person")
 
+    p = sub.add_parser("guide", help="read-only deterministic next-steps for one selected run",
+                       parents=[parent])
+    p.add_argument("run_id")
+
     args = parser.parse_args()
 
     commands = {
@@ -1937,7 +2269,7 @@ def main() -> int:
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
         "historical": cmd_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
-        "dashboard": cmd_dashboard
+        "dashboard": cmd_dashboard, "guide": cmd_guide
     }
 
     if not args.json:
