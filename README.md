@@ -183,6 +183,61 @@ Use `evidence_log` as the append-only trace of which source changed which projec
 files — including conversational updates, not just automated syncs. Keep
 aggregate KT outputs in `90_Storage/Retired`, not as canonical final documents.
 
+## Project Knowledge Layout
+
+A third lane, separate from M1 people-management and M2 project-management
+reporting: `30_Project_Knowledge\<Project>\`, for building project
+understanding — learning/onboarding, not management reporting. A project
+can enter this lane with poor or entirely missing formal documentation;
+knowledge gets built gradually from whatever sources actually exist
+(1:1s, meetings, chats, presentations, documents, owner notes). A formal
+knowledge-transfer session (`project_knowledge_transcript`) is one
+possible input, never a prerequisite for starting a knowledge base.
+
+```
+30_Project_Knowledge/<Project>/
+  source_index                          (Sheet - one row per processed source)
+  knowledge_base/
+    <Project>_knowledge_base            (Doc - living knowledge base)
+  summaries/
+    <source-slug>_summary               (Doc - one per processed source)
+  qa_docs/
+    performance_test_plan               (Doc)
+    test_plan                           (Doc)
+    test_strategy                       (Doc)
+```
+
+Private by default — no `private`/`team_shared`/`people/<Person>/shared`
+split like the M2 lane has (see `project_knowledge_workspace_layout.py`).
+Sharing an individual Doc is a deliberate, one-off action taken outside
+automation, not a folder move. Google Docs for the knowledge
+base/summaries/QA docs, Google Sheets only for `source_index` — no
+Obsidian/Notion/local wiki, no Google Slides in this phase (a later phase
+may generate slides from a reviewed brief; nothing does that yet).
+
+Four source types: `project_knowledge_transcript`, `project_knowledge_document`,
+`project_knowledge_chat`, `project_knowledge_notes` (see
+`google-workspace-rules.md` and `document_graph.yaml`'s `lanes:` mapping).
+Two skills: `project-knowledge-roles` (shared judgment rules — gradual
+accumulation, durable-vs-one-off distinction, open questions, the M1/M2
+boundary, QA docs as downstream-not-automatic products) and
+`project-knowledge-intake` (the source-triggered pass).
+
+**Relationship to the operator commands:** this lane reuses the normal
+intake pipeline unchanged. `qa_manage.py scan`/`triage`/`classify`/`guide`/
+`pack` all work the same way for a `project_knowledge_*` source as for an
+M1/M2 one — `classify` adds these source types as unranked candidates
+alongside the M1/M2 ones wherever the same format signals fire (transcript/
+chat-shaped sources), never a final choice and never an inferred project
+name; `guide`/`pack` surface each route's `route_description` the same way
+they do for M1/M2 routes. `qa_manage.py gates` stays M2-only (no
+`m2_input`-style two-phase gate exists in this lane yet), and `dashboard`/
+`triage` have no `--lane` filter yet — both list every lane's rows
+together. `search_workspace.py` includes `30_Project_Knowledge` in its
+canonical roots; `show_project_state.py --lane project_knowledge` reads
+this lane's Drive state live (`--registries`/`--summary`/`--person` are
+M2-only concepts and are rejected for this lane).
+
 ## Source extraction
 
 Use the dependency-free extractor when Office source documents need to be converted into
@@ -320,6 +375,16 @@ These are what actually runs day to day, once a project's folder already exists:
   document roles to visibility folders. Readers use canonical-first,
   legacy-compatible lookup during migration; writers create only in the
   canonical visibility folder.
+- `project_knowledge_workspace_layout.py` — not a script to run; canonical
+  folder layout for the Project Knowledge lane (`30_Project_Knowledge`,
+  Phase 13.1). Deliberately simpler than `m2_workspace_layout.py` - no
+  private/team_shared/people visibility split, since this lane is private
+  by default with sharing handled as an explicit, one-off action outside
+  this layout. Reuses `m2_workspace_layout.py`'s generic Drive helpers
+  (`drive_query`, `find_child_folder`, `ensure_child_folder`) rather than
+  duplicating them. `find_*` functions never create anything; `ensure_*`
+  functions create what's missing (a project folder is only created when a
+  source is actually being processed into it, never by a read command).
 - `migrate_workspace_root_layout.py` — legacy-to-current source lifecycle migration.
   `audit` is read-only; `apply` fails closed if any item lacks a queue-backed
   disposition. It moves active sources to `00_Inbox`, processed originals to

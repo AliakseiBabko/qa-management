@@ -446,6 +446,16 @@ real types above, never the raw label. If a genuinely new source shape
 appears, add it here rather than picking an ad hoc value silently at the
 point of use.
 
+Four more values belong to the Project Knowledge lane (`30_Project_Knowledge`,
+see `document_graph.yaml`'s `lanes:` mapping — a separate lane from M1/M2
+management reporting, for building project understanding from whatever
+sources actually exist): `project_knowledge_transcript` (a recorded/
+transcribed conversation), `project_knowledge_document` (a written
+artifact — design doc, presentation export, spec), `project_knowledge_chat`
+(a chat/message-thread export), `project_knowledge_notes` (the owner's own
+short notes, too brief to warrant a separate summary document). None of
+these four route to any M1/M2 document — see `project-knowledge-roles`.
+
 ### `_skill_invocations`
 
 Separate from `evidence_log` (which is per-project and answers "which live

@@ -1496,6 +1496,33 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
             f"{signals.get('email_marker_count', 0)} email-header marker(s) detected - person-specific "
             "incident chats often route here")
 
+    # Project Knowledge lane (30_Project_Knowledge) - unranked candidates
+    # alongside the M1/M2 ones above, never a final choice and never an
+    # inferred project name. Format signals alone can't distinguish an M2
+    # status meeting from project-understanding knowledge work, so a
+    # transcript/chat-shaped source gets both kinds of candidate; the agent
+    # still has to read the content and decide (see project-knowledge-roles).
+    if speakers >= 2 or bracketed >= 2 or timestamped >= 2:
+        add("project_knowledge_transcript", "",
+            "transcript-like turn structure detected - could also be project-understanding knowledge "
+            "work (project_knowledge_transcript) rather than M1/M2 management content")
+
+    if signals.get("likely_chat"):
+        add("project_knowledge_chat", "",
+            f"{signals.get('chat_header_line_count', 0)} Google-Chat-style message headers detected - "
+            "could also be project-understanding knowledge work rather than an M2 strategy chat")
+
+    if speakers < 2 and bracketed < 2 and timestamped < 2 and not signals.get("likely_chat") and not signals.get("likely_email"):
+        line_count = signals.get("line_count", 0) or 0
+        if line_count and line_count <= 15:
+            add("project_knowledge_notes", "",
+                f"only {line_count} line(s), no transcript/chat/email signals detected - short enough "
+                "to be owner notes about a project (manual review required)")
+        else:
+            add("project_knowledge_document", "",
+                "no transcript/chat/email signals detected but the file is text-readable - could be a "
+                "project-understanding document (design doc, spec, runbook); manual review required")
+
     return candidates
 
 

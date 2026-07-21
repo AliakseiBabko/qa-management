@@ -26,6 +26,7 @@ CANONICAL_ROOTS = [
     "05_People_Management",
     "10_M1_People_Management",
     "20_M2_Project_Management",
+    "30_Project_Knowledge",
 ]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

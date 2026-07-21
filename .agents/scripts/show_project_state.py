@@ -36,6 +36,7 @@ from google_api_smoke_test import ensure_utf8_stdout
 from pipeline_common import get_last_round_status, get_pending_round_questions, get_services
 from scaffold_project_dashboard import EMPTY_ROUND_PLACEHOLDER
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query, find_sheet_in_folder, q_escape, read_sheet_values
+import project_knowledge_workspace_layout as pk_layout
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
@@ -43,6 +44,11 @@ DOC_MIME = "application/vnd.google-apps.document"
 PROJECT_DOCS = {"project_metrics", "project_risk", "evidence_log", "qa_process_metrics", "action_items", "project_development_plan", "m2_input"}
 PERSON_DOCS = {"individual_metrics", "individual_metrics_internal", "individual_development_plan"}
 REGISTRY_DOCS = {"_people_registry", "_project_registry", "_timeline"}
+
+# Project Knowledge lane (30_Project_Knowledge, --lane project_knowledge) -
+# a separate, deliberately simpler read path: no registries, no person
+# scope, no evidence-tail concept. See do_run_project_knowledge().
+PK_DOCS = {"pk_source_index", "pk_knowledge_base", "pk_performance_test_plan", "pk_test_plan", "pk_test_strategy"}
 
 DATE_COLS = {
     "evidence_log": 0,
@@ -82,6 +88,10 @@ def stdout_redirected(to=sys.stderr):
 def parse_args() -> argparse.Namespace:
     parser = ThrowingArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", help="Project name under 20_M2_Project_Management, e.g. <ProjectName>")
+    parser.add_argument("--lane", choices=["m2", "project_knowledge"], default="m2",
+                        help="Which Drive root --project resolves against: 'm2' (20_M2_Project_Management, "
+                             "default, unchanged behavior) or 'project_knowledge' (30_Project_Knowledge). "
+                             "The project_knowledge lane does not support --registries/--summary/--person.")
     parser.add_argument("--registries", action="store_true", help="Also/instead dump _people_registry and _project_registry")
     parser.add_argument(
         "--summary",
@@ -115,6 +125,24 @@ def parse_args() -> argparse.Namespace:
     if args.limit is not None:
         if args.limit < 1 or args.limit > 1000:
             parser.error(f"Invalid --limit: {args.limit}. Must be between 1 and 1000.")
+
+    if args.lane == "project_knowledge":
+        # A deliberately separate, simpler validation path - this lane has
+        # no registries/summary/person concept, so it skips the M2-specific
+        # PROJECT_DOCS/PERSON_DOCS/REGISTRY_DOCS validation below entirely
+        # rather than trying to fold pk_* names into it.
+        if args.registries:
+            parser.error("--registries is not supported with --lane project_knowledge")
+        if args.summary:
+            parser.error("--summary is not supported with --lane project_knowledge")
+        if args.person:
+            parser.error("--person is not supported with --lane project_knowledge")
+        if not args.project:
+            parser.error("--lane project_knowledge requires --project")
+        for doc_name in args.document:
+            if doc_name not in PK_DOCS:
+                parser.error(f"Unknown project_knowledge document name: {doc_name} (one of: {sorted(PK_DOCS)})")
+        return args
 
     targeted_only_flags = []
     if args.person: targeted_only_flags.append("--person")
@@ -472,7 +500,112 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
 
     return {"doc_results": doc_results, "errors": errors}
 
+def do_run_project_knowledge(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
+    """Read-only path for --lane project_knowledge. Deliberately separate
+    from do_run's M2 path rather than threaded through it - this lane has
+    no registries/summary/person concept, and its documents live under
+    30_Project_Knowledge via project_knowledge_workspace_layout, not
+    m2_workspace_layout."""
+    try:
+        services = get_services(args.credentials, args.token)
+    except Exception as e:
+        return build_json_envelope(False, "show_project_state", {}, [], [f"Failed to build services: {e}"]), 1
+
+    drive = services["drive"]
+    project_folder = pk_layout.find_project_folder(drive, args.project)
+    if not project_folder:
+        msg = f"Project {args.project!r} not found under 30_Project_Knowledge."
+        return build_json_envelope(False, "show_project_state", {}, [], [msg]), 1
+
+    if args.document:
+        limit = args.limit if args.limit is not None else 20
+        doc_results = []
+        for doc_name in args.document:
+            is_sheet = doc_name == "pk_source_index"
+            doc_result = {
+                "name": doc_name,
+                "kind": "sheet" if is_sheet else "doc",
+                "drive_id": None,
+                "scope": {"project": args.project},
+                "missing": True,
+                "content": [],
+                "returned_count": 0,
+                "total_count": 0,
+                "truncated": False,
+            }
+            doc = pk_layout.find_document(drive, project_folder["id"], doc_name, project=args.project)
+            if not doc:
+                doc_results.append(doc_result)
+                continue
+            doc_result["missing"] = False
+            doc_result["drive_id"] = doc["id"]
+            if is_sheet:
+                rows = read_sheet_values(services, doc["id"])
+                if rows:
+                    header, body = rows[0], rows[1:]
+                    doc_result["total_count"] = len(body)
+                    if limit and len(body) > limit:
+                        body = body[-limit:]
+                        doc_result["truncated"] = True
+                    doc_result["content"] = [header] + body
+                    doc_result["returned_count"] = len(body)
+            else:
+                paras = read_doc_paragraphs(services, doc["id"])
+                doc_result["total_count"] = len(paras)
+                if limit and len(paras) > limit:
+                    paras = paras[:limit]
+                    doc_result["truncated"] = True
+                doc_result["content"] = paras
+                doc_result["returned_count"] = len(paras)
+            doc_results.append(doc_result)
+
+        envelope = build_json_envelope(True, "show_project_state", {
+            "selectors": {"project": args.project, "lane": "project_knowledge",
+                         "limit": args.limit if args.limit is not None else 20},
+            "documents": doc_results,
+        }, [], [])
+        if not args.json:
+            for d in doc_results:
+                print(f"--- {d['name']} ---")
+                if d["missing"]:
+                    print("Not found.")
+                else:
+                    for line in d["content"]:
+                        print(line)
+        return envelope, 0
+
+    # Full listing: which fixed docs exist, plus which summaries exist
+    # (names only - summary content is a targeted --document pk_summary
+    # read once that's added; out of scope for this MVP CLI surface).
+    fixed_docs = {}
+    for role in sorted(PK_DOCS):
+        doc = pk_layout.find_document(drive, project_folder["id"], role, project=args.project)
+        fixed_docs[role] = {"drive_id": doc["id"]} if doc else None
+    summaries_folder = pk_layout._find_subfolder(drive, project_folder["id"], pk_layout.SUMMARY_FOLDER_PARTS)
+    summary_names = []
+    if summaries_folder:
+        summary_names = sorted(
+            item["name"] for item in drive_query(
+                drive, f"'{summaries_folder['id']}' in parents and trashed = false"
+            )
+        )
+
+    data = {"project": args.project, "lane": "project_knowledge",
+            "documents": fixed_docs, "summaries": summary_names}
+    if not args.json:
+        print(f"===== {args.project} (30_Project_Knowledge) =====")
+        for role, info in fixed_docs.items():
+            print(f"  {role}: {'found' if info else 'not found'}")
+        print(f"  summaries: {len(summary_names)}")
+        for name in summary_names:
+            print(f"    - {name}")
+    return build_json_envelope(True, "show_project_state", data, [], []), 0
+
+
 def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
+    if args.lane == "project_knowledge":
+        return do_run_project_knowledge(args)
+
     if not args.project and not args.registries and not args.summary and not args.document:
         msg = "Nothing to do: pass --project <Name>, --registries, --summary, and/or --document <Name>."
         return build_json_envelope(False, "show_project_state", {}, [], [msg]), 1

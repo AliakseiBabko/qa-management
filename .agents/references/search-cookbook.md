@@ -110,6 +110,27 @@ Rule of thumb: `search_workspace.py` for **breadth** (across projects/time,
 git-history-aware); `show_project_state.py` for **freshness** (this one
 project, right now, guaranteed live).
 
+## Unprocessed inbox inspection
+
+`search_workspace.py` only sees what's already in the private mirror -
+a source still sitting unprocessed in `00_Inbox` won't show up there at
+all (it hasn't been committed yet). For that case:
+
+**Unprocessed inbox inspection: use `triage` / `triage-one` / `classify` /
+`pack` before `search_workspace.py`.**
+
+```sh
+python .agents/scripts/qa_manage.py triage --json
+python .agents/scripts/qa_manage.py triage-one <run-id> --json
+python .agents/scripts/qa_manage.py classify <run-id> --json
+python .agents/scripts/qa_manage.py pack <run-id> --json
+```
+
+`triage` gives a backlog overview; `triage-one`/`classify` inspect one
+discovered source (format signals, candidate routes, a capped preview);
+`pack` is the full handoff packet once a run is further along. None of
+these four write anything.
+
 ## Related read-only commands
 
 - `qa_manage.py gates [--project <Project>] [--min-age-days N] [--json]` -
