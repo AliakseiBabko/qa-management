@@ -250,14 +250,23 @@ def _insert_blocks(docs_service: Any, doc_id: str, insert_at: int, blocks: list[
 
 
 def _find_answer_heading_start(docs_service: Any, doc_id: str) -> tuple[dict[str, Any], int | None]:
+    """Locate the start index of the CURRENT round's answer heading - the
+    LAST "Ответ и общие соображения M2" heading in the doc, mirroring
+    get_last_round_status's own last-match logic. A doc with more than one
+    round (an earlier answered one plus a later pending one) has more than
+    one such heading; returning the first one instead of the last means an
+    addendum meant for the pending round lands in the wrong, already-
+    answered round instead (this happened once on a real project; see that
+    project's own m2_input history/evidence_log for the fix)."""
     doc = docs_service.documents().get(documentId=doc_id).execute()
+    answer_start = None
     for element in doc["body"]["content"]:
         if "paragraph" not in element:
             continue
         text = "".join(run.get("textRun", {}).get("content", "") for run in element["paragraph"]["elements"])
         if text.strip() == ANSWER_HEADING:
-            return doc, element["startIndex"]
-    return doc, None
+            answer_start = element["startIndex"]
+    return doc, answer_start
 
 
 def append_doc_round(docs_service: Any, doc_id: str, blocks: list[tuple[str, str]]) -> None:
