@@ -111,6 +111,20 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      It provides deterministic literal-path search across the canonical `.md`/`.csv` corpus
      and `_source_text` blobs using Git. Output can be limited by path, kind, run-id, or dates.
      Passing `--json` emits a strict JSON envelope buffering output for programmatic consumption.
+     See `.agents\references\search-cookbook.md` (Phase 12) for worked recipes
+     ("where was X last mentioned", "what changed since date", canonical-only vs.
+     source-only, one run by run-id) and when to prefer
+     `show_project_state.py` instead (live Drive state vs. the mirror's last
+     committed snapshot, which can be stale).
+   - Want to know what M2 still owes an answer on — pending `m2_input`
+     rounds gating `project_risk`/`project_development_plan` across
+     projects? — `.agents\scripts\qa_manage.py gates [--project <Name>]
+     [--min-age-days N] [--json]` (Phase 12). Read-only, sorted oldest
+     first: round age, addenda count, first addendum heading only (never
+     question/addendum text), and a deterministic `recommended_action`.
+     Never answers a question, writes a document, or records closure — this
+     is a review command, not an intake-processing one; `dashboard` remains
+     the default first entry point for intake-queue work.
    - Starting a session, or not sure what needs attention right now? —
      run `.agents\scripts\qa_manage.py dashboard` first, before `scan`,
      `next`, `start`, `review`, or `complete`. It's the default operator

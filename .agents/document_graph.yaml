@@ -39,6 +39,11 @@ sources:
   qa_1to1:
     routes:
       m1:
+        description: >-
+          1:1 conversation covering only people-management topics (workload,
+          career growth, PR/review timing, risk signals) - no project-level
+          QA conclusions. Updates the person's longitudinal 1:1 record and
+          risk sheet, not any project document.
         # People-management half: longitudinal 1:1 record, risk sheet,
         # follow-ups. M1-scoped sources log to _skill_invocations (and the
         # records themselves); project evidence_log only if project-scoped.
@@ -46,11 +51,21 @@ sources:
                  m1-timeline]
         entry: [m1_1to1_file, m1_risk_report, _m1_timeline, _skill_invocations]
       m2:
+        description: >-
+          1:1 conversation covering project-level QA topics (individual
+          contribution, project risk signals, open questions for the M2
+          rollup) - no people-management-only content. Updates the person's
+          project metrics/development plan and may open an m2_input
+          question.
         skills: [qa-1to1-analysis, m2-1to1-apply, m2-people-1to1-file]
         entry: [m2_people_1to1_file, individual_metrics,
                 individual_development_plan, m2_input, evidence_log,
                 _skill_invocations]
       mixed:
+        description: >-
+          Single 1:1 conversation that covers both people-management and
+          project-level QA topics - both the m1 and m2 conclusions below
+          apply from the one source, kept in their own separate documents.
         # One shared qa-1to1-analysis pass, then both routes above; M1 and
         # M2 conclusions stay separately labeled even from one transcript.
         skills: [qa-1to1-analysis, m1-people-1to1-file, m1-people-risk-report,
@@ -60,16 +75,32 @@ sources:
                 individual_development_plan, m2_input, evidence_log,
                 _skill_invocations]
   strategy_chat:
+    description: >-
+      Project-level strategy/status chat (not a 1:1) - client-facing or
+      internal delivery-management conversation about one project. Updates
+      the people registry, individual metrics/plans for anyone mentioned,
+      and may open an m2_input question; never a project risk/plan
+      conclusion directly.
     skills: [m2-strategy-chat-analysis]
     entry: [_people_registry, individual_metrics, individual_development_plan,
             m2_input, evidence_log, _skill_invocations]
   meeting_transcript:
     routes:
       multi_project:
+        description: >-
+          One meeting/status walkthrough covering several of M2's projects
+          at once - facts get split per project. Opens or extends each
+          affected project's m2_input round; never writes project_risk/
+          project_development_plan directly (see the m2_input gate below).
         # Status walkthrough covering several of M2's projects.
         skills: [m2-status-meeting-intake]
         entry: [m2_input, action_items, evidence_log, _skill_invocations]
       single_project:
+        description: >-
+          A meeting/transcript scoped to exactly one project (not a 1:1) -
+          e.g. a project status call. Opens or extends that project's
+          m2_input round; person-level facts update individual docs
+          directly, same as a strategy chat.
         # One project's own meeting. No source-specific intake skill exists
         # (deliberately - no new judgment rules needed): load the shared
         # role rules for the m2_input gate and the skill owning
@@ -78,9 +109,16 @@ sources:
         skills: [qa-management-roles, m2-timeline]
         entry: [m2_input, action_items, evidence_log, _skill_invocations]
   admin_note:
+    description: >-
+      Short pasted admin note (e.g. a forwarded email) - a people-registry
+      fact update, not a conversation to analyze for project risk.
     skills: [m2-admin-note-intake]
     entry: [_people_registry, evidence_log, _skill_invocations]
   m1_history:
+    description: >-
+      Historical M1 documents imported wholesale (prior-period 1:1 records)
+      - a backfill of the longitudinal record, not a new conversational
+      event to interpret.
     # Historical M1 documents (imported 1to1 history, prior-period records).
     # M1 scope: no project evidence_log unless the content is project-scoped;
     # _skill_invocations plus the longitudinal record carry the trail.
@@ -89,6 +127,11 @@ sources:
     entry: [m1_1to1_file, _people_registry, _skill_invocations]
     scope_required: [person]
   people_case_chat:
+    description: >-
+      Person-specific incident chat (e.g. a leaving/HR case) - people-risk
+      evidence about one person, distinct from a project-wide strategy
+      chat. Project evidence_log only when the case is genuinely
+      project-scoped.
     # Person-specific incident chat (e.g. a leaving case) - people-risk
     # evidence first, distinct from a project-wide strategy chat. Same M1
     # evidence rule as m1_history; add the project's evidence_log only when
@@ -98,6 +141,10 @@ sources:
     entry: [m1_risk_report, _people_registry, _skill_invocations]
     scope_required: [person]
   m2_conversation:
+    description: >-
+      M2's own comments/answers/corrections given directly in conversation
+      (e.g. an m2_input rollup answer) - a first-class source in its own
+      right, not a side channel or a mutation of another source's record.
     # M2's own comments/answers/corrections given in conversation - a
     # first-class source, not a side channel. No source-specific skill:
     # shared role rules govern the m2_input gate; m2-timeline owns

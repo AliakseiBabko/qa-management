@@ -1425,6 +1425,7 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
             "required_scope": sorted(needed_scopes(graph, route)),
             "skills": route.get("skills") or [],
             "entry_documents": route.get("entry") or [],
+            "route_description": route.get("description", ""),
             "reason": reason,
         })
 
@@ -2493,6 +2494,7 @@ def cmd_guide(args) -> CommandResult:
     interpretation = {
         "skills": route.get("skills") or [],
         "entry_documents": route.get("entry") or [],
+        "route_description": route.get("description", ""),
         "declared_scopes": parse_scopes_cell(row.get("Scopes", "")),
         "source_disposition": row.get("Source disposition", ""),
         "source_still_in_inbox": row.get("Source disposition", "") != "archived",
@@ -2517,6 +2519,8 @@ def cmd_guide(args) -> CommandResult:
              f"  source: {identity['source']}"]
     if identity["current_source"] and identity["current_source"] != identity["source"]:
         lines.append(f"  current source: {identity['current_source']}")
+    if interpretation["route_description"]:
+        lines.append(f"  route: {interpretation['route_description']}")
     if interpretation["skills"]:
         lines.append(f"  skills: {', '.join(interpretation['skills'])}")
     if interpretation["entry_documents"]:
@@ -2688,7 +2692,9 @@ def cmd_classify(args) -> CommandResult:
     lines.append(f"  confidence: {confidence}")
     lines.append("  candidate_routes:")
     lines += [f"    - {c['source_type']}" + (f"/{c['variant']}" if c["variant"] else "")
-              + f"  ({c['reason']})" for c in candidates] or ["    (none - manual classification required)"]
+              + f"  ({c['reason']})"
+              + (f"\n      {c['route_description']}" if c.get("route_description") else "")
+              for c in candidates] or ["    (none - manual classification required)"]
     if ignore_suggestion:
         lines.append(f"  ignore_suggestion: {ignore_suggestion['category']} - {ignore_suggestion['reason_hint']}")
     lines.append("  commands:")
@@ -2808,6 +2814,7 @@ def cmd_pack(args) -> CommandResult:
     interpretation = {
         "skills": route.get("skills") or [],
         "entry_documents": route.get("entry") or [],
+        "route_description": route.get("description", ""),
         "declared_scopes": parse_scopes_cell(row.get("Scopes", "")),
         "source_disposition": row.get("Source disposition", ""),
         "source_still_in_inbox": row.get("Source disposition", "") != "archived",
@@ -2857,6 +2864,7 @@ def cmd_pack(args) -> CommandResult:
     if route:
         graph_context = {
             "route_resolved": True,
+            "route_description": interpretation["route_description"],
             "skills": interpretation["skills"],
             "entry_documents": interpretation["entry_documents"],
             "required_scope": sorted(needed_scopes(graph, route)),
@@ -2899,6 +2907,8 @@ def cmd_pack(args) -> CommandResult:
         lines.append(f"  size: {preview['size_bytes']} bytes  (binary/unsupported - metadata only)")
     else:
         lines.append("  (source file not found on disk - see warnings)")
+    if interpretation.get("route_description"):
+        lines.append(f"  route: {interpretation['route_description']}")
     lines.append("  commands:")
     lines += [f"    $ {c}" for c in commands] or ["    (none)"]
     lines.append("  guardrails:")
@@ -3092,6 +3102,164 @@ def cmd_triage_one(args) -> CommandResult:
     return CommandResult(ok=True, data=data, warnings=preview_warnings, human_lines=lines, exit_code=0)
 
 
+# ---------- gates (read-only M2 gate dashboard, Phase 12) ----------
+
+GATES_EMPTY_ROUND_CHAR_THRESHOLD = 60
+GATES_STALE_AGE_DAYS = 2
+
+
+def parse_round_date(value: str | None) -> dt.date | None:
+    if not value:
+        return None
+    try:
+        return dt.datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def row_projects(row: dict) -> set[str]:
+    """Every project this queue row is scoped to - declared Scopes tuples
+    first, falling back to the semicolon-joined Project field for rows that
+    never declared an explicit scope yet (discovered/needs_scope), same
+    fallback rule as row_matches_scope_filter."""
+    projects = {p.strip() for p, _ in parse_scopes_cell(row.get("Scopes", "")) if p.strip()}
+    if not projects:
+        raw = str(row.get("Project", "")).strip()
+        if raw:
+            projects = {x.strip() for x in raw.split(";") if x.strip()}
+    return projects
+
+
+def compute_recommended_action(block_chars: int, has_open_queue_run: bool, age_days: int | None) -> str:
+    """Deterministic-only recommendation - no content judgment, no semantic
+    reading of the question text itself:
+    - an effectively empty round (no real question text ever added) needs
+      no action yet;
+    - a project with an open (not yet completed/terminal) queue run may
+      already have its answer sitting in that unprocessed source - process
+      it first rather than asking the user to re-derive the same answer;
+    - an old enough round with real content and no pending source is a
+      genuine ask for M2/the user;
+    - anything else (fresh round, ambiguous) falls back to manual review."""
+    if block_chars <= GATES_EMPTY_ROUND_CHAR_THRESHOLD:
+        return "no action yet"
+    if has_open_queue_run:
+        return "process existing source first"
+    if age_days is not None and age_days >= GATES_STALE_AGE_DAYS:
+        return "ask M2/user for answers"
+    return "manual review required"
+
+
+def build_gate_row(project: str, round_summary: dict, has_open_queue_run: bool, today: dt.date) -> dict | None:
+    """One gates row from a project's get_pending_round_summary() result, or
+    None if that project's m2_input has no round currently pending (nothing
+    to gate on). Never includes question/addendum text - only counts and
+    the first addendum heading label (see get_pending_round_summary)."""
+    if not round_summary.get("pending"):
+        return None
+    round_date_str = round_summary.get("round_date")
+    round_date = parse_round_date(round_date_str)
+    age_days = (today - round_date).days if round_date else None
+    block_chars = round_summary.get("block_chars", 0)
+    return {
+        "project": project,
+        "round_date": round_date_str,
+        "age_days": age_days,
+        "addenda_count": round_summary.get("addenda_count", 0),
+        "first_heading": round_summary.get("first_heading"),
+        "block_chars": block_chars,
+        "gated_documents": ["project_risk", "project_development_plan"],
+        "gated_documents_secondary": ["action_items"],
+        "recommended_action": compute_recommended_action(block_chars, has_open_queue_run, age_days),
+    }
+
+
+def sort_and_filter_gates(rows: list[dict], project_filter: str = "", min_age_days: int = 0,
+                           limit: int = 0) -> list[dict]:
+    """Oldest-first sort (missing age sorts last, never crashes), then
+    project/min-age filters, then limit. A pure function so gates' grouping/
+    sorting/filtering is unit-testable without live Drive access."""
+    out = list(rows)
+    project_filter = (project_filter or "").strip()
+    if project_filter:
+        out = [r for r in out if r["project"].casefold() == project_filter.casefold()]
+    if min_age_days:
+        out = [r for r in out if (r["age_days"] if r["age_days"] is not None else -1) >= min_age_days]
+    out.sort(key=lambda r: r["age_days"] if r["age_days"] is not None else -1, reverse=True)
+    if limit and limit > 0:
+        out = out[:limit]
+    return out
+
+
+def cmd_gates(args) -> CommandResult:
+    """Read-only M2 gate dashboard: every project with a currently pending
+    m2_input round, and what it's gating. Never answers a question, never
+    writes project_risk/project_development_plan/action_items, never
+    records a closure outcome - purely Drive/Sheets *reads* (find_folder_path,
+    list_children, find_document, docs().get(), read_queue) plus the pure
+    helpers above. No qa_manage.py verb here mutates _intake_queue -
+    write_queue/export_queue_terminal are never called."""
+    from pipeline_common import get_pending_round_summary
+    from m2_workspace_layout import DOC_MIME, FOLDER_MIME, find_document, find_folder_path, list_children
+    from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
+
+    services = get_services_cached()
+    drive, docs = services["drive"], services["docs"]
+
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    open_statuses = {"discovered", "needs_scope", "processing", "blocked"}
+    projects_with_open_runs = {
+        p.casefold() for row in rows if row.get("Status") in open_statuses for p in row_projects(row)
+    }
+
+    m2_root = find_folder_path(drive, ROOT_FOLDER_ID, ["20_M2_Project_Management"])
+    project_folders: list[tuple[str, str]] = []
+    if m2_root:
+        for item in list_children(drive, m2_root["id"]):
+            name = str(item.get("name", ""))
+            if item.get("mimeType") == FOLDER_MIME and not name.startswith("_"):
+                project_folders.append((name, item["id"]))
+    project_folders.sort(key=lambda t: t[0].casefold())
+
+    today = dt.date.today()
+    gate_rows: list[dict] = []
+    for name, folder_id in project_folders:
+        doc = find_document(drive, folder_id, "m2_input", "m2_input", DOC_MIME)
+        if not doc:
+            continue
+        summary = get_pending_round_summary(docs, doc["id"])
+        row = build_gate_row(name, summary, name.casefold() in projects_with_open_runs, today)
+        if row:
+            gate_rows.append(row)
+
+    limit = args.limit if getattr(args, "limit", None) else 0
+    min_age_days = args.min_age_days if getattr(args, "min_age_days", None) else 0
+    result_rows = sort_and_filter_gates(gate_rows, args.project or "", min_age_days, limit)
+
+    data = {
+        "generated_date": today.isoformat(),
+        "projects_scanned": len(project_folders),
+        "pending_rounds_total": len(gate_rows),
+        "gates": result_rows,
+    }
+
+    lines = [f"M2 gates (oldest first) - {len(result_rows)} of {len(gate_rows)} pending round(s), "
+             f"{len(project_folders)} project(s) scanned"]
+    if not result_rows:
+        lines.append("  (none)")
+    for r in result_rows:
+        age = f"{r['age_days']}d" if r["age_days"] is not None else "unknown age"
+        lines.append(f"  - {r['project']}: round {r['round_date']}  ({age}, {r['addenda_count']} addenda)")
+        lines.append(f"      gates: {', '.join(r['gated_documents'])}"
+                     f"  (secondary: {', '.join(r['gated_documents_secondary'])})")
+        if r["first_heading"]:
+            lines.append(f"      first addendum: {r['first_heading']}")
+        lines.append(f"      next action: {r['recommended_action']}")
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
 def main() -> int:
     parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -3226,6 +3394,13 @@ def main() -> int:
     p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
                    help=f"cap on the returned preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
 
+    p = sub.add_parser("gates", help="read-only M2 gate dashboard: pending m2_input rounds and "
+                                      "what they gate", parents=[parent])
+    p.add_argument("--project", default="", help="filter to one project")
+    p.add_argument("--limit", type=int, default=0, help="cap the number of gates listed (0 = no cap)")
+    p.add_argument("--min-age-days", type=int, default=0,
+                   help="only list rounds at least this many days old")
+
     args = parser.parse_args()
 
     commands = {
@@ -3237,7 +3412,8 @@ def main() -> int:
         "mark-historical": cmd_mark_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
         "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,
-        "pack": cmd_pack, "triage": cmd_triage, "triage-one": cmd_triage_one
+        "pack": cmd_pack, "triage": cmd_triage, "triage-one": cmd_triage_one,
+        "gates": cmd_gates,
     }
 
     if not args.json:

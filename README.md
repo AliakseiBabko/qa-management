@@ -305,6 +305,11 @@ These are what actually runs day to day, once a project's folder already exists:
   manifests. Constrained entirely to the defined canonical root paths (`.md`
   and `.csv`) and `_source_text/blobs/v1/*.txt` source files. No vector/FTS
   indexes or model calls; powered entirely by `git --literal-pathspecs grep`.
+  See `.agents/references/search-cookbook.md` (Phase 12) for worked
+  examples — "where was X last mentioned", "what changed since date",
+  canonical-only vs. source-only search, one run by run-id, and when to
+  prefer `show_project_state.py` instead (live Drive vs. the mirror's last
+  committed snapshot).
 - `migrate_m2_visibility_layout.py` — one-time, idempotent Drive migration
   for the M2 permission-boundary layout. `audit` is read-only and reports
   planned moves plus unrecognized artifacts; `apply` creates only the
@@ -563,6 +568,22 @@ These are what actually runs day to day, once a project's folder already exists:
   (unit-tested in `.agents/tests`). The `review <run-id>` command provides a
   read-only evaluation of a run's closure/completion readiness (missing invocation
   evidence, snapshot problems, unresolved edges) without mutation.
+  **`gates [--project <Name>] [--min-age-days N] [--limit N] [--json]`**
+  (Phase 12) is a separate read-only M2 gate dashboard, distinct from the
+  intake-queue commands above: every M2 project with a currently pending
+  `m2_input` round (an open question blocking `project_risk`/
+  `project_development_plan`, with `action_items` gated secondarily),
+  sorted oldest first, with round age, addenda count, the first addendum's
+  heading only (never the question/addendum text itself), and a
+  deterministic `recommended_action` (`ask M2/user for answers` /
+  `process existing source first`, when the project already has an open
+  intake-queue run that might answer it / `no action yet`, for an
+  effectively empty round / `manual review required` as the fallback).
+  Never answers a question, writes a document, or records a closure
+  outcome — pure Drive/Sheets reads (`find_folder_path`, `list_children`,
+  `find_document`, `docs().get()`, `read_queue`). Use it to review what M2
+  still owes an answer on, as opposed to `dashboard`'s "what does the
+  intake queue need" — `dashboard` remains the default first entry point.
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,

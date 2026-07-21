@@ -217,7 +217,10 @@ round has been open since <date> with N addenda — the rollup has been
 frozen that whole time") rather than silently adding addendum N+1 as if
 nothing's unusual. This doesn't mean answering it on the user's behalf —
 it means surfacing the staleness so the user can decide to actually close
-it out.
+it out. `qa_manage.py gates` is the read-only inspection command for this
+exact question across every project at once (round age, addenda count,
+first addendum heading only) — use it to review staleness instead of
+re-deriving age/addenda counts by hand.
 
 ## Cascading Updates
 
