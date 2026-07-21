@@ -115,6 +115,27 @@ Commands (all support --json for machine-readable output):
                                   Reuses review/evaluate_run exclusively;
                                   never creates, writes, or mutates
                                   anything.
+    classify <run-id> [--max-preview-chars N]
+                                  read-only pre-`start` helper for a
+                                  `discovered` run needing a source_type/
+                                  variant/scope judgment call: reads
+                                  Current source (falling back to Source),
+                                  reports deterministic format signals
+                                  (line count, speaker/chat-header/
+                                  datetime/email marker counts - no AI/LLM
+                                  call), and lists unranked `candidate_routes`
+                                  (source_type, variant, required scope,
+                                  skills, entry documents, and the exact
+                                  signal that produced each one) plus
+                                  `guide`/`start`/`ignore` command
+                                  templates. Never chooses a final route,
+                                  never calls `start`, never writes
+                                  anywhere - the classification decision
+                                  stays with the agent after reading the
+                                  actual source. The preview excerpt
+                                  returned is capped (small, to avoid
+                                  token waste); nothing here is ever
+                                  written into the queue or this repo.
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -218,6 +239,18 @@ FOLDER_PRECLASS = {
 # integrity pass, and how many rows are listed per section - keeps the
 # command cheap regardless of queue size.
 DEFAULT_DASHBOARD_LIMIT = 20
+
+# classify: default cap on the preview excerpt returned to the caller -
+# small enough to avoid token waste, large enough to see the shape of the
+# source. The full file is still read locally to compute deterministic
+# signals (line count, speaker/date/chat/email markers); only the
+# returned preview text itself is capped.
+DEFAULT_MAX_PREVIEW_CHARS = 2000
+
+# classify: extensions cheap/safe to read as plain text for signal
+# detection. Binary formats (.docx/.doc/.pdf/.xlsx) are reported by
+# filename/extension only - never decoded here.
+TEXT_READABLE_EXTS = {".txt", ".md", ".csv"}
 
 
 def now() -> str:
@@ -1165,6 +1198,136 @@ def guide_guardrails(row: dict, interpretation: dict) -> list[str]:
         guardrails.append("A completed run's recorded Snapshot is immutable evidence - a later repair needs its "
                           "own new evidence_log entry and mirror commit, never editing this run's own row.")
     return guardrails
+
+
+# ---------- classify (read-only, one run) ----------
+
+# "Name:" alone on its own line - the speaker-turn shape seen in this
+# workspace's own 1:1/meeting transcripts (e.g. "Алексе Бобко:" followed by
+# the message on the next line). Deliberately narrow (short, no trailing
+# text) so it doesn't fire on ordinary prose lines that happen to end in a
+# colon.
+_SPEAKER_LINE_RE = re.compile(r"^([^\n:]{1,60}):\s*$")
+# Generic date/time markers (ISO dates, HH:MM[:SS] [AM/PM], D/M/Y) - a
+# coarse density signal, distinct from the stricter Google-Chat header
+# shape detect_strategy_chats.is_header_line looks for.
+_DATETIME_MARKER_RE = re.compile(
+    r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"
+)
+_EMAIL_HEADER_RE = re.compile(r"^(?:From|To|Subject|Sent|Cc|Bcc):\s", re.IGNORECASE | re.MULTILINE)
+
+
+def detect_format_signals(text: str | None, extension: str) -> dict:
+    """Deterministic, content-independent-of-semantics signal detection -
+    no AI/LLM call, just line-shape/regex counting. `text` is the full
+    file content (already read by the caller); this function only counts,
+    it never decides a classification."""
+    if extension not in TEXT_READABLE_EXTS or text is None:
+        return {
+            "text_readable": False,
+            "line_count": None,
+            "distinct_speaker_prefixes": 0,
+            "chat_header_line_count": 0,
+            "datetime_marker_count": 0,
+            "email_marker_count": 0,
+            "likely_transcript": False,
+            "likely_chat": False,
+            "likely_email": False,
+            "likely_binary_document": extension not in TEXT_READABLE_EXTS,
+        }
+
+    from detect_strategy_chats import is_header_line
+
+    lines = text.splitlines()
+    speakers: set[str] = set()
+    for line in lines:
+        m = _SPEAKER_LINE_RE.match(line.strip())
+        if m and m.group(1).strip():
+            speakers.add(m.group(1).strip())
+    chat_header_count = sum(1 for line in lines if is_header_line(line))
+    datetime_count = len(_DATETIME_MARKER_RE.findall(text))
+    email_count = len(_EMAIL_HEADER_RE.findall(text))
+
+    return {
+        "text_readable": True,
+        "line_count": len(lines),
+        "distinct_speaker_prefixes": len(speakers),
+        "chat_header_line_count": chat_header_count,
+        "datetime_marker_count": datetime_count,
+        "email_marker_count": email_count,
+        "likely_transcript": len(speakers) >= 2,
+        "likely_chat": chat_header_count >= 3,
+        "likely_email": email_count >= 2,
+        "likely_binary_document": False,
+    }
+
+
+def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dict]:
+    """Candidate (source_type, variant) hints from signals + route
+    metadata only - never a final choice, never semantic content
+    interpretation. Each candidate names the exact deterministic signal
+    that produced it so the agent can judge it, not just trust it."""
+    candidates: list[dict] = []
+
+    def add(source_type: str, variant: str, reason: str) -> None:
+        sources = graph.get("sources") or {}
+        if source_type not in sources:
+            return
+        try:
+            route = resolve_route(graph, source_type, variant)
+        except SystemExit:
+            return
+        candidates.append({
+            "source_type": source_type,
+            "variant": variant,
+            "required_scope": sorted(needed_scopes(graph, route)),
+            "skills": route.get("skills") or [],
+            "entry_documents": route.get("entry") or [],
+            "reason": reason,
+        })
+
+    if not signals.get("text_readable") or "duplicate content of" in str(row.get("Reason", "")):
+        return candidates
+
+    speakers = signals.get("distinct_speaker_prefixes", 0)
+    if signals.get("likely_transcript"):
+        if speakers == 2:
+            for variant in ("m1", "m2", "mixed"):
+                add("qa_1to1", variant,
+                    f"{speakers} distinct speaker-like prefixes detected - typical of a 1:1 conversation")
+        else:
+            for variant in ("multi_project", "single_project"):
+                add("meeting_transcript", variant,
+                    f"{speakers} distinct speaker-like prefixes detected - typical of a multi-person meeting")
+
+    if signals.get("likely_chat"):
+        add("strategy_chat", "",
+            f"{signals.get('chat_header_line_count', 0)} Google-Chat-style message headers detected")
+
+    if signals.get("likely_email"):
+        add("admin_note", "",
+            f"{signals.get('email_marker_count', 0)} email-header marker(s) detected - short pasted notes "
+            "often route here")
+        add("people_case_chat", "",
+            f"{signals.get('email_marker_count', 0)} email-header marker(s) detected - person-specific "
+            "incident chats often route here")
+
+    return candidates
+
+
+def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: dict | None) -> list[str]:
+    commands = [f'guide {run_id}']
+    for c in candidates:
+        variant_flag = f' --variant {c["variant"]}' if c["variant"] else ""
+        scope_flag = ' --scope "Project|Person"' if c["required_scope"] else ""
+        scope_note = f'  (requires scope: {", ".join(c["required_scope"])})' if c["required_scope"] else ""
+        commands.append(f'start {run_id} --source-type {c["source_type"]}{variant_flag}{scope_flag}{scope_note}')
+    if ignore_suggestion:
+        commands.append(f'ignore {run_id} --category {ignore_suggestion["category"]} --reason "..."')
+    if not candidates:
+        commands.append(f'start {run_id} --source-type <type> [--variant <variant>] --scope "Project|Person"'
+                        '  (manual classification required - no strong deterministic signal fired)')
+    return commands
 
 
 # ---------- commands ----------
@@ -2171,6 +2334,113 @@ def cmd_guide(args) -> CommandResult:
     return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
 
 
+def cmd_classify(args) -> CommandResult:
+    """Read-only pre-`start` helper: deterministic signals + candidate
+    route hints for one discovered run. Never chooses a final source_type/
+    variant/scope, never calls `start`, never writes anywhere - the
+    classification decision stays with the agent, made after reading the
+    actual source content this command points at."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    row = get_run(rows, args.run_id)
+
+    current_source = str(row.get("Current source", "")).strip()
+    source = str(row.get("Source", "")).strip()
+    if current_source:
+        path_field_used, path_used = "current_source", current_source
+    elif source:
+        path_field_used, path_used = "source", source
+    else:
+        raise SystemExit(f"Run {args.run_id!r} has neither Current source nor Source recorded - "
+                         "nothing to read.")
+
+    normalized = path_used.replace("\\", "/").strip("/")
+    parts = [p for p in normalized.split("/") if p]
+    if not parts or ".." in parts:
+        raise SystemExit(f"Unsafe source path recorded on {args.run_id!r}: {path_used!r}")
+    file_path = DATA_ROOT.joinpath(*parts)
+    if not file_path.is_file():
+        raise SystemExit(f"Source file not found on disk: {file_path} (read from {path_field_used}={path_used!r})")
+
+    extension = file_path.suffix.lower()
+    size_bytes = file_path.stat().st_size
+    max_chars = (args.max_preview_chars if getattr(args, "max_preview_chars", None)
+                 and args.max_preview_chars > 0 else DEFAULT_MAX_PREVIEW_CHARS)
+
+    text = None
+    if extension in TEXT_READABLE_EXTS:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+
+    signals = detect_format_signals(text, extension)
+    preview = text[:max_chars] if text is not None else ""
+    preview_truncated = text is not None and len(text) > max_chars
+
+    graph = load_graph()
+    candidates = classify_candidate_routes(graph, signals, row)
+    routed_source_types = sorted((graph.get("sources") or {}).keys())
+    confidence = "signals_detected" if candidates else "low"
+
+    reason_field = str(row.get("Reason", ""))
+    ignore_suggestion = None
+    if "duplicate content of" in reason_field:
+        ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+
+    commands = classify_commands(args.run_id, candidates, ignore_suggestion)
+
+    guardrails = [
+        "This is a signals-only preview, not a classification - the final source_type/variant/scope "
+        "decision is the agent's, made after reading the full source.",
+        "candidate_routes are unranked hints, not a recommendation - do not `start` on one without reading "
+        "the source content first.",
+        "Never write the preview text, full source content, or full analysis into the queue, "
+        "_skill_invocations, evidence_log, or this repo - only short operational summaries belong there.",
+    ]
+
+    data = {
+        "run_id": args.run_id,
+        "source_path_used": path_used,
+        "source_path_field_used": path_field_used,
+        "source": source,
+        "current_source": current_source,
+        "extension": extension,
+        "size_bytes": size_bytes,
+        "preview_max_chars": max_chars,
+        "preview_truncated": preview_truncated,
+        "preview": preview,
+        "signals": signals,
+        "confidence": confidence,
+        "candidate_routes": candidates,
+        "routed_source_types": routed_source_types,
+        "ignore_suggestion": ignore_suggestion,
+        "commands": commands,
+        "guardrails": guardrails,
+    }
+
+    lines = [f"Classify preview for {args.run_id}",
+             f"  source path used: {path_used}  (from {path_field_used})",
+             f"  extension: {extension}  size: {size_bytes} bytes"]
+    if signals.get("text_readable"):
+        lines.append(f"  lines: {signals['line_count']}  speakers~: {signals['distinct_speaker_prefixes']}"
+                     f"  chat headers~: {signals['chat_header_line_count']}"
+                     f"  datetime markers~: {signals['datetime_marker_count']}"
+                     f"  email markers~: {signals['email_marker_count']}")
+    else:
+        lines.append("  not text-readable - binary/unsupported format, filename/extension only")
+    lines.append(f"  confidence: {confidence}")
+    lines.append("  candidate_routes:")
+    lines += [f"    - {c['source_type']}" + (f"/{c['variant']}" if c["variant"] else "")
+              + f"  ({c['reason']})" for c in candidates] or ["    (none - manual classification required)"]
+    if ignore_suggestion:
+        lines.append(f"  ignore_suggestion: {ignore_suggestion['category']} - {ignore_suggestion['reason_hint']}")
+    lines.append("  commands:")
+    lines += [f"    $ {c}" for c in commands]
+    lines.append("  guardrails:")
+    lines += [f"    ! {g}" for g in guardrails]
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
 def main() -> int:
     parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -2275,6 +2545,12 @@ def main() -> int:
                        parents=[parent])
     p.add_argument("run_id")
 
+    p = sub.add_parser("classify", help="read-only signals + candidate route hints for one "
+                                        "discovered run, before start", parents=[parent])
+    p.add_argument("run_id")
+    p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
+                   help=f"cap on the returned preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
+
     args = parser.parse_args()
 
     commands = {
@@ -2285,7 +2561,7 @@ def main() -> int:
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
         "historical": cmd_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
-        "dashboard": cmd_dashboard, "guide": cmd_guide
+        "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify
     }
 
     if not args.json:

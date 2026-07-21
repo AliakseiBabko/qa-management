@@ -469,9 +469,27 @@ These are what actually runs day to day, once a project's folder already exists:
   a real snapshot/invocation problem gets repair/audit guidance, never a
   mutation command — a completed run's Snapshot is treated as immutable.
   Reuses `review`/`evaluate_run` exclusively; never creates, writes, or
-  mutates anything. Once you know the exact command, the rest of this
-  entry is the workflow that actually processes it. `scan` discovers
-  sources into the
+  mutates anything. When `guide` says a `discovered` run needs a
+  source_type/variant/scope judgment call, **`classify <run-id>`** is a
+  cheap read-only preview before `start` (`--max-preview-chars N` caps the
+  returned excerpt, default 2000, to avoid token waste): reads `Current
+  source` (falling back to `Source`) and reports deterministic format
+  signals only, no AI/LLM call and no semantic judgment — line count,
+  distinct speaker-like prefix count, Google-Chat-style header count,
+  date/time marker count, email-header marker count. From those signals
+  plus `document_graph.yaml` it lists unranked `candidate_routes`
+  (source_type, variant, required scope, skills, entry documents, and the
+  exact signal behind each one — never a single final choice) plus
+  command templates: `guide`, one `start ...` per candidate, and `ignore
+  ...` when the row's own duplicate-detection `Reason` suggests it. Low/no
+  signal means "manual classification required" and the full routed
+  source-type list, not a guess. Never picks a route, never calls `start`,
+  never writes anywhere, and never puts the preview text or full source
+  content into the queue or this repo — only short operational summaries
+  belong there; the classification decision, made after actually reading
+  the source, stays with the agent. Once you know the exact command, the
+  rest of this entry is the workflow that actually processes it. `scan`
+  discovers sources into the
   workspace `_intake_queue` Sheet with (path, content-hash) identity:
   exact pairs are skipped, changed content at a known path becomes a
   superseding run, identical content at a new path is recorded as a

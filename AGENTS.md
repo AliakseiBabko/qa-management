@@ -137,8 +137,25 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `dashboard` (or a direct find) has pointed you at a specific run;
      once you know the exact command, the full intake workflow below is
      how you actually process it.
-   - Processing a new source (picked via `dashboard`/`guide`, or found
-     directly)? —
+   - `guide` says a `discovered` run needs a source_type/variant/scope
+     judgment call before `start` - want a cheap read-only preview first? —
+     `.agents\scripts\qa_manage.py classify <run-id>` (add `--json` for the
+     strict envelope; `--max-preview-chars N` caps the returned excerpt,
+     default 2000). Reads `Current source` (falling back to `Source`),
+     reports deterministic format signals only - no AI/LLM call, no
+     semantic judgment: line count, distinct speaker-like prefix count,
+     Google-Chat-style header count, date/time marker count, email-header
+     marker count. From those signals plus `document_graph.yaml` it lists
+     unranked `candidate_routes` (source_type, variant, required scope,
+     skills, entry documents, and the exact signal behind each one) and
+     command templates (`guide`, one `start ...` per candidate, `ignore
+     ...` when the row's own duplicate-detection Reason suggests it). It
+     never picks a final route, never calls `start`, never writes
+     anywhere, and never puts the preview text or full source content into
+     the queue or this repo - the classification decision, made after
+     actually reading the source, stays with the agent.
+   - Processing a new source (picked via `dashboard`/`guide`/`classify`, or
+     found directly)? —
      the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>
