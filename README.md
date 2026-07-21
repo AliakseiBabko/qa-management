@@ -701,6 +701,45 @@ These are what actually runs day to day, once a project's folder already exists:
   run. Superseded by M2 writing per-person `Вклад в проект: <Имя>` rows
   directly in `project_metrics` (see `Templates/метрики_проекта_qa.md` §1)
   and `refresh_project_registry.py` propagating those rows onward.
+- `operator_telemetry_common.py` — not a script to run; Phase 11 shared
+  schema for the operator-telemetry measurement layer (see
+  `.agents/telemetry/README.md`): the canonical CSV column list, the
+  read-only measurement case catalog (`dashboard_overview`,
+  `guide_discovered`, `classify_discovered`, `pack_discovered`,
+  `triage_overview`, `triage_one`, `search_current`, `search_history`,
+  `show_project_state_targeted`, `show_project_state_full_project`), and the
+  append/validate/diff-guard helpers the three scripts below share.
+- `measure_operator_outputs.py` — runs one read-only case from the catalog
+  above (or `--dry-run`s it, printing the redacted command with nothing
+  executed) and measures its output footprint — elapsed time, stdout/stderr
+  bytes, char count, a deterministic `chars / 4` token estimate, and a
+  best-effort result/truncation count parsed from `--json` output. Refuses
+  to run any `qa_manage.py` mutating verb. Writes a local run note under
+  `tmp/telemetry/` (gitignored); `--append-csv` also appends a redacted row
+  to `.agents/telemetry/operator-runs.csv`. A live `--target` (run id /
+  project / query) is substituted only into the executed command — the
+  committed row always keeps the `{target}` placeholder, never the real
+  value.
+- `finalize_operator_run.py` — the enrichment step over
+  `measure_operator_outputs.py --append-csv`: merges actual token telemetry
+  (CLI flags or a `--telemetry-json` file), computes `total_tokens` and
+  `estimated_cost_usd` when the model/pricing is known, and computes
+  `reduction_ratio_vs_baseline` against an existing baseline row already in
+  the CSV. Always appends exactly one new row and diff-guards afterward to
+  confirm no other row changed.
+- `check_operator_csv.py` — validates `.agents/telemetry/operator-runs.csv`:
+  header match, required/numeric fields, enum values, duplicate `run_id`s,
+  and a best-effort ASCII-only leak guard on the redacted-args/notes
+  fields. `--diff-guard --run-id <id>` asserts the working CSV only added
+  that one row versus `HEAD`.
+- `extract_agent_telemetry.py` — best-effort actual-token extraction from
+  local Claude Code session logs (`~/.claude/projects/*/<session>.jsonl`)
+  for `finalize_operator_run.py --telemetry-json`. Codex/Antigravity log
+  locations were not verified on this machine and raise a documented
+  `NotImplementedError` pointing at the manual-entry fallback
+  (`finalize_operator_run.py --actual-input-tokens ...` etc.) — manual token
+  entry is a first-class supported path, not a workaround, and does not
+  block using the rest of Phase 11.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See

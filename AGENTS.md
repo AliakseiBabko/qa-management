@@ -238,6 +238,20 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
    - Writing a new one-off inspection/update script anyway? Reuse
      `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
      re-inlining `load_credentials`/`build_services` boilerplate.
+   - Want to know whether the operator commands above (`dashboard`, `guide`,
+     `classify`, `pack`, `triage`, `search_workspace`,
+     `show_project_state --document`) actually save output/tokens versus an
+     older full-read workflow? — Phase 11's measurement-only telemetry
+     layer, `.agents\telemetry\README.md`. `.agents\scripts\
+     measure_operator_outputs.py --case <case_id> [--dry-run]` runs one
+     read-only case and measures elapsed time, byte/char counts, and a
+     deterministic token estimate (never the real output); `--append-csv`
+     records a redacted row in `.agents\telemetry\operator-runs.csv`.
+     `finalize_operator_run.py` enriches a row with actual token telemetry
+     and a baseline reduction ratio; `check_operator_csv.py` validates the
+     CSV and diff-guards a specific append. This does not change which
+     command is the default entry point — `dashboard` still is — it only
+     measures the existing workflow.
 3. Only fall back to raw filesystem exploration (`find`/`Glob`) under
    `G:\My Drive\QA_Management` for genuinely new source files that haven't been
    classified yet — not for inspecting already-canonical project documents, which
