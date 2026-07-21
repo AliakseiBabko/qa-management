@@ -130,20 +130,8 @@ def merge_rollup(existing: list[list[str]], rollup_rows: list[list[str]]) -> lis
     return [header, *body, *rollup_rows]
 
 
-def main() -> int:
-    print(
-        "This script is deprecated — project_metrics uses per-person Вклад в "
-        "проект rows instead of Команда: ... rollup rows. Not running. See "
-        "the module docstring.",
-        file=sys.stderr,
-    )
-    return 1
-
-    args = parse_args()  # noqa: unreachable — kept for reference only
-    creds = load_credentials(Path(args.credentials), Path(args.token))
-    services = build_services(creds)
-    drive = services["drive"]
-
+def _run_deprecated_rollup(services: Any, drive: Any) -> list[str]:
+    """Deprecated rollup logic kept for reference only."""
     m2_folder = find_or_create_folder(drive, ROOT_FOLDER_ID, "20_M2_Project_Management")
     projects = drive_query(
         drive,
@@ -168,10 +156,10 @@ def main() -> int:
 
         team_values: dict[str, list[tuple[str, str]]] = defaultdict(list)
         for person in people:
-            metrics_sheet = find_sheet_in_folder(drive, person["id"], "individual_metrics")
-            if not metrics_sheet:
+            person_metrics_sheet = find_sheet_in_folder(drive, person["id"], "individual_metrics")
+            if person_metrics_sheet is None:
                 continue
-            rows = read_sheet_values(services, metrics_sheet["id"])
+            rows = read_sheet_values(services, person_metrics_sheet["id"])
             for metric, (indicator, _date) in latest_person_metrics(rows).items():
                 team_values[metric].append((person["name"], indicator))
 
@@ -179,14 +167,26 @@ def main() -> int:
             continue
 
         rollup_rows = build_rollup_rows(project, team_values)
-        metrics_sheet = find_sheet_in_folder(drive, project_folder["id"], "project_metrics")
-        existing = read_sheet_values(services, metrics_sheet["id"]) if metrics_sheet else [PROJECT_METRICS_HEADER]
+        project_metrics_sheet = find_sheet_in_folder(drive, project_folder["id"], "project_metrics")
+        if project_metrics_sheet is not None:
+            existing = read_sheet_values(services, project_metrics_sheet["id"])
+        else:
+            existing = [PROJECT_METRICS_HEADER]
         merged = merge_rollup(existing, rollup_rows)
         meta = upsert_sheet(services, project_folder["id"], "project_metrics", merged)
         results.append(f"{project}: {len(rollup_rows)} rollup row(s) in {meta['name']}")
 
-    sys.stdout.buffer.write(("\n".join(results) + "\n").encode("utf-8", errors="replace"))
-    return 0
+    return results
+
+
+def main() -> int:
+    print(
+        "This script is deprecated — project_metrics uses per-person Вклад в "
+        "проект rows instead of Команда: ... rollup rows. Not running. See "
+        "the module docstring.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 if __name__ == "__main__":

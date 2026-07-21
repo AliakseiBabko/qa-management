@@ -320,7 +320,7 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
         f"evidence_log обновлён {last_touched}{m2_input_note}{action_items_note}"
     )
 
-def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_root_id: str) -> dict[str, Any]:
+def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_root_id: str | None) -> dict[str, Any]:
     doc_results = []
     errors = []
     limit = args.limit if args.limit is not None else 20
@@ -351,6 +351,10 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
                     continue
                 target_folder_id = m2_root_id
         else:
+            if not m2_root_id:
+                errors.append(f"Document {doc_name} requires 20_M2_Project_Management which was not found")
+                doc_results.append(doc_result)
+                continue
             proj_folder = find_folder(services["drive"], m2_root_id, args.project)
             if not proj_folder:
                 doc_results.append(doc_result)
@@ -487,6 +491,9 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
         return envelope, 0
 
     if args.summary:
+        if m2_root is None:
+            msg = "20_M2_Project_Management folder not found under the workspace root."
+            return build_json_envelope(False, "show_project_state", {}, [], [msg]), 1
         people_by_project = project_people_counts(services, m2_root["id"])
         projects = [args.project] if args.project else sorted(people_by_project)
         output = []
@@ -508,12 +515,19 @@ def do_run(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int]:
                 else:
                     print("--- _people_registry: not found (05_People_Management missing) ---")
                 print("===== _project_registry =====")
-                dump_sheet(services, m2_root["id"], "_project_registry")
-                print("===== _timeline =====")
-                dump_sheet(services, m2_root["id"], "_timeline")
+                if m2_root:
+                    dump_sheet(services, m2_root["id"], "_project_registry")
+                    print("===== _timeline =====")
+                    dump_sheet(services, m2_root["id"], "_timeline")
+                else:
+                    print("--- _project_registry: not found (20_M2_Project_Management missing) ---")
+                    print("--- _timeline: not found (20_M2_Project_Management missing) ---")
 
             if args.project and not args.document and not args.summary:
-                dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
+                if m2_root:
+                    dump_project(services, m2_root["id"], args.project, evidence_tail=args.evidence_tail)
+                else:
+                    print(f"--- {args.project}: not found (20_M2_Project_Management missing) ---")
 
         return build_json_envelope(True, "show_project_state", {"output": output_buffer.getvalue() if args.json else ""}, [], []), 0
 

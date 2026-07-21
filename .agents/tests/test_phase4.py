@@ -91,13 +91,13 @@ class TestPhase4(unittest.TestCase):
 
     def test_cmd_start_v1_assignment(self):
         # Mock queue services for cmd_start
-        rows = []
-        def fake_write_queue(services, queue_id, updated_rows):
-            rows.extend(updated_rows)
+        written_rows = []
+        def fake_write_queue(services, sheet, rows):
+            written_rows.extend(rows)
 
         original_write = qa_manage.write_queue
-        def fake_find(s): return "q_id"
-        def fake_read(s, q): return [test_row]
+        def fake_find(services): return {"id": "q_id", "name": "_intake_queue"}
+        def fake_read(services, sheet): return [test_row]
         def fake_get_services(): return {}
         original_find = qa_manage.find_queue
         original_read = qa_manage.read_queue
@@ -127,10 +127,10 @@ class TestPhase4(unittest.TestCase):
             qa_manage.cmd_start(DummyArgs())
 
             # The mutated row should be written to the queue with Source text version = 1
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]["Status"], "needs_scope")
-            self.assertEqual(rows[0]["Source type"], "qa_1to1")
-            self.assertEqual(str(rows[0]["Source text version"]).strip(), "1")
+            self.assertEqual(len(written_rows), 1)
+            self.assertEqual(written_rows[0]["Status"], "needs_scope")
+            self.assertEqual(written_rows[0]["Source type"], "qa_1to1")
+            self.assertEqual(str(written_rows[0]["Source text version"]).strip(), "1")
         finally:
             qa_manage.write_queue = original_write
             qa_manage.find_queue = original_find
@@ -328,7 +328,7 @@ class TestPhase4(unittest.TestCase):
             failing_read_queue
         )
         self.assertEqual(removed, 0)
-        self.assertTrue(any("orchestrated error" in str(e) for e in errors))
+        self.assertTrue(any("orchestrated error" in e for e in errors))
         self.assertIn("dummy_restore_file.txt", manifest)
         self.assertTrue(stale_blob2.exists(), "stale blob should survive error")
         self.assertTrue(stale_blob.exists())

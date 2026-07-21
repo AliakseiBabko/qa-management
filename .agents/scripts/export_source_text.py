@@ -12,7 +12,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple
 
 def source_text_requirement(row: dict) -> str:
     src_type = row.get("Source type", "")
@@ -52,7 +52,7 @@ class StrictArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         raise ParserError(message)
 
-def print_envelope_and_exit(success: bool, mode: str, data: dict, warnings: list, errors: list) -> None:
+def print_envelope_and_exit(success: bool, mode: str, data: dict, warnings: list, errors: list) -> NoReturn:
     for k, v in data.items():
         if isinstance(v, list) or isinstance(v, set):
             data[k] = sorted(list(v))
@@ -563,6 +563,7 @@ def export(queue_rows: List[Dict[str, Any]], data_root: Path, mirror: Path) -> T
 
 def audit(data_root: Path, mirror: Path, queue_rows: list, is_json: bool) -> None:
     manifest_path = mirror / "_source_text_manifest.json"
+    old_manifest: dict = {}
     try:
         old_manifest = read_manifest(manifest_path)
     except Exception as e:
@@ -628,6 +629,7 @@ def main():
     parser.add_argument("mode", choices=["audit", "export"])
     parser.add_argument("--json", action="store_true")
 
+    args = None
     try:
         args = parser.parse_args()
     except ParserError as e:
@@ -637,10 +639,20 @@ def main():
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
+    if args is None:
+        sys.exit(1)
+
     mode = args.mode
 
+    DATA_ROOT = None
+    MIRROR = None
+    find_queue = None
+    read_queue = None
+    get_services_cached = None
+
     try:
-        from qa_manage import DATA_ROOT, MIRROR, find_queue, read_queue, get_services_cached
+        from qa_manage import DATA_ROOT as DR, MIRROR as MR, find_queue as FQ, read_queue as RQ, get_services_cached as GSC
+        DATA_ROOT, MIRROR, find_queue, read_queue, get_services_cached = DR, MR, FQ, RQ, GSC
     except ImportError as e:
         if is_json:
             print_envelope_and_exit(False, mode, {}, [], [f"Failed to import qa_manage: {e}"])
@@ -648,15 +660,26 @@ def main():
             print(f"Failed to import qa_manage: {e}", file=sys.stderr)
             sys.exit(1)
 
+    rows: list = []
     try:
-        q = find_queue(get_services_cached())
-        rows = read_queue(get_services_cached(), q) if q else []
+        if find_queue and get_services_cached and read_queue:
+            q = find_queue(get_services_cached())
+            rows = read_queue(get_services_cached(), q) if q else []
     except Exception as e:
         if is_json:
             print_envelope_and_exit(False, mode, {}, [], [f"Queue read error: {e}"])
         else:
             print(f"Queue read error: {e}", file=sys.stderr)
             sys.exit(1)
+
+    if DATA_ROOT is None or MIRROR is None:
+        if is_json:
+            print_envelope_and_exit(False, mode, {}, [], ["DATA_ROOT or MIRROR uninitialized"])
+        else:
+            print("DATA_ROOT or MIRROR uninitialized", file=sys.stderr)
+            sys.exit(1)
+
+    assert DATA_ROOT is not None and MIRROR is not None
 
     if mode == "audit":
         audit(DATA_ROOT, MIRROR, rows, is_json)

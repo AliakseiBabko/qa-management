@@ -113,7 +113,7 @@ def parse_source_manifest(mirror: Path, ref: str, strict: bool = False) -> dict:
             raise RuntimeError(f"Failed to parse _source_text_manifest.json: {e}")
         return {}
 
-def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict_manifest: bool) -> tuple[dict, list]:
+def get_metadata(mirror: Path, ref: str, path: str, require_run_id: bool, strict_manifest: bool) -> tuple[list[dict], list[dict]]:
     warnings = []
     runs = []
 
@@ -297,7 +297,7 @@ def current_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sens
 
     return matches[:limit], warnings, truncated
 
-def history_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sensitive: bool, kind: str, allowed_paths: list[str], path_filters_active: bool, context: int, limit: int, since: datetime, until: datetime, require_run_id: bool, strict_manifest: bool) -> tuple[list, list, bool]:
+def history_search(mirror: Path, ref: str, query: str, is_regex: bool, case_sensitive: bool, kind: str, allowed_paths: list[str], path_filters_active: bool, context: int, limit: int, since: datetime | None, until: datetime | None, require_run_id: bool, strict_manifest: bool) -> tuple[list, list, bool]:
     args = ["log", "--first-parent", "-z", "--format=%H%x00%cI%x00%s"]
     if since: args.append(f"--since={since.isoformat()}")
     if until: args.append(f"--until={until.isoformat()}")
@@ -447,6 +447,7 @@ def main():
             filtered_args.append(arg)
         i += 1
 
+    parsed = None
     try:
         parsed, unknown = parser.parse_known_args(filtered_args)
         if unknown:

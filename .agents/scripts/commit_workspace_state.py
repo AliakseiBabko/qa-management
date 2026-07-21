@@ -56,6 +56,7 @@ import json
 import re
 import subprocess
 import sys
+from typing import TypeVar, Callable
 from mirror_common import mirror_git, assert_private_mirror
 from qa_manage import DATA_ROOT, find_queue, read_queue
 from export_source_text import export as export_source_texts
@@ -63,7 +64,8 @@ import time
 from pathlib import Path
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -136,7 +138,10 @@ def is_403(exc: Exception) -> bool:
     return "403" in str(exc) and "appNotAuthorizedToFile" in str(exc)
 
 
-def with_retry(fn, attempts: int = 3):
+T = TypeVar("T")
+
+
+def with_retry(fn: Callable[[], T], attempts: int = 3) -> T:
     """Retry transient failures (timeouts, 5xx); 403s are permanent, raise at
     once. A 429 is the Sheets per-minute read quota (60/min/user) - short
     backoff can't clear it, so wait out the window instead."""
@@ -150,10 +155,12 @@ def with_retry(fn, attempts: int = 3):
                 time.sleep(65)
             else:
                 time.sleep(2 * (i + 1))
+    raise RuntimeError("Retry limit reached")
 
 
 def export_bytes(drive, file_id: str, mime: str) -> bytes:
-    return with_retry(lambda: drive.files().export(fileId=file_id, mimeType=mime).execute())
+    res = with_retry(lambda: drive.files().export(fileId=file_id, mimeType=mime).execute())
+    return res if isinstance(res, bytes) else b""
 
 
 def write_if_changed(path: Path, data: bytes) -> bool:
@@ -175,10 +182,12 @@ def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
         spreadsheetId=item["id"], fields="sheets.properties.title").execute())
     all_values: dict[str, list] = {}
     changed = False
-    for tab in meta.get("sheets", []):
+    sheets = meta.get("sheets", []) if isinstance(meta, dict) else []
+    for tab in sheets:
         title = tab["properties"]["title"]
-        values = with_retry(lambda t=title: services["sheets"].spreadsheets().values().get(
-            spreadsheetId=item["id"], range=f"'{t}'").execute()).get("values", [])
+        val_resp = with_retry(lambda t=title: services["sheets"].spreadsheets().values().get(
+            spreadsheetId=item["id"], range=f"'{t}'").execute())
+        values = val_resp.get("values", []) if isinstance(val_resp, dict) else []
         all_values[title] = values
         buf = io.StringIO()
         csv.writer(buf, lineterminator="\n").writerows(values)
@@ -214,9 +223,12 @@ def doc_plain_text(services, doc_id: str) -> str:
     """Docs-API fallback text extraction for docs without Drive content access."""
     doc = with_retry(lambda: services["docs"].documents().get(documentId=doc_id).execute())
     parts: list[str] = []
-    for element in doc.get("body", {}).get("content", []):
-        for pe in element.get("paragraph", {}).get("elements", []):
-            parts.append(pe.get("textRun", {}).get("content", ""))
+    body_content = doc.get("body", {}).get("content", []) if isinstance(doc, dict) else []
+    for element in body_content:
+        if isinstance(element, dict):
+            for pe in element.get("paragraph", {}).get("elements", []):
+                if isinstance(pe, dict):
+                    parts.append(pe.get("textRun", {}).get("content", ""))
     return "".join(parts)
 
 

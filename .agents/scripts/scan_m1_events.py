@@ -235,19 +235,19 @@ def scan_person_okr(
     record = registry.get(person.strip().casefold(), {})
     window_open, window_close, basis = expected_pr_window(record.get("hire"), record.get("last_pr"))
 
-    if doc_date is None and window_open is None:
-        return [{
-            "person": person,
-            "due": dt.date.today().isoformat(),
-            "type": "OKR",
-            "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _people_registry "
-            "нет ни «Дата трудоустройства», ни «Дата последнего PR» для расчёта ожидаемой даты PR",
-            "owner": "M1",
-            "source": f"scan:okr:{person}:missing",
-            "notes": "",
-        }]
-
     if doc_date is None:
+        if window_open is None or window_close is None:
+            return [{
+                "person": person,
+                "due": dt.date.today().isoformat(),
+                "type": "OKR",
+                "what": f"Составить OKR для {person} — текущий OKR Doc не найден, и в _people_registry "
+                "нет ни «Дата трудоустройства», ни «Дата последнего PR» для расчёта ожидаемой даты PR",
+                "owner": "M1",
+                "source": f"scan:okr:{person}:missing",
+                "notes": "",
+            }]
+
         # No OKR Doc yet, but the registry lets us compute an expected PR window anyway.
         return [{
             "person": person,
@@ -260,7 +260,8 @@ def scan_person_okr(
             "notes": f"Расчёт из _people_registry ({basis})",
         }]
 
-    mismatch = window_open is not None and not (window_open <= doc_date <= window_close)
+    has_window = window_open is not None and window_close is not None
+    mismatch = has_window and not (window_open <= doc_date <= window_close)
     due = doc_date
     overdue = doc_date < dt.date.today()
     what = (
@@ -272,7 +273,7 @@ def scan_person_okr(
         "(статус/результат) до этой даты"
     )
     notes = f"Doc: {doc_name}"
-    if mismatch:
+    if mismatch and window_open is not None and window_close is not None:
         notes += (
             f"; расхождение с расчётом из _people_registry: ожидалось окно "
             f"{window_open.isoformat()}–{window_close.isoformat()} ({basis}), в Doc указано "

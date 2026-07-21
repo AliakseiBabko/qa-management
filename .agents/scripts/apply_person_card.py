@@ -111,7 +111,7 @@ def parse_card(text: str) -> dict[str, str]:
             email_match = m.group(0)
             email_line_idx = i
             break
-    if email_match is None:
+    if email_match is None or email_line_idx is None:
         raise ValueError("No email found in card text.")
 
     name_line = " ".join(lines[:email_line_idx]) if email_line_idx else ""

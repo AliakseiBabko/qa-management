@@ -242,6 +242,8 @@ def main() -> int:
     if args.write:
         for project, candidates in by_project.items():
             pf = find_folder(drive, m2_root["id"], project)
+            if pf is None:
+                continue
             sheet = find_sheet_in_folder(drive, pf["id"], "action_items")
             existing_rows = read_sheet_values(services, sheet["id"]) if sheet else [ACTION_ITEMS_HEADER]
             new_rows = [
