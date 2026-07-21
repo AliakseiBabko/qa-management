@@ -486,7 +486,19 @@ These are what actually runs day to day, once a project's folder already exists:
   emitted at the end. Transitions are validated against an explicit table
   (unit-tested in `.agents/tests`). The `review <run-id>` command provides a
   read-only evaluation of a run's closure/completion readiness (missing invocation
-  evidence, snapshot problems, unresolved edges) without mutation.
+  evidence, snapshot problems, unresolved edges) without mutation. `dashboard`
+  is the read-only operator summary across the whole queue: runs needing the
+  next agent action (grouped with the exact next command — `start` /
+  `record-analysis` / `record-apply` / `resolve-edge` /
+  `commit_workspace_state.py` / `complete`, decided by reusing `review`'s own
+  evaluate-run logic), `blocked` runs with their reason, `finalizing` runs
+  needing a `complete` retry, `integrity_issues` found by that same
+  evaluation on finalizing/completed rows (bounded by `--limit`, default 20,
+  so it stays cheap), plus a read-only `00_Inbox` file count (grouped by
+  queue-known source type) and a `90_Storage/Processed_Sources` count by
+  month. `--include-completed`/`--include-ignored` add optional listings;
+  `--project`/`--person` filter to one scope. Never creates, writes, or
+  mutates anything — it only calls the same find/read helpers `review` does.
 - `closure_outcomes.py` — persists per-edge cascade resolutions into the
   workspace `_closure_outcomes` Sheet (`record --run-id R --source A
   --target B --outcome X [--reason ...] [--project/--person/--variant]`,

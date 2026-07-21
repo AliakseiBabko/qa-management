@@ -86,6 +86,19 @@ Commands (all support --json for machine-readable output):
     historical <run-id> --evidence "..."
                                   terminal: processed before the queue
                                   existed; evidence required
+    dashboard [--limit N] [--include-completed] [--include-ignored]
+          [--project P] [--person X]
+                                  read-only operator summary: actionable
+                                  runs grouped by what's next (start /
+                                  record-analysis / record-apply /
+                                  resolve-edge / commit_workspace_state /
+                                  complete), blocked runs, finalizing
+                                  retries, integrity issues found by
+                                  reusing the same review/evaluate logic
+                                  (bounded by --limit so it stays cheap),
+                                  plus a read-only 00_Inbox/90_Storage
+                                  filesystem summary. Never creates,
+                                  writes, or mutates anything.
 
 Queue rows hold operational metadata and short summaries only - full
 transcripts and analysis content never enter the queue.
@@ -183,6 +196,11 @@ ENTRY_REASON_REQUIRED = {"no_change", "not_applicable"}
 FOLDER_PRECLASS = {
     "00_Inbox": "source_document",
 }
+
+# dashboard: how many rows per section get an (expensive) evaluate_run()
+# integrity pass, and how many rows are listed per section - keeps the
+# command cheap regardless of queue size.
+DEFAULT_DASHBOARD_LIMIT = 20
 
 
 def now() -> str:
@@ -742,6 +760,143 @@ def row_brief(row: dict) -> str:
                                  "ignored") else ""))
 
 
+# ---------- dashboard (read-only) ----------
+
+
+def row_matches_scope_filter(row: dict, project: str, person: str) -> bool:
+    """True when a row belongs to the requested (project, person) filter.
+    Prefers the declared Scopes tuples (accurate for multi-scope runs);
+    falls back to the semicolon-joined Project/Person fields for rows that
+    never declared an explicit scope (discovered/needs_scope). An empty
+    filter matches everything."""
+    project, person = project.strip(), person.strip()
+    if not project and not person:
+        return True
+    scopes = parse_scopes_cell(row.get("Scopes", ""))
+    if scopes:
+        return any(
+            (not project or p.strip().casefold() == project.casefold())
+            and (not person or pe.strip().casefold() == person.casefold())
+            for p, pe in scopes
+        )
+    proj_list = [x.strip().casefold() for x in str(row.get("Project", "")).split(";") if x.strip()]
+    pers_list = [x.strip().casefold() for x in str(row.get("Person", "")).split(";") if x.strip()]
+    if project and project.casefold() not in proj_list:
+        return False
+    if person and person.casefold() not in pers_list:
+        return False
+    return True
+
+
+def dashboard_recommended_command(row: dict, eval_res: "EvaluationResult | None" = None) -> str:
+    """Deterministic next CLI command for a queue row - mirrors
+    get_recommended_action's state-machine mapping but names the actual
+    command (and, for the closure stage, picks between resolve-edge and
+    commit_workspace_state/complete using the same evaluate_run() problem
+    categories `review` already reports). Never a judgment call - purely a
+    function of (status, stage, eval_res)."""
+    status = row.get("Status", "")
+    stage = row.get("Stage", "")
+    run_id = row.get("Run ID", "")
+
+    if status == "discovered":
+        return (f'start {run_id} --source-type <type> [--variant <variant>] '
+                f'[--scope "Project|Person"]  (read + classify the source first)')
+    if status == "needs_scope":
+        src_type = row.get("Source type") or "<type>"
+        return (f'start {run_id} --source-type {src_type} --scope "Project|Person"  '
+                f'({row.get("Reason") or "missing required scope"})')
+    if status == "blocked":
+        return f'resume {run_id} --continue  ({row.get("Reason", "")})'
+    if status == "finalizing":
+        return f'complete {run_id}'
+    if status == "processing":
+        if stage in ("", "analysis"):
+            return f'record-analysis {run_id} --summary "..."'
+        if stage == "apply":
+            return f'record-apply {run_id} --project <P> --person <X> --updated d1,d2'
+        if stage == "closure":
+            if eval_res is None:
+                return f'review {run_id} --json  (evaluate before deciding the next command)'
+            if any("archive-source" in p for p in eval_res.entry_problems):
+                return f'archive-source {run_id}'
+            if any("entry document" in p for p in eval_res.entry_problems):
+                return f'record-apply {run_id} --project <P> --person <X> --updated d1,d2'
+            if eval_res.unresolved_edges:
+                return (f'resolve-edge {run_id} --source <A> --target <B> '
+                        f'--outcome <updated|no_change|gated|regenerated>')
+            if eval_res.invocation_present is False or eval_res.snapshot_problem:
+                return f'commit_workspace_state.py -m "<skill>: <source> [{run_id}]"'
+            if eval_res.ready_for_completion:
+                return f'complete {run_id}'
+            return f'review {run_id} --json  (unresolved warning - inspect before completing)'
+    if status in ("completed", "failed", "historical", "ignored"):
+        return "none"
+    return "unknown"
+
+
+def dashboard_row_summary(row: dict) -> dict:
+    return {
+        "run_id": row.get("Run ID", ""),
+        "status": row.get("Status", ""),
+        "stage": row.get("Stage", ""),
+        "source": row.get("Source", ""),
+        "source_type": row.get("Source type", ""),
+        "route_variant": row.get("Route variant", ""),
+        "project": row.get("Project", ""),
+        "person": row.get("Person", ""),
+        "reason": row.get("Reason", ""),
+        "discovered": row.get("Discovered", ""),
+        "started": row.get("Started", ""),
+        "completed": row.get("Completed", ""),
+    }
+
+
+def inbox_snapshot(data_root: Path, rows: list[dict]) -> dict:
+    """Read-only count of currently actionable files sitting in 00_Inbox,
+    grouped by whatever classification the queue already recorded for that
+    exact path (never guesses a classification for a file the queue
+    hasn't seen - that's what `scan` + `start` are for). Pure filesystem
+    read: no file is created, moved, or deleted."""
+    classified: dict[str, str] = {}
+    for row in rows:
+        current = str(row.get("Current source", "")).strip().replace("\\", "/")
+        if current and row.get("Source disposition", "inbox") == "inbox":
+            classified[current] = row.get("Source type") or "unclassified"
+
+    by_type: dict[str, int] = {}
+    total = 0
+    inbox_root = data_root / "00_Inbox"
+    if inbox_root.exists():
+        for path in sorted(inbox_root.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in SCAN_EXTS:
+                continue
+            rel = path.relative_to(data_root).as_posix()
+            if is_excluded(rel):
+                continue
+            total += 1
+            label = classified.get(rel, "undiscovered (run scan)")
+            by_type[label] = by_type.get(label, 0) + 1
+    return {"total_files": total, "by_source_type": by_type}
+
+
+def storage_snapshot(data_root: Path) -> dict:
+    """Read-only count of already-processed sources under
+    90_Storage/Processed_Sources/<year>/<month>/<run-id>, grouped by
+    year-month. Pure filesystem read: no directory is created or moved."""
+    root = data_root / "90_Storage" / "Processed_Sources"
+    by_month: dict[str, int] = {}
+    total = 0
+    if root.exists():
+        for year_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            for month_dir in sorted(p for p in year_dir.iterdir() if p.is_dir()):
+                count = sum(1 for p in month_dir.iterdir() if p.is_dir())
+                if count:
+                    by_month[f"{year_dir.name}-{month_dir.name}"] = count
+                    total += count
+    return {"total_processed_runs": total, "by_month": by_month}
+
+
 # ---------- commands ----------
 
 def cmd_scan(args) -> CommandResult:
@@ -1244,13 +1399,17 @@ class ReviewContext:
     dirty: bool
     log_entries: list[tuple[str, float, str]]
 
-def load_review_context(services, run_id: str) -> ReviewContext:
+def load_review_context(services, run_id: str, rows: list[dict] | None = None) -> ReviewContext:
+    """`rows` lets a caller that already read the queue (e.g. dashboard,
+    iterating many runs in one pass) skip re-reading the whole Sheet per
+    run; omit it (the default) to read fresh, as review/complete do."""
     from closure_outcomes import fetch_outcomes
     from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_sheet_in_folder, read_sheet_values
     from pipeline_common import SKILL_INVOCATIONS_SHEET
 
-    sheet = find_queue(services)
-    rows = read_queue(services, sheet) if sheet else []
+    if rows is None:
+        sheet = find_queue(services)
+        rows = read_queue(services, sheet) if sheet else []
     row = get_run(rows, run_id)
     graph = load_graph()
 
@@ -1508,6 +1667,166 @@ def cmd_complete(args) -> CommandResult:
     )
 
 
+def cmd_dashboard(args) -> CommandResult:
+    """Read-only operator summary. Never creates, writes, or mutates
+    _intake_queue, _closure_outcomes, _skill_invocations, mirror files, or
+    the public repo - reuses find/read helpers (read_queue, fetch_outcomes
+    via load_review_context, evaluate_run) exclusively."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+
+    project, person = (args.project or "").strip(), (args.person or "").strip()
+    if project or person:
+        rows = [r for r in rows if row_matches_scope_filter(r, project, person)]
+
+    limit = args.limit if getattr(args, "limit", None) else DEFAULT_DASHBOARD_LIMIT
+    if limit <= 0:
+        limit = DEFAULT_DASHBOARD_LIMIT
+
+    action_required: list[dict] = []
+    blocked: list[dict] = []
+    finalizing: list[dict] = []
+    integrity_issues: list[dict] = []
+    recent_completed: list[dict] = []
+    ignored_historical_counts: dict[str, int] = {}
+
+    eval_cache: dict[str, EvaluationResult] = {}
+
+    def evaluated(row: dict) -> EvaluationResult:
+        run_id = row["Run ID"]
+        if run_id not in eval_cache:
+            ctx = load_review_context(services, run_id, rows=rows)
+            eval_cache[run_id] = evaluate_run(ctx)
+        return eval_cache[run_id]
+
+    def integrity_record(row: dict, eval_res: EvaluationResult) -> dict | None:
+        problems = eval_res.all_problems
+        if row.get("Status") == "completed":
+            # evaluate_run's early-return branch always appends "Run cannot
+            # be completed from state 'completed'." for a terminal run -
+            # true and expected, not a finding. Only genuine snapshot/
+            # invocation problems are worth surfacing for an already-
+            # completed run; filter the boilerplate so it doesn't drown out
+            # real issues (found live: every completed row otherwise showed
+            # up here even when perfectly healthy).
+            problems = [p for p in problems if "Run cannot be completed from state" not in p]
+        if not problems and not eval_res.warnings:
+            return None
+        return {**dashboard_row_summary(row), "problems": problems, "warnings": eval_res.warnings}
+
+    for row in rows:
+        status, stage = row.get("Status", ""), row.get("Stage", "")
+        if status in ("discovered", "needs_scope"):
+            if len(action_required) < limit:
+                action_required.append({**dashboard_row_summary(row),
+                                        "recommended_command": dashboard_recommended_command(row)})
+        elif status == "processing":
+            if stage in ("", "analysis", "apply"):
+                if len(action_required) < limit:
+                    action_required.append({**dashboard_row_summary(row),
+                                            "recommended_command": dashboard_recommended_command(row)})
+            elif stage == "closure" and len(action_required) < limit:
+                # Listing and the (expensive) evaluate_run() pass share one
+                # budget - a row that wouldn't be listed doesn't need
+                # evaluating either; raise --limit to see/evaluate more.
+                eval_res = evaluated(row)
+                action_required.append({**dashboard_row_summary(row),
+                                        "recommended_command":
+                                            dashboard_recommended_command(row, eval_res)})
+                rec = integrity_record(row, eval_res)
+                if rec:
+                    integrity_issues.append(rec)
+        elif status == "blocked":
+            if len(blocked) < limit:
+                blocked.append({**dashboard_row_summary(row),
+                                "recommended_command": dashboard_recommended_command(row)})
+        elif status == "finalizing":
+            if len(finalizing) < limit:
+                eval_res = evaluated(row)
+                finalizing.append({**dashboard_row_summary(row),
+                                   "recommended_command": dashboard_recommended_command(row, eval_res)})
+                rec = integrity_record(row, eval_res)
+                if rec:
+                    integrity_issues.append(rec)
+        elif status in ("ignored", "historical", "failed"):
+            ignored_historical_counts[status] = ignored_historical_counts.get(status, 0) + 1
+
+    completed_rows = sorted(
+        (r for r in rows if r.get("Status") == "completed"),
+        key=lambda r: parse_ts(r.get("Completed", "")),
+        reverse=True,
+    )
+    for row in completed_rows[:limit]:
+        eval_res = evaluated(row)
+        rec = integrity_record(row, eval_res)
+        if rec:
+            integrity_issues.append(rec)
+        if args.include_completed:
+            recent_completed.append(dashboard_row_summary(row))
+
+    ignored_historical: list[dict] = []
+    if args.include_ignored:
+        ignored_historical = [
+            dashboard_row_summary(r) for r in rows
+            if r.get("Status") in ("ignored", "historical", "failed")
+        ][:limit]
+
+    inbox = inbox_snapshot(DATA_ROOT, rows)
+    storage = storage_snapshot(DATA_ROOT)
+
+    recommendations: list[str] = []
+    if action_required:
+        recommendations.append(f"{len(action_required)} run(s) need the next agent action - see action_required")
+    if blocked:
+        recommendations.append(f"{len(blocked)} run(s) blocked - see blocked")
+    if finalizing:
+        recommendations.append(f"{len(finalizing)} run(s) stuck in finalizing - retry `complete <run-id>`")
+    if integrity_issues:
+        recommendations.append(f"{len(integrity_issues)} integrity issue(s) found - see integrity_issues")
+    if inbox["total_files"] and not action_required:
+        recommendations.append(f"{inbox['total_files']} file(s) in 00_Inbox not yet actioned - run `scan`")
+    if not recommendations:
+        recommendations.append("Nothing actionable - queue is clear.")
+
+    data = {
+        "action_required": action_required,
+        "blocked": blocked,
+        "finalizing": finalizing,
+        "integrity_issues": integrity_issues,
+        "recent_completed": recent_completed,
+        "ignored_historical_counts": ignored_historical_counts if args.include_ignored else {},
+        "ignored_historical": ignored_historical,
+        "inbox_summary": inbox,
+        "storage_summary": storage,
+        "recommendations": recommendations,
+        "limit": limit,
+    }
+
+    lines = ["QA management dashboard:",
+             f"  action_required: {len(action_required)}"]
+    lines += [f"    {i['run_id']}  [{i['status']}" + (f":{i['stage']}" if i['stage'] else "")
+              + f"]  -> {i['recommended_command']}" for i in action_required]
+    lines.append(f"  blocked: {len(blocked)}")
+    lines += [f"    {i['run_id']}  reason: {i['reason']}  -> {i['recommended_command']}" for i in blocked]
+    lines.append(f"  finalizing: {len(finalizing)}")
+    lines += [f"    {i['run_id']}  -> {i['recommended_command']}" for i in finalizing]
+    lines.append(f"  integrity_issues: {len(integrity_issues)}")
+    lines += [f"    {i['run_id']}: {'; '.join(i['problems'][:2]) or '; '.join(i['warnings'][:2])}"
+              for i in integrity_issues]
+    lines.append(f"  inbox: {inbox['total_files']} actionable file(s)"
+                 + (f"  {inbox['by_source_type']}" if inbox["by_source_type"] else ""))
+    lines.append(f"  storage: {storage['total_processed_runs']} processed run(s) archived")
+    if args.include_completed:
+        lines.append(f"  recent_completed: {len(recent_completed)}")
+    if args.include_ignored:
+        lines.append(f"  ignored/historical/failed: {ignored_historical_counts}")
+    lines.append("  recommendations:")
+    lines += [f"    - {r}" for r in recommendations]
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
 def main() -> int:
     parent = JsonArgumentParser(add_help=False)
     parent.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -1596,6 +1915,18 @@ def main() -> int:
     p = sub.add_parser("complete", help="verification gate -> completed", parents=[parent])
     p.add_argument("run_id")
 
+    p = sub.add_parser("dashboard", help="read-only operator summary: actionable/blocked/"
+                                          "finalizing runs, integrity issues, inbox/storage counts",
+                       parents=[parent])
+    p.add_argument("--limit", type=int, default=DEFAULT_DASHBOARD_LIMIT,
+                   help=f"rows evaluated/listed per section (default {DEFAULT_DASHBOARD_LIMIT})")
+    p.add_argument("--include-completed", action="store_true",
+                   help="list the newest completed runs (they're still integrity-checked either way)")
+    p.add_argument("--include-ignored", action="store_true",
+                   help="list ignored/historical/failed runs (counts always excluded unless passed)")
+    p.add_argument("--project", default="", help="filter to one project")
+    p.add_argument("--person", default="", help="filter to one person")
+
     args = parser.parse_args()
 
     commands = {
@@ -1605,7 +1936,8 @@ def main() -> int:
         "add-scope": cmd_add_scope,
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
         "historical": cmd_historical, "archive-source": cmd_archive_source,
-        "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review
+        "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
+        "dashboard": cmd_dashboard
     }
 
     if not args.json:
