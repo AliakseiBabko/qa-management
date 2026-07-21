@@ -35,13 +35,15 @@ from __future__ import annotations
 
 import ast
 import re
+import io
 import sys
 from pathlib import Path
 
 import yaml
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO / ".agents" / "skills"

@@ -29,7 +29,10 @@ class TestSearchWorkspace(unittest.TestCase):
         (self.mirror / "README.md").write_text("Private mirror")
 
     def tearDown(self):
-        shutil.rmtree(self.mirror, onerror=remove_readonly)
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(self.mirror, onexc=remove_readonly)
+        else:
+            shutil.rmtree(self.mirror, onerror=remove_readonly)
 
     def _git(self, *args):
         subprocess.run(["git", *args], cwd=self.mirror, check=True, capture_output=True)
@@ -341,7 +344,7 @@ class TestSearchWorkspace(unittest.TestCase):
     # 10. Guard rejection propagates as nonzero JSON error
     def test_guard_rejection(self):
         # Pass a bogus mirror
-        cmd = [sys.executable, str(self.script), "search", "content", "--json", "--mirror", str(tempfile.gettempdir())]
+        cmd = [sys.executable, str(self.script), "search", "content", "--json", "--mirror", tempfile.gettempdir()]
         res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         self.assertNotEqual(res.returncode, 0)
         data = json.loads(res.stdout)
