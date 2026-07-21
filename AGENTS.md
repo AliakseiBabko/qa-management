@@ -120,9 +120,25 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `review`'s own evaluation, bounded by `--limit`), and a read-only
      `00_Inbox`/`90_Storage` file-count summary (add `--json` for the
      strict envelope). Never creates or mutates anything. Use it to decide
-     *which* run/action needs attention; once you've picked one, the full
-     intake workflow below is how you actually process it.
-   - Processing a new source (picked via `dashboard`, or found directly)? —
+     *which* run/action needs attention.
+   - `dashboard` pointed you at a run - what exactly do I do for it? —
+     `.agents\scripts\qa_manage.py guide <run-id>` (add `--json` for the
+     strict envelope). Read-only, one run at a time: identity (status,
+     stage, source path, scopes, snapshot), the graph route's
+     interpretation (skills/entry documents), a stage-specific checklist
+     with exact command templates (the `start`/`add-scope` scope fields a
+     `needs_scope` row is missing, `record-analysis`, which entry
+     documents a `processing/apply` run still needs `record-apply` for,
+     which edges a `processing/closure` run still needs `resolve-edge`
+     for, `commit_workspace_state.py` when closure is clean but the
+     snapshot/invocation token isn't, `complete`/`complete` retry,
+     `resume --continue`, `historical`), and only the guardrails relevant
+     to that stage. Never creates or mutates anything. Use this once
+     `dashboard` (or a direct find) has pointed you at a specific run;
+     once you know the exact command, the full intake workflow below is
+     how you actually process it.
+   - Processing a new source (picked via `dashboard`/`guide`, or found
+     directly)? —
      the intake workflow runs through
      `.agents\scripts\qa_manage.py` (state machine; you keep the
      judgment): `scan` → `next` → read the source → `start <run-id>
