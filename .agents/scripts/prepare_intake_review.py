@@ -4,10 +4,9 @@ log them to evidence_log, and produce a review bundle for M2 to read.
 Scope, deliberately stopped short of judgment (see m2-role-rules.md,
 Project-Level Rollups and Pipeline Architecture):
 
-- scans 00_Source_Docs/01_Meeting_Transcripts, 02_Chats_and_Emails, and
-  03_Source_Documents/<Project> for files not yet seen
+- scans 00_Inbox recursively for files not yet seen
 - reuses an existing extraction by sha256 (checks every
-  80_Exports/source_extracts/*/manifest.csv) instead of re-extracting
+  _System/extracts/source/*/manifest.csv) instead of re-extracting
 - classifies each new file by project (folder-based under
   03_Source_Documents, filename-matched against _project_registry /
   _people_registry under 01/02) using substring matching only — genuinely
@@ -44,11 +43,9 @@ from sync_m2_source_docs_to_sheets import (
 )
 
 DEFAULT_ROOT = Path(r"G:\My Drive\QA_Management")
-INBOX_FOLDERS = ["01_Meeting_Transcripts", "02_Chats_and_Emails"]
-SOURCE_DOCS_FOLDER = "03_Source_Documents"
-EXTRACT_ROOT = DEFAULT_ROOT / "80_Exports" / "source_extracts"
-REVIEW_ROOT = DEFAULT_ROOT / "80_Exports" / "intake_review"
-IGNORED_PROJECT_DIRS = {"M2_project_development_plan", "M2_personal_development_plan", "M2_role_vision"}
+INBOX_ROOT = "00_Inbox"
+EXTRACT_ROOT = DEFAULT_ROOT / "_System" / "extracts" / "source"
+REVIEW_ROOT = DEFAULT_ROOT / "_System" / "reviews" / "intake"
 
 
 def parse_args() -> argparse.Namespace:
@@ -81,7 +78,7 @@ def known_sha256_map(extract_root: Path) -> dict[str, dict[str, str]]:
 
 def source_tail(path_str: str) -> str:
     # Compare on the last two path segments (project-folder/filename) so a
-    # folder reorg (e.g. 03_Source_Documents landing between 00_Source_Docs
+    # folder reorg (for example, a historical category directory landing
     # and <Project>) doesn't make an already-logged file look new just
     # because its full relative path changed.
     parts = Path(path_str.replace("\\", "/")).parts
@@ -178,12 +175,9 @@ def main() -> int:
 
     found: list[dict[str, str]] = []
 
-    for inbox in INBOX_FOLDERS:
-        inbox_path = root / "00_Source_Docs" / inbox
-        if not inbox_path.exists():
-            continue
-        source_type = "raw_transcript" if inbox == "01_Meeting_Transcripts" else "raw_chat"
-        for path in sorted(inbox_path.glob("*")):
+    inbox_path = root / INBOX_ROOT
+    if inbox_path.exists():
+        for path in sorted(inbox_path.rglob("*")):
             if not path.is_file():
                 continue
             relative = path.relative_to(root)
@@ -198,43 +192,14 @@ def main() -> int:
                 else:
                     out_dir = EXTRACT_ROOT / today / safe_name(project or "_unclassified")
                     extract_file = extract_office_file(path, relative, out_dir)
-            found.append(
-                {
-                    "path": str(relative),
-                    "source_type": source_type,
-                    "project": project,
-                    "reason": reason,
-                    "extract_file": extract_file,
-                }
-            )
-
-    source_docs_path = root / "00_Source_Docs" / SOURCE_DOCS_FOLDER
-    if source_docs_path.exists():
-        for project_dir in sorted(p for p in source_docs_path.iterdir() if p.is_dir()):
-            project = project_dir.name
-            if project in IGNORED_PROJECT_DIRS or project not in projects:
-                continue
-            for path in sorted(project_dir.rglob("*")):
-                if not path.is_file() or path.suffix.casefold() not in (".docx", ".xlsx"):
-                    continue
-                relative = path.relative_to(root)
-                if source_tail(str(relative)) in all_logged_sources:
-                    continue
-                h = sha256_file(path)
-                if h in known_hashes:
-                    extract_file = known_hashes[h]["extract_file"]
-                else:
-                    out_dir = EXTRACT_ROOT / today / safe_name(project)
-                    extract_file = extract_office_file(path, relative, out_dir)
-                found.append(
-                    {
-                        "path": str(relative),
-                        "source_type": "source_document",
-                        "project": project,
-                        "reason": f"folder-based: 03_Source_Documents/{project}",
-                        "extract_file": extract_file,
-                    }
-                )
+            source_type = "strategy_chat" if "_strategy" in path.stem.casefold() else "source_document"
+            found.append({
+                "path": str(relative),
+                "source_type": source_type,
+                "project": project,
+                "reason": reason,
+                "extract_file": extract_file,
+            })
 
     if not found:
         print("No new source files found.")

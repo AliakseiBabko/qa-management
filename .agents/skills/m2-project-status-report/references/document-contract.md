@@ -3,7 +3,7 @@
 Primary output for a **regular** report is chat-ready text for the
 project's own strategy chat — that's where real weekly reports on these
 projects actually get posted (see SKILL.md, Destination). A saved Google
-Doc in `20_M2_Project_Management\<Project>\status_reports` (local Markdown
+Doc in `20_M2_Project_Management\<Project>\private\status_reports` (local Markdown
 fallback) is for when the user explicitly wants a kept/archival copy, not
 the default path for a routine update. On-demand reports are returned in
 chat by default.
@@ -22,7 +22,7 @@ Use Markdown/plain text. Do not use CSV for this report family.
 
 For saved regular reports:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\status_reports`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\private\status_reports`
 
 Suggested naming pattern:
 
@@ -57,7 +57,7 @@ For multi-project reports:
 - Start from evidence inside the requested period.
 - Use older project artifacts only to explain baseline, plan, owner, or unresolved carry-over risk.
 - Prefer extracted source files over original DOCX/XLSX when available:
-  `G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD\<Project>\...`
+  `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD\<Project>\...`
 - For large extracts, inspect manifests/JSON previews first, then search for relevant dates, project names, status labels, blockers, risks, metrics, owners, and next actions.
 - If no suitable extract exists for DOCX/XLSX, run `.agents/scripts/qa_source_extract.py` before reading the source directly.
 - Keep evidence traceable internally, but do not clutter the chat-ready status with source paths unless the user asks for evidence.

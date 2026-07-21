@@ -6,7 +6,7 @@ Prints, for --project <Name>:
 - project_metrics, project_risk, evidence_log, qa_process_metrics,
   action_items (Sheets)
 - project_development_plan, m2_input (Docs)
-- for every person under people/<Person>/: individual_metrics,
+- for every person under people/<Person>/shared: individual_metrics,
   individual_metrics_internal (Sheets), individual_development_plan (Doc)
 
 Prints, for --registries:
@@ -28,6 +28,8 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from m2_workspace_layout import DOC_MIME, SHEET_MIME, find_document, list_project_people
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
@@ -214,6 +216,20 @@ def dump_doc(services: dict[str, Any], folder_id: str, title: str) -> None:
         print(para, end="")
     print()
 
+
+def role_parent_id(
+    services: dict[str, Any],
+    project_folder_id: str,
+    role: str,
+    mime_type: str,
+    person: str = "",
+) -> str | None:
+    item = find_document(
+        services["drive"], project_folder_id, role, role, mime_type, person
+    )
+    parents = item.get("parents", []) if item else []
+    return parents[0] if parents else None
+
 def dump_project(services: dict[str, Any], m2_root_id: str, project: str, evidence_tail: int = 0) -> None:
     project_folder = find_folder(services["drive"], m2_root_id, project)
     if not project_folder:
@@ -221,36 +237,56 @@ def dump_project(services: dict[str, Any], m2_root_id: str, project: str, eviden
         return
 
     print(f"===== {project}: project_metrics =====")
-    dump_sheet(services, project_folder["id"], "project_metrics")
+    folder_id = role_parent_id(services, project_folder["id"], "project_metrics", SHEET_MIME)
+    if folder_id:
+        dump_sheet(services, folder_id, "project_metrics")
     print(f"===== {project}: project_risk =====")
-    dump_sheet(services, project_folder["id"], "project_risk")
+    folder_id = role_parent_id(services, project_folder["id"], "project_risk", SHEET_MIME)
+    if folder_id:
+        dump_sheet(services, folder_id, "project_risk")
     print(f"===== {project}: evidence_log =====")
-    dump_sheet(services, project_folder["id"], "evidence_log", tail=evidence_tail)
+    folder_id = role_parent_id(services, project_folder["id"], "evidence_log", SHEET_MIME)
+    if folder_id:
+        dump_sheet(services, folder_id, "evidence_log", tail=evidence_tail)
     print(f"===== {project}: qa_process_metrics =====")
-    dump_sheet(services, project_folder["id"], "qa_process_metrics")
+    folder_id = role_parent_id(services, project_folder["id"], "qa_process_metrics", SHEET_MIME)
+    if folder_id:
+        dump_sheet(services, folder_id, "qa_process_metrics")
     print(f"===== {project}: action_items =====")
-    dump_sheet(services, project_folder["id"], "action_items")
+    folder_id = role_parent_id(services, project_folder["id"], "action_items", SHEET_MIME)
+    if folder_id:
+        dump_sheet(services, folder_id, "action_items")
     print(f"===== {project}: project_development_plan =====")
-    dump_doc(services, project_folder["id"], "project_development_plan")
+    folder_id = role_parent_id(services, project_folder["id"], "project_development_plan", DOC_MIME)
+    if folder_id:
+        dump_doc(services, folder_id, "project_development_plan")
 
-    m2_input_folder = find_folder(services["drive"], project_folder["id"], "m2_input")
-    if m2_input_folder:
+    m2_input_id = role_parent_id(services, project_folder["id"], "m2_input", DOC_MIME)
+    if m2_input_id:
         print(f"===== {project}: m2_input =====")
-        dump_doc(services, m2_input_folder["id"], "m2_input")
+        dump_doc(services, m2_input_id, "m2_input")
 
-    people_folder = find_folder(services["drive"], project_folder["id"], "people")
-    if not people_folder:
+    people = list_project_people(services["drive"], project_folder["id"])
+    if not people:
         return
     print(f"===== {project}: people =====")
-    for person in drive_query(
-        services["drive"],
-        f"'{people_folder['id']}' in parents and mimeType = '{FOLDER_MIME}' and trashed = false",
-        fields="id,name",
-    ):
-        print(f"--- person: {person['name']} ---")
-        dump_sheet(services, person["id"], "individual_metrics")
-        dump_sheet(services, person["id"], "individual_metrics_internal")
-        dump_doc(services, person["id"], "individual_development_plan")
+    for person in people:
+        print(f"--- person: {person} ---")
+        metrics_id = role_parent_id(
+            services, project_folder["id"], "individual_metrics", SHEET_MIME, person
+        )
+        plan_id = role_parent_id(
+            services, project_folder["id"], "individual_development_plan", DOC_MIME, person
+        )
+        private_id = role_parent_id(
+            services, project_folder["id"], "individual_metrics_internal", SHEET_MIME, person
+        )
+        if metrics_id:
+            dump_sheet(services, metrics_id, "individual_metrics")
+        if plan_id:
+            dump_doc(services, plan_id, "individual_development_plan")
+        if private_id:
+            dump_sheet(services, private_id, "individual_metrics_internal")
 
 def project_people_counts(services: dict[str, Any], m2_root_id: str) -> dict[str, str]:
     sheet = find_sheet_in_folder(services["drive"], m2_root_id, "_project_registry")
@@ -267,7 +303,9 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
     qa_count = len([p for p in people_cell.split(",") if p.strip()]) if people_cell else 0
 
     risk_level, risk_date = "н/д", ""
-    risk_sheet = find_sheet_in_folder(services["drive"], project_folder["id"], "project_risk")
+    risk_sheet = find_document(
+        services["drive"], project_folder["id"], "project_risk", "project_risk", SHEET_MIME
+    )
     if risk_sheet:
         rows = read_sheet_values(services, risk_sheet["id"])
         if len(rows) > 1:
@@ -276,7 +314,9 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
             risk_level = last[2] if len(last) > 2 and last[2] else "н/д"
 
     last_touched = "н/д"
-    evidence_sheet = find_sheet_in_folder(services["drive"], project_folder["id"], "evidence_log")
+    evidence_sheet = find_document(
+        services["drive"], project_folder["id"], "evidence_log", "evidence_log", SHEET_MIME
+    )
     if evidence_sheet:
         rows = read_sheet_values(services, evidence_sheet["id"])
         dates = [row[0] for row in rows[1:] if row and row[0]]
@@ -284,22 +324,24 @@ def summarize_project(services: dict[str, Any], m2_root_id: str, project: str, p
             last_touched = max(dates)
 
     m2_input_note = ""
-    m2_input_folder = find_folder(services["drive"], project_folder["id"], "m2_input")
-    if m2_input_folder:
-        m2_input_doc = find_doc(services, m2_input_folder["id"], "m2_input")
-        if m2_input_doc:
-            status = get_last_round_status(services["docs"], m2_input_doc["id"])
-            if status["pending"]:
-                pending_text = get_pending_round_questions(services["docs"], m2_input_doc["id"])
-                if pending_text.strip() == EMPTY_ROUND_PLACEHOLDER:
-                    m2_input_note = f", m2_input: пустой раунд-заглушка ({status['round_date']})"
-                else:
-                    m2_input_note = f", m2_input: раунд {status['round_date']} ожидает ответа M2"
-            elif status["pending"] is False:
-                m2_input_note = f", m2_input: раунд {status['round_date']} отвечен"
+    m2_input_doc = find_document(
+        services["drive"], project_folder["id"], "m2_input", "m2_input", DOC_MIME
+    )
+    if m2_input_doc:
+        status = get_last_round_status(services["docs"], m2_input_doc["id"])
+        if status["pending"]:
+            pending_text = get_pending_round_questions(services["docs"], m2_input_doc["id"])
+            if pending_text.strip() == EMPTY_ROUND_PLACEHOLDER:
+                m2_input_note = f", m2_input: пустой раунд-заглушка ({status['round_date']})"
+            else:
+                m2_input_note = f", m2_input: раунд {status['round_date']} ожидает ответа M2"
+        elif status["pending"] is False:
+            m2_input_note = f", m2_input: раунд {status['round_date']} отвечен"
 
     action_items_note = ""
-    action_items_sheet = find_sheet_in_folder(services["drive"], project_folder["id"], "action_items")
+    action_items_sheet = find_document(
+        services["drive"], project_folder["id"], "action_items", "action_items", SHEET_MIME
+    )
     if action_items_sheet:
         rows = read_sheet_values(services, action_items_sheet["id"])
         today = dt.date.today().isoformat()
@@ -359,18 +401,13 @@ def fetch_targeted_docs(services: dict[str, Any], args: argparse.Namespace, m2_r
             if not proj_folder:
                 doc_results.append(doc_result)
                 continue
-            if doc_name == "m2_input":
-                m2_in_folder = find_folder(services["drive"], proj_folder["id"], "m2_input")
-                target_folder_id = m2_in_folder["id"] if m2_in_folder else None
-            elif doc_name in PERSON_DOCS:
-                people_folder = find_folder(services["drive"], proj_folder["id"], "people")
-                if not people_folder:
-                    doc_results.append(doc_result)
-                    continue
-                person_folder = find_folder(services["drive"], people_folder["id"], args.person)
-                target_folder_id = person_folder["id"] if person_folder else None
-            else:
-                target_folder_id = proj_folder["id"]
+            target_folder_id = role_parent_id(
+                services,
+                proj_folder["id"],
+                doc_name,
+                SHEET_MIME if is_sheet else DOC_MIME,
+                args.person if doc_name in PERSON_DOCS else "",
+            )
 
         if not target_folder_id:
             doc_results.append(doc_result)

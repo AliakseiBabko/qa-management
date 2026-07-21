@@ -118,7 +118,11 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      apply the listed skills → `record-analysis --summary` →
      `record-apply` per scope (`--updated`/`--no-change`/
      `--not-applicable`, reasons required) → `resolve-edge` per cascade
-     edge → `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
+     edge → `archive-source <run-id>` →
+     `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
+     `archive-source` moves the original from `00_Inbox` to a run-specific
+     `90_Archive/Processed_Sources` folder while preserving Drive identity;
+     the snapshot must be created after this move.
      Put the exact token `run:<run-id>` in the `_skill_invocations`
      Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
      pass also automatically extracts and commits the source text into the private mirror.
@@ -213,32 +217,38 @@ Use the Google Drive root folder ID `1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc` as the c
 
 Expected data folders under that root:
 
-- `00_Source_Docs`: durable source documents and reference materials
-- `01_Recordings`: raw meeting recordings
-- `02_Transcripts_Inbox`: raw transcript intake
-- `03_Transcripts_Processed`: transcripts that have already been analyzed or moved out of intake
+- `00_Inbox`: the only intake folder; recursively scanned, and empty means there are no unprocessed files
 - `10_M1_People_Management`: person-based, `<Person>\` subfolder per team member (1to1, OKR, salary-review self-feedback); the living `Светофор рисков` sheet, `_m1_timeline`, and M1's own monthly report stay at the root — see `google-workspace-rules.md`, M1 Person-Based Layout
 - `20_M2_Project_Management`: M2 project-management outputs
-- `80_Exports`: exported packages, shares, or generated external copies
-- `90_Archive`: archived legacy folders and backups
+- `30_Reference`: durable source/reference material that is not pending intake
+- `_System`: generated extracts and review bundles; internal implementation artifacts
+- `80_Exports` (optional): created only when an explicit immutable package/copy is prepared for external sharing
+- `90_Archive`: processed source originals, retired outputs, legacy folders, and backups
 
 M2 project-management outputs are project-based. Each active project should have
 its own folder under `20_M2_Project_Management`, for example:
 
 ```text
 20_M2_Project_Management/<Project>/
-├─ project_risk.gsheet
-├─ project_development_plan.gdoc
-├─ project_metrics.gsheet
-├─ evidence_log.gsheet
-├─ people/<Person>/
-│  ├─ individual_development_plan.gdoc
-│  └─ individual_metrics.gsheet
-├─ status_reports/
-├─ action_items.gsheet
-├─ source_docs/
-└─ archive/
+├─ private/
+│  ├─ project_risk.gsheet
+│  ├─ process_checklist.gsheet
+│  ├─ project_development_plan.gdoc
+│  ├─ project_metrics.gsheet
+│  ├─ evidence_log.gsheet
+│  ├─ action_items.gsheet
+│  ├─ m2_input/m2_input.gdoc
+│  ├─ status_reports/
+│  └─ people/<Person>/individual_metrics_internal.gsheet
+├─ team_shared/qa_process_metrics.gsheet
+└─ people/<Person>/shared/
+   ├─ individual_development_plan.gdoc
+   └─ individual_metrics.gsheet
 ```
+
+Share only `team_shared/` with the project QA team and only a specific
+`people/<Person>/shared/` folder with that person. Never share the project
+root or `private/`.
 
 Use `_project_registry.gsheet` / `_project_registry.csv` in
 `20_M2_Project_Management` to track active project names, aliases, people, and

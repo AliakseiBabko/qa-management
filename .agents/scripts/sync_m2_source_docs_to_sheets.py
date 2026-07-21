@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Sync source-aligned M2 project files from 00_Source_Docs into Google Sheets.
+"""Sync source-aligned M2 project files from extracted reference material into Google Sheets.
 
-This script uses extracted DOCX/XLSX content from 80_Exports/source_extracts and
+This script uses extracted DOCX/XLSX content from _System/extracts/source and
 updates the canonical project-based M2 workspace in Google Drive:
 
-- 20_M2_Project_Management/<Project>/project_metrics
-- 20_M2_Project_Management/<Project>/project_risk
-- 20_M2_Project_Management/<Project>/evidence_log
-- 20_M2_Project_Management/<Project>/people/<Person>/individual_metrics
+- 20_M2_Project_Management/<Project>/private/project_metrics
+- 20_M2_Project_Management/<Project>/private/project_risk
+- 20_M2_Project_Management/<Project>/private/evidence_log
+- 20_M2_Project_Management/<Project>/people/<Person>/shared/individual_metrics
 
 It updates values in place when a Sheet already exists, which preserves the
 existing formatting of the Google Sheet.
@@ -30,6 +30,13 @@ from typing import Any
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials, move_file_to_folder
 from pipeline_common import reformat_sheet
+from m2_workspace_layout import (
+    PERSON_SHARED_ROLES,
+    PROJECT_PRIVATE_ROLES,
+    PROJECT_TEAM_SHARED_ROLES,
+    ensure_document_folder,
+    find_child_folder,
+)
 from generate_m2_outputs import (
     clean_markdown,
     generate_metrics,
@@ -58,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync source-aligned M2 Sheets from extracted source docs.")
     parser.add_argument(
         "--extract-root",
-        default=rf"G:\My Drive\QA_Management\80_Exports\source_extracts\{today}",
+        default=rf"G:\My Drive\QA_Management\_System\extracts\source\{today}",
         help="Dated extraction folder produced by qa_source_extract.py.",
     )
     parser.add_argument(
@@ -166,7 +173,34 @@ def find_sheet_in_folder(drive: Any, folder_id: str, title: str) -> dict[str, An
         ),
         fields="id,name,mimeType,webViewLink",
     )
-    return matches[0] if matches else None
+    if matches:
+        return matches[0]
+
+    # Read compatibility for the visibility layout. Callers that still pass
+    # a project or person root can find migrated Sheets; creation code must
+    # still resolve the canonical target explicitly with ensure_document_folder.
+    nested_name = None
+    if title in PROJECT_PRIVATE_ROLES:
+        nested_name = "private"
+    elif title in PROJECT_TEAM_SHARED_ROLES:
+        nested_name = "team_shared"
+    elif title in PERSON_SHARED_ROLES:
+        nested_name = "shared"
+    if nested_name:
+        nested = find_child_folder(drive, folder_id, nested_name)
+        if nested:
+            nested_matches = drive_query(
+                drive,
+                (
+                    f"'{nested['id']}' in parents and name = '{q_escape(title)}' and "
+                    f"mimeType = '{SHEET_MIME_TYPE}' and trashed = false"
+                ),
+                fields="id,name,mimeType,webViewLink",
+            )
+            if len(nested_matches) > 1:
+                raise RuntimeError(f"Duplicate Sheets named {title!r} in {nested_name}")
+            return nested_matches[0] if nested_matches else None
+    return None
 
 
 def col_label(index: int) -> str:
@@ -281,7 +315,7 @@ def project_source_entries(manifest: list[dict[str, str]]) -> dict[str, list[lis
                 item["document_role"],
                 item["project"],
                 routed_to,
-                "Synced from 00_Source_Docs extract.",
+                "Synced from reference-material extract.",
             ]
         )
     return entries
@@ -390,13 +424,14 @@ def main() -> int:
         # curated version exists, never touch it here — only bootstrap a brand-new
         # project that doesn't have one yet, and even then this is a rough first
         # pass to build on, not a finished document.
+        private_folder = ensure_document_folder(drive, project_folder["id"], "project_metrics")
         if project in project_metrics:
             if find_sheet_in_folder(drive, project_folder["id"], "project_metrics"):
                 results.append(f"{project}: project_metrics already exists, left untouched (needs M2 synthesis, not auto-sync)")
             else:
                 meta = upsert_sheet(
                     services,
-                    project_folder["id"],
+                    private_folder["id"],
                     "project_metrics",
                     [project_metrics_header, *project_metrics[project]],
                 )
@@ -408,7 +443,7 @@ def main() -> int:
             else:
                 meta = upsert_sheet(
                     services,
-                    project_folder["id"],
+                    private_folder["id"],
                     "project_risk",
                     [project_risk_header, *project_risks[project]],
                 )
@@ -417,12 +452,13 @@ def main() -> int:
         evidence_sheet = find_sheet_in_folder(drive, project_folder["id"], "evidence_log")
         existing_evidence = read_sheet_values(services, evidence_sheet["id"]) if evidence_sheet else [evidence_header]
         merged_evidence = merge_evidence(existing_evidence, evidence_entries.get(project, []))
-        upsert_sheet(services, project_folder["id"], "evidence_log", merged_evidence)
+        upsert_sheet(services, private_folder["id"], "evidence_log", merged_evidence)
 
-        people_folder = find_or_create_folder(drive, project_folder["id"], "people")
         for person in sorted(project_people.get(project, set())):
             folder_name = resolve_existing_person_dir(project, person)
-            person_folder = find_or_create_folder(drive, people_folder["id"], folder_name)
+            person_folder = ensure_document_folder(
+                drive, project_folder["id"], "individual_metrics", folder_name
+            )
             key = (project, person)
 
             metrics_sheet = find_sheet_in_folder(drive, person_folder["id"], "individual_metrics")

@@ -130,12 +130,12 @@ class TestSearchWorkspace(unittest.TestCase):
         self.assertTrue(any("unmatched" in err.lower() or "invalid" in err.lower() or "grep failed" in err.lower() for err in data["errors"]))
 
     def test_path_bounds(self):
-        self._write("00_Source_Docs/a.md", "M1 file")
+        self._write("00_Inbox/a.md", "M1 file")
         self._git("add", ".")
         self._git("commit", "-m", "A")
 
-        # 00_Source_Docs is not canonical, so --path fails structurally
-        res = self.run_cli("search", "M1 file", "--path", "00_Source_Docs/a.md", "--json", check=False)
+        # 00_Inbox is not canonical, so --path fails structurally
+        res = self.run_cli("search", "M1 file", "--path", "00_Inbox/a.md", "--json", check=False)
         data = json.loads(res.stdout)
         self.assertFalse(data["ok"])
         self.assertTrue(any("outside allowed structural boundaries" in err for err in data["errors"]))

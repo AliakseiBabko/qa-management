@@ -15,10 +15,10 @@ Default language:
 
 Default transcript location:
 
-- raw intake: `G:\My Drive\QA_Management\00_Source_Docs\01_Meeting_Transcripts`
+- raw intake: `G:\My Drive\QA_Management\00_Inbox`
 
 Once a transcript's facts are extracted, move it to
-`00_Source_Docs\03_Source_Documents\<Project>` (if still useful as durable
+`30_Reference\Source_Documents\<Project>` (if still useful as durable
 reference) or `90_Archive` — there is no separate "processed" holding
 folder.
 

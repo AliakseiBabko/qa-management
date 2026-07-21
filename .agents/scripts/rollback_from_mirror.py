@@ -22,7 +22,7 @@ A rollback is itself a change, not an erasure - after `--apply`:
 
 Usage (from the skills-repo root):
 
-    python .agents/scripts/rollback_from_mirror.py --history "20_M2_Project_Management/<Project>/project_risk.xlsx"
+    python .agents/scripts/rollback_from_mirror.py --history "20_M2_Project_Management/<Project>/private/project_risk.xlsx"
     python .agents/scripts/rollback_from_mirror.py --commit <sha> --path <path> [--path <path> ...]
     python .agents/scripts/rollback_from_mirror.py --commit <sha> --path <path> --apply
 """

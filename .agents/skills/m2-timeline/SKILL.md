@@ -46,7 +46,7 @@ hand.
 
 1. Run `scan_open_questions.py` (add `--project <Name>` to scope it). It
    prints candidates grouped by project and writes a bundle to
-   `80_Exports/open_questions_review/YYYY-MM-DD.md`. It skips anything
+   `_System/reviews/open_questions/YYYY-MM-DD.md`. It skips anything
    already logged (matched by a `scan:<kind>:<key>` tag in `Источник`), so a
    rerun only shows genuinely new items.
 2. The script's `Тип`/`Owner`/`Дата события` are mechanical placeholders,

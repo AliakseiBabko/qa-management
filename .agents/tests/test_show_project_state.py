@@ -17,6 +17,11 @@ class TestShowProjectStateTargeted(unittest.TestCase):
             "docs": MagicMock(),
             "sheets": MagicMock(),
         }
+        self.role_parent_patcher = patch(
+            "show_project_state.role_parent_id", return_value="fake_id"
+        )
+        self.mock_role_parent = self.role_parent_patcher.start()
+        self.addCleanup(self.role_parent_patcher.stop)
 
     @patch("show_project_state.get_services")
     @patch("show_project_state.find_folder")
@@ -181,6 +186,7 @@ class TestShowProjectStateTargeted(unittest.TestCase):
         mock_get_services.return_value = self.mock_services
         mock_find_folder.return_value = {"id": "m2_root"}
 
+        self.mock_role_parent.return_value = None
         test_args = ["--project", "MyProject", "--document", "project_metrics", "--json"]
         with patch("sys.argv", ["show_project_state.py"] + test_args):
             with patch("show_project_state.find_sheet_in_folder") as mock_find_sheet:

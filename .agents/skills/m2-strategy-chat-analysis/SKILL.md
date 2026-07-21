@@ -1,6 +1,6 @@
 ---
 name: m2-strategy-chat-analysis
-description: Analyze a project-level M2 strategy chat export (filename ending "_strategy", e.g. `<Project>_strategy.txt` under `00_Source_Docs\02_Chats_and_Emails`) — a running, multi-month, multi-stakeholder chat used for planning and solving common problems on one project — and extract structured project-management facts for routing into that project's own artifacts. Use when a new "_strategy" chat file needs processing, or when asked what changed for a project based on its strategy chat.
+description: Analyze a project-level M2 strategy chat export (filename ending "_strategy", e.g. `<Project>_strategy.txt` under `00_Inbox`) — a running, multi-month, multi-stakeholder chat used for planning and solving common problems on one project — and extract structured project-management facts for routing into that project's own artifacts. Use when a new "_strategy" chat file needs processing, or when asked what changed for a project based on its strategy chat.
 ---
 
 # M2 Strategy Chat Analysis
@@ -26,7 +26,7 @@ strategy chat through the 1to1 skill — there is no single "who this is about."
 Never add new messages to an existing `_strategy` file in place. Each new
 batch of chat content is a **new file** — e.g.
 `<Project>_strategy_2026-07-20.txt` — dropped into
-`00_Source_Docs\02_Chats_and_Emails`. This matters mechanically, not just
+`00_Inbox`. This matters mechanically, not just
 stylistically: detection below dedups by filename, not content hash, so
 editing an already-logged file in place makes new content invisible to it.
 
@@ -41,7 +41,7 @@ editing an already-logged file in place makes new content invisible to it.
    timestamps for recent messages — resolved against the file's mtime, a
    heuristic worth a sanity check if the range looks off), logs one
    `evidence_log` row per file, and writes a review bundle under
-   `80_Exports\intake_review\strategy_chats_<date>.md`. It does not
+   `_System\reviews\intake\strategy_chats_<date>.md`. It does not
    extract facts or touch any other document — see its own docstring.
 3. Read the flagged file(s) from the bundle in full, chronologically —
    these chats mix languages and jump between topics message-to-message;

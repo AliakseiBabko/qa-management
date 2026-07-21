@@ -85,7 +85,7 @@ tells the reader nothing, and that traceability already lives in
 - project transcripts
 - delivery/process notes
 - staffing or project context data
-- extracted source corpus under `G:\My Drive\QA_Management\80_Exports\source_extracts\YYYY-MM-DD`
+- extracted source corpus under `G:\My Drive\QA_Management\_System\extracts\source\YYYY-MM-DD`
 
 ## Evidence Rules
 
@@ -102,7 +102,7 @@ tells the reader nothing, and that traceability already lives in
   item worth calling serious; if that alone were enough to set the overall
   level, every project would read `Высокий` and the field would stop being
   useful for telling projects apart. The homework corpus this contract is
-  derived from (`00_Source_Docs\M2_project_development_plan`) never
+  derived from (`30_Reference\Source_Documents\M2_project_development_plan`) never
   computes one project-wide score either — it lists named risks, each with
   its own severity, and never collapses them into a single verdict. Follow
   that same discipline: individual risk columns (`Риск delivery`, `Риск QA

@@ -7,7 +7,7 @@ description: Fill in M2's own project rows on the department's shared "Auto staf
 
 Use this skill when M2 is filling in their block of rows on the
 department-wide outstaff/staffing traffic-light tracker
-(`00_Source_Docs\03_Source_Documents\Auto staff. Светофор проектов.xlsx`,
+(`00_Inbox\Auto staff. Светофор проектов.xlsx`,
 tab `Outstaff`) - not a Sheet this workspace generates or owns. M2 typically
 makes their own copy of the department original, edits their rows there,
 then copy-pastes the result back into the shared table by hand.
@@ -68,7 +68,7 @@ then copy-pastes the result back into the shared table by hand.
    destructive action on a file that isn't fully M2's own artifact even
    when it's their copy - confirm the target file and scope with the user
    first if there's any doubt.
-3. For each project, find real source documents under `00_Source_Docs` (and
+3. For each project, find real pending sources under `00_Inbox`, durable references under `30_Reference` (and
    `90_Archive` for anything already archived) - look for a
    `<Name> case chat.txt` / `<Person> case at <Project>.txt`-style file
    under `02_Chats_and_Emails` first, then the project's own

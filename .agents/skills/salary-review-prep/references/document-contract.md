@@ -18,7 +18,7 @@ Depends on whether this is a team-member case or a self case:
 
 - Team member (QA engineer, any grade) → same person folder their OKR Doc
   lives in: `10_M1_People_Management\<Person>\` (M1 team) or the project's
-  `people\<Person>\` folder (M2 team, see `google-workspace-rules.md`).
+  `people\<Person>\shared\` folder (M2 team, see `google-workspace-rules.md`).
 - M1/M2 preparing their own → `_self_review\<Person>\` under whichever
   root matches their own grade (`10_M1_People_Management` for M1,
   `20_M2_Project_Management` for M2) — same root `m-self-review` uses.
