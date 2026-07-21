@@ -236,7 +236,17 @@ bottom layer:
    the `Вклад в проект: <Имя>` conclusion (and the aggregated team row, if
    the project has more than one person), and `Горизонт совместной
    работы` / `Бизнес-риск продукта клиента` / `Качество QA-процесса` if
-   the source touched any of those.
+   the source touched any of those. Every metric row in `project_metrics`
+   is a **current-value dashboard row keyed on (project, metric name,
+   person)** — update that one row in place (new date + new explanation),
+   never append a second row for the same key. A real intake once appended
+   a fresh dated `Вклад в проект: <Имя>` row instead of updating the
+   existing one; `refresh_project_registry.py` doesn't dedupe by person,
+   so the duplicate rendered as `<Имя>, <Имя>` live in `_project_registry`
+   until caught by audit and repaired by hand. If the metric's evolution
+   over time is itself worth keeping, log it in `evidence_log` (already
+   append-only) or a dedicated history table — not as a second current row
+   in this sheet.
 3. Refresh that project's row in `_project_registry` to match.
 
 Leaving `project_metrics` or `_project_registry` stale after an
