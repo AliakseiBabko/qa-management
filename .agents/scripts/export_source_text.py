@@ -17,7 +17,18 @@ from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple
 def source_text_requirement(row: dict) -> str:
     src_type = row.get("Source type", "")
     ext = Path(row.get("Source", "")).suffix.casefold()
-    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}:
+    if src_type in {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat",
+                    # Project Knowledge lane (30_Project_Knowledge) - same file-backed
+                    # transcript/document/chat/notes treatment as their M1/M2 counterparts
+                    # above. All four are discovered via the same file-based intake queue
+                    # (scan/classify/start), never a purely conversational source like
+                    # m2_conversation/admin_note below, so the same extension-gated
+                    # "required" rule applies uniformly - including project_knowledge_notes,
+                    # whose short-note shape affects whether a *summary* doc gets written
+                    # (see project-knowledge-intake), not whether the raw source text is
+                    # worth preserving.
+                    "project_knowledge_transcript", "project_knowledge_document",
+                    "project_knowledge_chat", "project_knowledge_notes"}:
         if ext in {".txt", ".md", ".docx"}:
             return "required"
     if src_type in {"admin_note", "m2_conversation"}:
@@ -28,7 +39,11 @@ def source_text_requirement(row: dict) -> str:
 # We do NOT import qa_manage here at module load.
 from mirror_common import assert_private_mirror
 
-SOURCE_TEXT_TYPES = {"qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat"}
+SOURCE_TEXT_TYPES = {
+    "qa_1to1", "strategy_chat", "meeting_transcript", "people_case_chat",
+    "project_knowledge_transcript", "project_knowledge_document",
+    "project_knowledge_chat", "project_knowledge_notes",
+}
 ALLOWED_EXTENSIONS = {".txt", ".md", ".docx"}
 SOURCE_TEXT_SEARCH_ROOTS = (
     "00_Inbox",

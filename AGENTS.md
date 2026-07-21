@@ -254,6 +254,16 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
+     After `complete` (or after any conversational rollup pass that ends with its own
+     `commit_workspace_state.py` snapshot - an M2 answer pass, a repo-maintenance fix, etc.),
+     record one telemetry row: `.agents\scripts\measure_operator_outputs.py --case
+     completed_run_review --run-id <run-id> --append-csv` (or `--case pack_discovered`/
+     `--case search_current`, whichever command you actually used to review the finished
+     pass). This is a closing step for every real intake/rollup pass, not optional
+     instrumentation - see `.agents\telemetry\README.md`. The row stores only redacted
+     command labels and counts (byte/char/deterministic token estimates); it never stores
+     real output, source text, or names - actual token fields stay blank unless you have
+     real agent-log telemetry for that pass (`extract_agent_telemetry.py`), never invented.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
@@ -287,17 +297,25 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
    - Want to know whether the operator commands above (`dashboard`, `guide`,
      `classify`, `pack`, `triage`, `search_workspace`,
      `show_project_state --document`) actually save output/tokens versus an
-     older full-read workflow? — Phase 11's measurement-only telemetry
-     layer, `.agents\telemetry\README.md`. `.agents\scripts\
-     measure_operator_outputs.py --case <case_id> [--dry-run]` runs one
-     read-only case and measures elapsed time, byte/char counts, and a
-     deterministic token estimate (never the real output); `--append-csv`
-     records a redacted row in `.agents\telemetry\operator-runs.csv`.
+     older full-read workflow, or just recording that a real pass happened?
+     — Phase 11's telemetry layer, `.agents\telemetry\README.md`.
+     `.agents\scripts\measure_operator_outputs.py --case <case_id>
+     [--dry-run]` runs one read-only case and measures elapsed time,
+     byte/char counts, and a deterministic token estimate (never the real
+     output); `--append-csv` records a redacted row in
+     `.agents\telemetry\operator-runs.csv`. Cases include
+     `dashboard_overview`, `guide_discovered`, `classify_discovered`,
+     `pack_discovered`, `completed_run_review` (`qa_manage.py review`),
+     `triage_overview`/`triage_one`, `search_current`/`search_history`,
+     `show_project_state_targeted`/`show_project_state_full_project`.
      `finalize_operator_run.py` enriches a row with actual token telemetry
-     and a baseline reduction ratio; `check_operator_csv.py` validates the
-     CSV and diff-guards a specific append. This does not change which
-     command is the default entry point — `dashboard` still is — it only
-     measures the existing workflow.
+     (only if you have real agent-log data - never invented) and a
+     baseline reduction ratio; `check_operator_csv.py` validates the CSV
+     and diff-guards a specific append. Recording a row after every real
+     intake/rollup pass is a mandatory closing step (see the intake
+     workflow above) - not optional instrumentation. This does not change
+     which command is the default entry point — `dashboard` still is — it
+     only measures/records the existing workflow.
 3. Only fall back to raw filesystem exploration (`find`/`Glob`) under
    `G:\My Drive\QA_Management` for genuinely new source files that haven't been
    classified yet — not for inspecting already-canonical project documents, which

@@ -189,6 +189,14 @@ class TestMeasurement(unittest.TestCase):
             for token in argv:
                 self.assertNotIn(token, common.MUTATING_VERBS, f"case {case_id} contains a mutating verb")
 
+    def test_completed_run_review_case_exists_and_is_read_only(self):
+        case = common.CASES["completed_run_review"]
+        self.assertEqual(case["command_name"], "qa_manage.py review")
+        self.assertEqual(case["argv"], ["qa_manage.py", "review", "{target}", "--json"])
+        self.assertEqual(case["requires_target"], "run_id")
+        for token in case["argv"]:
+            self.assertNotIn(token, common.MUTATING_VERBS)
+
     def test_dry_run_does_not_invoke_subprocess(self):
         # In-process check: patch subprocess.run inside the measure module
         # itself and call main() directly with --dry-run, so the mock is in
@@ -218,6 +226,21 @@ class TestMeasurement(unittest.TestCase):
     def test_ascii_safe_rejects_non_ascii(self):
         self.assertFalse(common.is_ascii_safe("проект Cywareness"))
         self.assertTrue(common.is_ascii_safe("qa_manage.py guide <target> --json"))
+
+    def test_ascii_safe_allows_curly_brace_placeholder(self):
+        # Regression: every {target}-templated case's own redacted command
+        # string (e.g. "qa_manage.py review {target} --json") legitimately
+        # contains literal braces - found live when completed_run_review
+        # (and every other {target} case) could never actually be
+        # --append-csv'd because is_ascii_safe rejected its own template.
+        self.assertTrue(common.is_ascii_safe("qa_manage.py review {target} --json"))
+        for case_id, case in common.CASES.items():
+            redacted = " ".join(case["argv"])
+            self.assertTrue(common.is_ascii_safe(redacted),
+                            f"case {case_id}'s own redacted argv failed is_ascii_safe: {redacted!r}")
+
+    def test_ascii_safe_still_rejects_non_ascii_alongside_braces(self):
+        self.assertFalse(common.is_ascii_safe("qa_manage.py review {target} --json проект"))
 
 
 class TestFinalize(unittest.TestCase):
