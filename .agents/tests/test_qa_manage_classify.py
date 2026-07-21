@@ -90,6 +90,48 @@ EMAIL_TEXT = (
     "Please see the attached summary.\n"
 )
 
+BRACKETED_TWO_SPEAKERS = (
+    "[Speaker 1]\n"
+    "Hello, how are things going.\n\n"
+    "[Speaker 2]\n"
+    "Good, we shipped the fix yesterday.\n\n"
+    "[Speaker 1]\n"
+    "Great, let's continue next week.\n"
+)
+
+BRACKETED_THREE_SPEAKERS = (
+    "[Speaker 1]\n"
+    "Status update please.\n\n"
+    "[Speaker 2]\n"
+    "All green on my side.\n\n"
+    "[Speaker 3]\n"
+    "Same here, no blockers.\n"
+)
+
+BRACKETED_TIMESTAMP_ONLY = (
+    "[00:00:01]\n"
+    "Hello, how are things going.\n\n"
+    "[00:00:12]\n"
+    "Good, we shipped the fix yesterday.\n\n"
+    "[00:00:20]\n"
+    "Great, let's continue next week.\n"
+)
+
+TIMESTAMPED_TURNS = (
+    "00:00:01 Alex:\n"
+    "Hello, how are things going.\n\n"
+    "00:00:12 Bay:\n"
+    "Good, we shipped the fix yesterday.\n\n"
+    "00:00:20 Alex:\n"
+    "Great, let's continue next week.\n"
+)
+
+LOW_CONTENT_BRACKETED_NOTE = (
+    "This is a short reference note.\n\n"
+    "[Speaker 1]\n\n"
+    "Nothing else here worth flagging as a transcript.\n"
+)
+
 PLAIN_TEXT = (
     "This is a plain reference note with no speaker turns, no chat "
     "headers, and no email headers at all, just ordinary prose text "
@@ -212,6 +254,10 @@ class SignalDetectionTests(unittest.TestCase):
         self.assertTrue(signals["likely_transcript"])
         self.assertFalse(signals["likely_chat"])
         self.assertFalse(signals["likely_email"])
+        # schema stability: new Phase 8.1 keys are additive, always present
+        for key in ("bracketed_speaker_marker_count", "timestamp_turn_marker_count",
+                    "distinct_turn_identities", "paragraph_turn_density"):
+            self.assertIn(key, signals)
 
     def test_chat_signal(self):
         signals = qa_manage.detect_format_signals(CHAT_TEXT, ".txt")
@@ -228,6 +274,42 @@ class SignalDetectionTests(unittest.TestCase):
         self.assertFalse(signals["text_readable"])
         self.assertTrue(signals["likely_binary_document"])
         self.assertIsNone(signals["line_count"])
+
+    def test_bracketed_two_speaker_signal(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
+        self.assertGreaterEqual(signals["bracketed_speaker_marker_count"], 2)
+        self.assertEqual(signals["distinct_turn_identities"], 2)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_bracketed_three_speaker_signal(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_THREE_SPEAKERS, ".txt")
+        self.assertGreaterEqual(signals["bracketed_speaker_marker_count"], 3)
+        self.assertEqual(signals["distinct_turn_identities"], 3)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_bracketed_timestamp_only_gives_no_identity(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TIMESTAMP_ONLY, ".txt")
+        self.assertGreaterEqual(signals["bracketed_speaker_marker_count"], 3)
+        # bare "[00:00:01]" style brackets mark a turn boundary but name no
+        # one - must not be inferred as any particular speaker count.
+        self.assertEqual(signals["distinct_turn_identities"], 0)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_timestamped_turn_signal(self):
+        signals = qa_manage.detect_format_signals(TIMESTAMPED_TURNS, ".txt")
+        self.assertGreaterEqual(signals["timestamp_turn_marker_count"], 3)
+        self.assertEqual(signals["distinct_turn_identities"], 2)
+        self.assertTrue(signals["likely_transcript"])
+
+    def test_low_content_bracketed_note_does_not_over_trigger(self):
+        signals = qa_manage.detect_format_signals(LOW_CONTENT_BRACKETED_NOTE, ".txt")
+        self.assertEqual(signals["bracketed_speaker_marker_count"], 1)
+        self.assertFalse(signals["likely_transcript"])
+
+    def test_paragraph_turn_density_present_and_bounded(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
+        self.assertGreaterEqual(signals["paragraph_turn_density"], 0.0)
+        self.assertLessEqual(signals["paragraph_turn_density"], 1.0)
 
 
 class CandidateRouteGenerationTests(unittest.TestCase):
@@ -259,6 +341,50 @@ class CandidateRouteGenerationTests(unittest.TestCase):
         self.assertEqual(types, {("admin_note", ""), ("people_case_chat", "")})
         pcc = next(c for c in candidates if c["source_type"] == "people_case_chat")
         self.assertEqual(pcc["required_scope"], ["person"])
+
+    def test_bracketed_two_speaker_transcript_suggests_qa_1to1(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertIn(("qa_1to1", "m1"), types)
+        self.assertIn(("qa_1to1", "m2"), types)
+        self.assertIn(("qa_1to1", "mixed"), types)
+        qa = next(c for c in candidates if c["source_type"] == "qa_1to1")
+        self.assertIn("bracketed/timestamped turn markers", qa["reason"])
+
+    def test_bracketed_three_speaker_transcript_suggests_meeting_transcript_only(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_THREE_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertEqual(types, {("meeting_transcript", "multi_project"), ("meeting_transcript", "single_project")})
+        self.assertNotIn(("qa_1to1", "m1"), types)
+
+    def test_bracketed_timestamp_only_suggests_meeting_transcript_not_qa_1to1(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TIMESTAMP_ONLY, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertEqual(types, {("meeting_transcript", "multi_project"), ("meeting_transcript", "single_project")})
+        self.assertFalse(any(c["source_type"] == "qa_1to1" for c in candidates))
+
+    def test_timestamped_turns_suggest_meeting_transcript_and_qa_1to1(self):
+        signals = qa_manage.detect_format_signals(TIMESTAMPED_TURNS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        types = {(c["source_type"], c["variant"]) for c in candidates}
+        self.assertIn(("meeting_transcript", "multi_project"), types)
+        self.assertIn(("qa_1to1", "m2"), types)
+
+    def test_low_content_bracketed_note_yields_no_candidates(self):
+        signals = qa_manage.detect_format_signals(LOW_CONTENT_BRACKETED_NOTE, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        self.assertEqual(candidates, [])
+
+    def test_candidates_never_carry_project_or_person_values(self):
+        signals = qa_manage.detect_format_signals(BRACKETED_TWO_SPEAKERS, ".txt")
+        candidates = qa_manage.classify_candidate_routes(GRAPH, signals, row("r1"))
+        for c in candidates:
+            self.assertNotIn("project", c)
+            self.assertNotIn("person", c)
+            self.assertIn(set(c["required_scope"]), [set(), {"project"}, {"person"}, {"project", "person"}])
 
 
 class LowConfidenceTests(unittest.TestCase):

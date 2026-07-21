@@ -1215,6 +1215,66 @@ _DATETIME_MARKER_RE = re.compile(
     r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b"
 )
 _EMAIL_HEADER_RE = re.compile(r"^(?:From|To|Subject|Sent|Cc|Bcc):\s", re.IGNORECASE | re.MULTILINE)
+# Bracketed turn/header markers - some transcript exports (e.g. auto-
+# generated diarization) label turns as "[Speaker 1]", "[Speaker A]",
+# a bare "[00:01:23]" timestamp, or a combined "[Speaker 1 00:01:23]",
+# each alone on its own line. Only the "Speaker <id>" shape identifies
+# WHO is speaking; a bare bracketed timestamp only marks a turn boundary,
+# not an identity - see _BRACKET_SPEAKER_LABEL_RE below.
+_BRACKETED_TURN_RE = re.compile(
+    r"^\[\s*(?P<content>Speaker\s+\w+(?:\s+(?:\d{1,2}:)?\d{1,2}:\d{2}(?::\d{2})?)?"
+    r"|(?:\d{1,2}:)?\d{1,2}:\d{2}(?::\d{2})?)\s*\]\s*$",
+    re.IGNORECASE,
+)
+_BRACKET_SPEAKER_LABEL_RE = re.compile(r"^Speaker\s+(\w+)", re.IGNORECASE)
+# Unbracketed timestamp-prefixed turn markers: "00:01:23 Name:" or
+# "00:01 Name" alone on their own line (a name, not a duration/timestamp
+# repeated - excludes a line that's just another timestamp).
+_TIMESTAMP_TURN_RE = re.compile(
+    r"^(?:\d{1,2}:)?\d{1,2}:\d{2}(?::\d{2})?\s+(?P<name>[^\s\d:][^\n:]{0,40})\s*:?\s*$"
+)
+
+_EMPTY_SIGNALS = {
+    "text_readable": False,
+    "line_count": None,
+    "distinct_speaker_prefixes": 0,
+    "chat_header_line_count": 0,
+    "datetime_marker_count": 0,
+    "email_marker_count": 0,
+    "bracketed_speaker_marker_count": 0,
+    "timestamp_turn_marker_count": 0,
+    "distinct_turn_identities": 0,
+    "paragraph_turn_density": 0.0,
+    "likely_transcript": False,
+    "likely_chat": False,
+    "likely_email": False,
+    "likely_binary_document": False,
+}
+
+
+def _extract_turn_identities(lines: list[str]) -> set[str]:
+    """WHO-is-speaking identities deterministically recoverable from turn
+    markers, merged across the three shapes this function understands.
+    A bare bracketed timestamp ("[00:01:23]") marks a turn boundary but
+    names no one, so it never contributes an identity - callers must not
+    infer a 1:1 from turn *count* alone, only from identity count."""
+    identities: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        m = _SPEAKER_LINE_RE.match(stripped)
+        if m and m.group(1).strip():
+            identities.add(m.group(1).strip().casefold())
+            continue
+        m = _BRACKETED_TURN_RE.match(stripped)
+        if m:
+            label = _BRACKET_SPEAKER_LABEL_RE.match(m.group("content").strip())
+            if label:
+                identities.add(f"speaker {label.group(1)}".casefold())
+            continue
+        m = _TIMESTAMP_TURN_RE.match(stripped)
+        if m and m.group("name").strip():
+            identities.add(m.group("name").strip().casefold())
+    return identities
 
 
 def detect_format_signals(text: str | None, extension: str) -> dict:
@@ -1223,30 +1283,28 @@ def detect_format_signals(text: str | None, extension: str) -> dict:
     file content (already read by the caller); this function only counts,
     it never decides a classification."""
     if extension not in TEXT_READABLE_EXTS or text is None:
-        return {
-            "text_readable": False,
-            "line_count": None,
-            "distinct_speaker_prefixes": 0,
-            "chat_header_line_count": 0,
-            "datetime_marker_count": 0,
-            "email_marker_count": 0,
-            "likely_transcript": False,
-            "likely_chat": False,
-            "likely_email": False,
-            "likely_binary_document": extension not in TEXT_READABLE_EXTS,
-        }
+        return dict(_EMPTY_SIGNALS, likely_binary_document=extension not in TEXT_READABLE_EXTS)
 
     from detect_strategy_chats import is_header_line
 
     lines = text.splitlines()
     speakers: set[str] = set()
+    speaker_line_matches = 0
     for line in lines:
         m = _SPEAKER_LINE_RE.match(line.strip())
         if m and m.group(1).strip():
             speakers.add(m.group(1).strip())
+            speaker_line_matches += 1
     chat_header_count = sum(1 for line in lines if is_header_line(line))
     datetime_count = len(_DATETIME_MARKER_RE.findall(text))
     email_count = len(_EMAIL_HEADER_RE.findall(text))
+    bracketed_count = sum(1 for line in lines if _BRACKETED_TURN_RE.match(line.strip()))
+    timestamp_turn_count = sum(1 for line in lines if _TIMESTAMP_TURN_RE.match(line.strip()))
+    turn_identities = _extract_turn_identities(lines)
+
+    non_empty_lines = sum(1 for line in lines if line.strip())
+    turn_line_count = speaker_line_matches + bracketed_count + timestamp_turn_count
+    turn_density = round(turn_line_count / non_empty_lines, 3) if non_empty_lines else 0.0
 
     return {
         "text_readable": True,
@@ -1255,7 +1313,11 @@ def detect_format_signals(text: str | None, extension: str) -> dict:
         "chat_header_line_count": chat_header_count,
         "datetime_marker_count": datetime_count,
         "email_marker_count": email_count,
-        "likely_transcript": len(speakers) >= 2,
+        "bracketed_speaker_marker_count": bracketed_count,
+        "timestamp_turn_marker_count": timestamp_turn_count,
+        "distinct_turn_identities": len(turn_identities),
+        "paragraph_turn_density": turn_density,
+        "likely_transcript": len(speakers) >= 2 or bracketed_count >= 2 or timestamp_turn_count >= 2,
         "likely_chat": chat_header_count >= 3,
         "likely_email": email_count >= 2,
         "likely_binary_document": False,
@@ -1268,8 +1330,12 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
     interpretation. Each candidate names the exact deterministic signal
     that produced it so the agent can judge it, not just trust it."""
     candidates: list[dict] = []
+    added: set[tuple[str, str]] = set()
 
     def add(source_type: str, variant: str, reason: str) -> None:
+        key = (source_type, variant)
+        if key in added:
+            return
         sources = graph.get("sources") or {}
         if source_type not in sources:
             return
@@ -1277,6 +1343,7 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
             route = resolve_route(graph, source_type, variant)
         except SystemExit:
             return
+        added.add(key)
         candidates.append({
             "source_type": source_type,
             "variant": variant,
@@ -1289,8 +1356,15 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
     if not signals.get("text_readable") or "duplicate content of" in str(row.get("Reason", "")):
         return candidates
 
+    # Plain "Name:" speaker lines - exactly 2 distinct names is treated as
+    # a tight 1:1 signal; 3+ falls back to the broader meeting_transcript
+    # bucket. Gated on this signal's OWN count (not the shared
+    # likely_transcript flag, which also fires from bracket/timestamp
+    # turns below) - otherwise a bracket-only transcript with zero plain
+    # "Name:" lines would wrongly claim "0 distinct speaker-like prefixes
+    # ... typical of a multi-person meeting" as its reason.
     speakers = signals.get("distinct_speaker_prefixes", 0)
-    if signals.get("likely_transcript"):
+    if speakers >= 2:
         if speakers == 2:
             for variant in ("m1", "m2", "mixed"):
                 add("qa_1to1", variant,
@@ -1299,6 +1373,28 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
             for variant in ("multi_project", "single_project"):
                 add("meeting_transcript", variant,
                     f"{speakers} distinct speaker-like prefixes detected - typical of a multi-person meeting")
+
+    # Bracketed ("[Speaker 1]") or unbracketed-timestamped ("00:01:23
+    # Name:") turn markers - a different transcript export shape than
+    # plain "Name:" lines. A strong count of either always suggests
+    # meeting_transcript (safe default when speaker identity may be
+    # unclear); qa_1to1 is added additionally only when exactly 2 distinct
+    # identities were actually recoverable from those markers - never
+    # inferred from turn *count* alone, since a bare "[00:01:23]" marks a
+    # boundary but names no one.
+    bracketed = signals.get("bracketed_speaker_marker_count", 0)
+    timestamped = signals.get("timestamp_turn_marker_count", 0)
+    turn_identities = signals.get("distinct_turn_identities", 0)
+    if bracketed >= 2 or timestamped >= 2:
+        for variant in ("multi_project", "single_project"):
+            add("meeting_transcript", variant,
+                f"{bracketed} bracketed and {timestamped} timestamped turn marker(s) detected - "
+                "transcript-like turn structure")
+        if turn_identities == 2:
+            for variant in ("m1", "m2", "mixed"):
+                add("qa_1to1", variant,
+                    "exactly 2 distinct speaker identities recovered from bracketed/timestamped turn "
+                    "markers - consistent with a 1:1")
 
     if signals.get("likely_chat"):
         add("strategy_chat", "",
