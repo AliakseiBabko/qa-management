@@ -27,6 +27,17 @@ input_tokens/output_tokens/etc. - every adapter below normalizes to:
                              model_label, so there is exactly one place
                              pricing assumptions live)
 
+Every adapter also tags two extra keys consumed by record_agent_session.py
+(harmless extras that finalize_operator_run.py's operator-runs.csv path
+simply ignores, since it only reads specific known keys):
+
+    extraction_method      one of claude_log/codex_log/cline_history/
+                             antigravity_cli/antigravity_db - always set
+    session_started_at     ISO timestamp of the first log line seen, when
+    session_ended_at       trivially available (Claude/Codex/Cline only -
+                             Antigravity's DB fallback has no reliable
+                             per-step timestamp to use)
+
 Supported runtimes
 -------------------
 - claude / claude-code: reads ~/.claude/projects/<hash>/<session-uuid>.jsonl,
@@ -112,6 +123,8 @@ class ClaudeAdapter:
 
         totals = _empty_totals()
         model_label = ""
+        first_ts = ""
+        last_ts = ""
         turns = 0
         with open(log_path, encoding="utf-8") as f:
             for line in f:
@@ -122,6 +135,10 @@ class ClaudeAdapter:
                     entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                ts = entry.get("timestamp")
+                if ts:
+                    first_ts = first_ts or ts
+                    last_ts = ts
                 if entry.get("type") != "assistant":
                     continue
                 message = entry.get("message", {})
@@ -141,6 +158,11 @@ class ClaudeAdapter:
 
         if model_label:
             totals["model_label"] = model_label
+        if first_ts:
+            totals["session_started_at"] = first_ts
+        if last_ts:
+            totals["session_ended_at"] = last_ts
+        totals["extraction_method"] = "claude_log"
         return totals
 
 
@@ -172,6 +194,8 @@ class CodexAdapter:
             )
 
         totals = _empty_totals()
+        first_ts = ""
+        last_ts = ""
         for log in logs:
             last_count: dict[str, Any] | None = None
             with open(log, encoding="utf-8") as f:
@@ -183,6 +207,10 @@ class CodexAdapter:
                         entry = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+                    ts = entry.get("timestamp")
+                    if ts:
+                        first_ts = first_ts or ts
+                        last_ts = ts
                     if entry.get("type") != "event_msg":
                         continue
                     payload = entry.get("payload", {})
@@ -197,6 +225,11 @@ class CodexAdapter:
         if not any(totals[k] for k in totals):
             raise ValueError(f"No token_count events found in any Codex file for session {session_id}")
 
+        if first_ts:
+            totals["session_started_at"] = first_ts
+        if last_ts:
+            totals["session_ended_at"] = last_ts
+        totals["extraction_method"] = "codex_log"
         return totals
 
     def _find_logs(self, session_id: str, home: Path) -> list[Path]:
@@ -285,6 +318,14 @@ class ClineAdapter:
         # figure, not a pricing-table estimate, so it's safe to pass through.
         if task.get("totalCost") is not None:
             totals["estimated_cost_usd"] = f"{float(task['totalCost']):.6f}"
+        if task.get("id"):
+            try:
+                from datetime import datetime, timezone
+                totals["session_started_at"] = datetime.fromtimestamp(
+                    int(task["id"]) / 1000, tz=timezone.utc).isoformat()
+            except (ValueError, OSError, OverflowError):
+                pass
+        totals["extraction_method"] = "cline_history"
         return totals
 
 
@@ -341,6 +382,7 @@ class AntigravityAdapter:
                 "actual_cache_read_tokens": meta.get("cached_content_token_count", 0),
                 "actual_reasoning_tokens": meta.get("thinking_token_count", 0),
                 "actual_cache_creation_tokens": 0,
+                "extraction_method": "antigravity_cli",
             }
         except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
             return None
@@ -449,6 +491,8 @@ class AntigravityAdapter:
                         totals["actual_cache_read_tokens"] += cached
                         totals["actual_reasoning_tokens"] += thinking
                         has_data = True
+            if has_data:
+                totals["extraction_method"] = "antigravity_db"
             return totals if has_data else None
         except Exception:
             return None

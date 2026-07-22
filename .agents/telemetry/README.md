@@ -7,9 +7,38 @@ older full-read/manual workflow - and, since Phase 13.1's follow-up fixes,
 a mandatory closing step: **every real intake/rollup pass records one
 telemetry row after `complete`/its own mirror snapshot** (see AGENTS.md's
 intake-workflow bullet), not just ad hoc measurement runs. This directory
-holds the canonical CSV and run-note template; the scripts live in
+holds the canonical CSVs and run-note template; the scripts live in
 `.agents/scripts/` alongside every other pipeline script (this repo's
 convention - scripts are not nested under per-topic subfolders).
+
+## Two CSVs, two different questions
+
+- **`operator-runs.csv`** answers *"how large was this command's output?"*
+  - one row per measured read-only command invocation
+  (`measure_operator_outputs.py` / `finalize_operator_run.py`).
+- **`agent-sessions.csv`** answers *"how many model tokens did this agent
+  session actually consume?"* - one row per recorded agent-runtime session
+  (`record_agent_session.py`), which commonly spans MANY
+  `operator-runs.csv` rows.
+
+They are separate on purpose: `extract_agent_telemetry.py` returns a
+SESSION-WIDE token total, and a single long agent conversation can run
+many measured commands. There is no way to honestly slice that total back
+into "how much did just this one command cost" - writing the same session
+total into several `operator-runs.csv` rows would duplicate and overstate
+token use. So `operator-runs.csv`'s `actual_*` fields stay blank unless a
+row genuinely was measured in its own dedicated session (rare); a
+session's real token usage instead gets its own row in `agent-sessions.csv`,
+with `linked_operator_run_ids` recording which `operator-runs.csv` rows (if
+any) were measured during it. **Existing `operator-runs.csv` rows are never
+rewritten to backfill this** - see Rule 3 below, enforced structurally by
+both CSVs' append-only/diff-guard model.
+
+`reduction_ratio_vs_baseline` (an `operator-runs.csv`-only column) compares
+one command's `output_chars` against a baseline command's - it says nothing
+about `agent-sessions.csv` token totals, and applies to command-output rows
+only, unless a deliberately-designed one-session-per-case experiment is run
+(not this repo's current setup, which is many commands per session).
 
 Methodology adapted from the erp-web-tests repo's
 `benchmark-playwright-debugging` skill (canonical append-only CSV,
@@ -24,22 +53,30 @@ benchmark.
 ```
 .agents/telemetry/
   README.md                 this file
-  operator-runs.csv         canonical metrics table (one row per measured command run)
+  operator-runs.csv         command-footprint rows (one per measured command run)
+  agent-sessions.csv        session-level token-usage rows (one per recorded session)
   templates/
     operator-run-note.md    run-note template (committed structure only, never filled-in content)
 
 .agents/scripts/
-  operator_telemetry_common.py   shared CSV schema, case catalog, append/validate/diff-guard helpers
+  operator_telemetry_common.py   shared schema for BOTH CSVs, case catalog,
+                                  append/validate/diff-guard helpers (generic
+                                  internals, thin CSV-specific wrappers)
   measure_operator_outputs.py    run one read-only case, measure it, optionally append a row
-  finalize_operator_run.py       append one enriched row (manual token telemetry, baseline ratio)
-  check_operator_csv.py          validate the CSV / diff-guard a specific run_id's append
+  finalize_operator_run.py       append one enriched operator-runs.csv row (manual
+                                  token telemetry, baseline ratio)
+  check_operator_csv.py          validate either CSV / diff-guard a specific row's append
+                                  (--sessions selects agent-sessions.csv)
   extract_agent_telemetry.py     best-effort actual-token extraction from local agent-runtime logs
                                   (Claude Code, Codex, Cline, Antigravity - see below)
+  record_agent_session.py        append one agent-sessions.csv row from extracted
+                                  or manually-entered session telemetry
 
 tmp/telemetry/               gitignored - local-only working space
   <run_id>.md                 run notes written by measure_operator_outputs.py
   <run_id>.json                measured row, if --keep-raw / --json was used
   *.raw.txt                    raw stdout, only if --keep-raw was passed
+  telemetry.json                extracted session totals, written by extract_agent_telemetry.py
 ```
 
 ## What the CSV stores - and what it never stores
@@ -132,15 +169,60 @@ Whenever automatic extraction isn't available for your runtime/session
 (unsupported runtime, extraction error, or you'd rather read the
 runtime's own usage UI), pass actual token counts manually via
 `finalize_operator_run.py --actual-input-tokens ... --actual-output-tokens ...`
-- this is a first-class supported path, not a fallback of last resort.
-`actual_*` token fields stay blank only when extraction was never run or
-no reliable telemetry source exists for that session - never invented.
+(for an `operator-runs.csv` row) or `record_agent_session.py --manual
+--actual-input-tokens ...` (for a session row) - either is a first-class
+supported path, not a fallback of last resort. `actual_*` token fields
+stay blank only when extraction was never run or no reliable telemetry
+source exists for that session - never invented.
 
-## Validating the CSV
+## Recording an agent session
+
+```sh
+python .agents/scripts/record_agent_session.py \
+    --runtime claude --session-id <session-id> \
+    --model-label claude-sonnet-5 \
+    --objective "project knowledge source processing" \
+    --linked-operator-run-ids <op-run-id-1>,<op-run-id-2> \
+    --append-csv
+
+# Manual entry when automatic extraction isn't available for this runtime/session
+python .agents/scripts/record_agent_session.py \
+    --runtime antigravity --session-id <session-id> --manual \
+    --actual-input-tokens 12000 --actual-output-tokens 3400 \
+    --confidence manual --objective "..." --append-csv
+
+# Dry run - extract/compute and print, write nothing
+python .agents/scripts/record_agent_session.py \
+    --runtime claude --session-id <session-id> --objective "..." --dry-run
+```
+
+`confidence` defaults from `extraction_method` (override with
+`--confidence`): `claude_log`/`codex_log`/`cline_history`/`antigravity_cli`
+→ `high`; `antigravity_db` (the heuristic SQLite fallback, no authoritative
+schema) → `medium`; manual entry → `manual` (a 4th confidence value,
+deliberately distinct from high/medium/low - see
+`operator_telemetry_common.VALID_CONFIDENCE`).
+
+A `--linked-operator-run-ids` entry that isn't actually in
+`operator-runs.csv` is a **warning, not a failure** - linking is
+informational cross-referencing, not a structural guarantee, and a typo
+shouldn't block recording real session telemetry. The row is still
+appended; the warning prints to stderr.
+
+`total_tokens` sums the five `actual_*` fields the same way as
+`operator-runs.csv`. `estimated_cost_usd` prefers a runtime-REPORTED cost
+(e.g. Cline's own `totalCost`, passed straight through) over a
+pricing-table estimate; an unrecognized `model_label` yields a blank cost,
+never a failure - same contract as `finalize_operator_run.py`.
+
+## Validating the CSVs
 
 ```sh
 python .agents/scripts/check_operator_csv.py
 python .agents/scripts/check_operator_csv.py --diff-guard --run-id <run_id>
+
+python .agents/scripts/check_operator_csv.py --sessions
+python .agents/scripts/check_operator_csv.py --sessions --diff-guard --session-run-id <session_run_id>
 ```
 
 ## Rules
@@ -150,16 +232,28 @@ python .agents/scripts/check_operator_csv.py --diff-guard --run-id <run_id>
    adding it there first.
 2. Only read-only commands may be measured; `measure_operator_outputs.py`
    refuses to run any argv containing a `qa_manage.py` mutating verb.
-3. Append one CSV row per completed measurement only - never rewrite an
-   existing row. `finalize_operator_run.py` and `check_operator_csv.py
-   --diff-guard` both enforce this.
-4. Real names/projects/output text never go in the CSV, run notes template,
-   or any committed file under this directory - only under gitignored
-   `tmp/telemetry/`.
-5. Every real intake/rollup pass records one telemetry row after it
-   completes (see AGENTS.md's intake-workflow bullet) - this is a mandatory
-   closing step, not optional instrumentation. Never invent actual token
-   numbers to fill a row faster: leave `actual_*` token fields blank unless
-   you have real agent-log data for that pass (`extract_agent_telemetry.py`
-   or manual entry from the runtime's own reporting) - the deterministic
-   byte/char/token estimate columns are always populated regardless.
+3. Append one row per completed measurement/session only - never rewrite an
+   existing row, in either CSV. `finalize_operator_run.py`,
+   `record_agent_session.py`, and `check_operator_csv.py [--sessions]
+   --diff-guard` all enforce this. In particular: **never backfill an
+   existing `operator-runs.csv` row's `actual_*` fields from a
+   multi-purpose agent session** - several rows commonly share one long
+   session, and a session's cumulative total cannot be honestly
+   attributed back to any single command within it (this is exactly why
+   `agent-sessions.csv` exists as its own table - see "Two CSVs" above).
+4. Real names/projects/output text never go in either CSV, run notes
+   template, or any committed file under this directory - only under
+   gitignored `tmp/telemetry/`. No raw agent/session logs are ever stored
+   in the repo - `extract_agent_telemetry.py --out` writes only small
+   numeric-summary JSON, conventionally under `tmp/telemetry/`.
+5. Every real intake/rollup pass records one `operator-runs.csv` telemetry
+   row after it completes (see AGENTS.md's intake-workflow bullet) - this
+   is a mandatory closing step, not optional instrumentation. Never invent
+   actual token numbers to fill a row faster: leave `actual_*` token
+   fields blank unless you have real agent-log data for that pass
+   (`extract_agent_telemetry.py` or manual entry from the runtime's own
+   reporting) - the deterministic byte/char/token estimate columns are
+   always populated regardless. Recording an `agent-sessions.csv` row via
+   `record_agent_session.py` is encouraged whenever a session's real token
+   usage is available, but is not (yet) a mandatory per-pass step the way
+   the `operator-runs.csv` row is.
