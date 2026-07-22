@@ -103,6 +103,10 @@ class ExportStats:
         self.warnings_count = 0
         self.elapsed_total_ms = 0.0
         self._file_timings: list[tuple[str, float, str]] = []
+        # Scoped mode only (Phase 14B) - always 0/empty for full mode.
+        self.scoped_prefix_count = 0
+        self.scoped_exact_count = 0
+        self.scope_warnings: list[str] = []
 
     def record_file(self, path: str, elapsed_ms: float, operation: str) -> None:
         self._file_timings.append((path, elapsed_ms, operation))
@@ -127,6 +131,9 @@ class ExportStats:
             "warnings_count": self.warnings_count,
             "elapsed_total_ms": round(self.elapsed_total_ms, 1),
             "slowest_files": self.slowest_files(),
+            "scoped_prefix_count": self.scoped_prefix_count,
+            "scoped_exact_count": self.scoped_exact_count,
+            "scope_warnings": list(self.scope_warnings),
         }
 
 MIME_FOLDER = "application/vnd.google-apps.folder"
@@ -352,17 +359,28 @@ def export_doc(services, item: dict, out_dir: Path, rel: str, manifest: dict,
 
 def walk(services, folder_id: str, out_dir: Path, rel: str, manifest: dict,
          written: list[str], errors: list[str], warnings: list[str],
-         stats: "ExportStats | None" = None) -> None:
+         stats: "ExportStats | None" = None, recursive: bool = True,
+         name_filter: "set[str] | None" = None) -> None:
+    """`recursive=False` exports only this folder's direct Sheet/Doc
+    children and does not descend into subfolders - used by scoped mode
+    (Phase 14B) for workspace-root and lane-root "direct file children"
+    scans. `name_filter`, when given, further restricts direct children to
+    items whose sanitized name is in the set (used for the workspace-root
+    scan, which must only ever pick up the fixed always-include names)."""
     if stats is not None:
         stats.folders_scanned += 1
     for item in sorted(list_children(services["drive"], folder_id), key=lambda i: i["name"]):
         if item["mimeType"] == MIME_FOLDER:
+            if not recursive:
+                continue
             if item["name"] in SKIP_FOLDERS:
                 continue
             sub = sanitize(item["name"])
             walk(services, item["id"], out_dir / sub,
                  f"{rel}/{sub}" if rel else sub, manifest, written, errors, warnings, stats)
         elif item["mimeType"] in (MIME_GSHEET, MIME_GDOC):
+            if name_filter is not None and sanitize(item["name"]) not in name_filter:
+                continue
             if stats is not None:
                 stats.files_considered += 1
             label = f"{rel}/{item['name']}" if rel else item["name"]
@@ -395,6 +413,196 @@ def prune_stale(mirror: Path, expected: set[str]) -> int:
         if not any(path.iterdir()):
             path.rmdir()
     return removed
+
+
+class ScopedExportRefused(Exception):
+    """A --scoped run's scope could not be safely resolved to Drive
+    folders/graph data. Scoped mode must fail closed here rather than ever
+    silently narrowing what it exports - the caller (main()) reports this
+    and the operator re-runs in full mode."""
+
+
+# Physical paths/prefixes a scoped export never touches for pruning
+# purposes, regardless of scope: `_manifest.json` and
+# `_source_text_manifest.json` are rewritten by the export itself (not
+# stale-pruned - see merge_scoped_manifest), and every source-text blob is
+# already independently protected by export_source_text.py's own
+# carry-forward logic (blobs for runs outside this scope must never be
+# treated as candidates just because they happen to live in the mirror).
+SCOPED_ALWAYS_PROTECTED = {"README.md", "_manifest.json", "_source_text_manifest.json"}
+SCOPED_ALWAYS_PROTECTED_PREFIXES = ("_source_text/",)
+
+
+def path_in_scope(rel: str, scoped_prefixes: "set[str]", scoped_shallow_prefixes: "set[str]") -> bool:
+    """True when `rel` (a mirror-relative path) falls inside this run's
+    scope: either under a recursive project/person subtree prefix, or a
+    DIRECT child of a shallow-scanned prefix (workspace root is the ""
+    prefix; a lane root is its sanitized folder name). A file nested
+    deeper under a shallow prefix than one level (i.e. inside some OTHER
+    project/person folder under the same lane root) is correctly NOT in
+    scope unless it's also under one of scoped_prefixes."""
+    for prefix in scoped_prefixes:
+        if rel == prefix or rel.startswith(prefix + "/"):
+            return True
+    parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
+    return parent in scoped_shallow_prefixes
+
+
+def merge_scoped_manifest(old_manifest: dict, fresh_manifest: dict,
+                          scoped_prefixes: "set[str]", scoped_shallow_prefixes: "set[str]") -> dict:
+    """Start from the full old manifest (untouched, byte-for-byte, for
+    every path outside this run's scope), overlay this run's freshly
+    exported entries, and drop only entries that are BOTH inside scope and
+    no longer backed by a live export this run (stale-within-scope)."""
+    new_manifest = dict(old_manifest)
+    new_manifest.update(fresh_manifest)
+    for path in list(new_manifest):
+        if path in fresh_manifest:
+            continue
+        if path_in_scope(path, scoped_prefixes, scoped_shallow_prefixes):
+            del new_manifest[path]
+    return new_manifest
+
+
+def prune_stale_scoped(mirror: Path, expected: "set[str]",
+                       scoped_prefixes: "set[str]", scoped_shallow_prefixes: "set[str]") -> int:
+    """Like prune_stale(), but a physical file is only a delete candidate
+    when it is both stale (not in `expected`) AND inside this run's scope.
+    Anything outside scope is never inspected for deletion, no matter how
+    old or orphaned it looks - that's the whole safety property scoped
+    mode exists to preserve."""
+    removed = 0
+    for path in mirror.rglob("*"):
+        if ".git" in path.parts or path.is_dir():
+            continue
+        rel = path.relative_to(mirror).as_posix()
+        if rel in expected or rel in SCOPED_ALWAYS_PROTECTED:
+            continue
+        if any(rel.startswith(p) for p in SCOPED_ALWAYS_PROTECTED_PREFIXES):
+            continue
+        if not path_in_scope(rel, scoped_prefixes, scoped_shallow_prefixes):
+            continue
+        path.unlink()
+        removed += 1
+    # Empty-dir cleanup restricted to the scoped subtree roots themselves -
+    # never a global sweep (full mode's prune_stale sweeps the whole
+    # mirror; scoped mode must not touch directories outside its prefixes
+    # even if they happen to be empty for unrelated reasons).
+    for prefix in scoped_prefixes:
+        d = mirror / prefix
+        if not d.exists() or not d.is_dir():
+            continue
+        for sub in sorted((p for p in d.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+            if not any(sub.iterdir()):
+                sub.rmdir()
+        if d.exists() and not any(d.iterdir()):
+            d.rmdir()
+    return removed
+
+
+def orchestrate_export_scoped(services, mirror: Path, data_root: Path, run_id: str,
+                              walk_fn=walk, export_source_texts_fn=export_source_texts,
+                              find_queue_fn=find_queue, read_queue_fn=read_queue,
+                              resolve_scope_fn=None,
+                              stats: "ExportStats | None" = None):
+    """Scoped counterpart of orchestrate_export(): exports only the
+    folders/files run_id's scope needs, per scope_resolver.resolve_scope(),
+    plus workspace-root/lane-root bookkeeping and source-text as always.
+    Raises ScopedExportRefused (never partially narrows scope) when
+    resolution fails at either the graph/queue level or the Drive-folder
+    level. Full mode (orchestrate_export) is completely untouched by this
+    function."""
+    t0 = time.perf_counter()
+    if stats is None:
+        stats = ExportStats(mode="scoped")
+    if resolve_scope_fn is None:
+        from scope_resolver import resolve_scope as resolve_scope_fn
+
+    resolution = resolve_scope_fn(services, run_id)
+    if not resolution.ok:
+        raise ScopedExportRefused(resolution.reason)
+    stats.scope_warnings = list(resolution.warnings)
+    stats.scoped_prefix_count = len(resolution.subtree_prefixes)
+    stats.scoped_exact_count = len(resolution.always_include_names) + len(resolution.lane_root_prefixes)
+
+    manifest_path = mirror / "_manifest.json"
+    if not manifest_path.exists():
+        raise ScopedExportRefused(
+            "No _manifest.json in the mirror yet - run a full export first "
+            "(scoped mode always starts from an existing, trustworthy manifest)."
+        )
+    try:
+        old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ScopedExportRefused(f"Malformed _manifest.json - refusing to prune or merge: {exc}")
+
+    fresh_manifest: dict = {}
+    written: list[str] = []
+    errors: list[str] = []
+    warnings: list[str] = list(resolution.warnings)
+
+    from m2_workspace_layout import find_folder_path
+    drive = services["drive"]
+
+    # 1. Workspace-root direct files (name-filtered to the fixed always-include set).
+    walk_fn(services, ROOT_FOLDER_ID, mirror, "", fresh_manifest, written, errors, warnings, stats,
+           recursive=False, name_filter=set(resolution.always_include_names))
+
+    scoped_shallow_prefixes = {""}
+    lane_root_ids: dict[str, str] = {}
+
+    def resolve_lane_root(lane_prefix: str) -> str:
+        found = find_folder_path(drive, ROOT_FOLDER_ID, [lane_prefix])
+        if not found:
+            raise ScopedExportRefused(f"Lane root folder {lane_prefix!r} not found in Drive.")
+        return str(found["id"])
+
+    # 2. Lane-root direct files (unfiltered - any live direct file child).
+    for lane_prefix in sorted(resolution.lane_root_prefixes):
+        lane_root_ids[lane_prefix] = resolve_lane_root(lane_prefix)
+        sanitized_lane = sanitize(lane_prefix)
+        scoped_shallow_prefixes.add(sanitized_lane)
+        walk_fn(services, lane_root_ids[lane_prefix], mirror / sanitized_lane, sanitized_lane,
+               fresh_manifest, written, errors, warnings, stats, recursive=False)
+
+    scoped_prefixes: set[str] = set()
+
+    # 3. Project/person subtrees, recursively.
+    for subtree in sorted(resolution.subtree_prefixes):
+        lane_prefix, _, entity = subtree.partition("/")
+        if lane_prefix not in lane_root_ids:
+            lane_root_ids[lane_prefix] = resolve_lane_root(lane_prefix)
+        entity_folder = find_folder_path(drive, lane_root_ids[lane_prefix], [entity])
+        if not entity_folder:
+            raise ScopedExportRefused(f"Scoped folder {subtree!r} not found in Drive.")
+        rel = f"{sanitize(lane_prefix)}/{sanitize(entity)}"
+        scoped_prefixes.add(rel)
+        walk_fn(services, str(entity_folder["id"]), mirror / rel, rel,
+               fresh_manifest, written, errors, warnings, stats, recursive=True)
+
+    # 4. Source-text export - unchanged, always covers every eligible queue
+    #    row (cheap/local, no Drive calls; see export_source_text.py).
+    try:
+        rows = read_queue_fn(services, find_queue_fn(services))
+        protected_paths, source_errs, source_warns = export_source_texts_fn(rows, data_root, mirror)
+        written.extend(protected_paths)
+        errors.extend(source_errs)
+        warnings.extend(source_warns)
+    except Exception as exc:
+        errors.append(f"Source text export failed: {exc}")
+
+    manifest = merge_scoped_manifest(old_manifest, fresh_manifest, scoped_prefixes, scoped_shallow_prefixes)
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
+    write_if_changed(manifest_path, manifest_bytes)
+
+    removed = (prune_stale_scoped(mirror, set(written), scoped_prefixes, scoped_shallow_prefixes)
+              if not errors else 0)
+
+    stats.errors_count = len(errors)
+    stats.warnings_count = len(warnings)
+    stats.elapsed_total_ms = (time.perf_counter() - t0) * 1000
+
+    return written, manifest, removed, warnings, errors, stats
 
 
 def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts_fn, find_queue_fn, read_queue_fn,
@@ -453,7 +661,15 @@ def main() -> int:
                         help="write a JSON export-stats object to this path (opt-in; nothing is "
                              "written unless this is passed). Local/private output only - may "
                              "contain real Drive path names.")
+    parser.add_argument("--scoped", action="store_true",
+                        help="Phase 14B: export only the folders/files --run-id's scope needs, "
+                             "plus workspace/lane bookkeeping and source-text (opt-in; full "
+                             "export remains the default). Requires --run-id.")
+    parser.add_argument("--run-id", default=None,
+                        help="run id whose scope to export; required with --scoped")
     args = parser.parse_args()
+    if args.scoped and not args.run_id:
+        parser.error("--scoped requires --run-id")
 
     mirror = Path(args.mirror)
     if not (mirror / ".git").exists():
@@ -475,11 +691,22 @@ def main() -> int:
             mirror_git(mirror, "config", key, val)
 
     services = get_services()
-    print("Exporting canonical documents and source text...")
 
-    written, manifest, removed, warnings, errors, stats = orchestrate_export(
-        services, mirror, DATA_ROOT, walk, export_source_texts, find_queue, read_queue
-    )
+    if args.scoped:
+        print(f"Exporting scoped documents for run {args.run_id!r} and source text...")
+        try:
+            written, manifest, removed, warnings, errors, stats = orchestrate_export_scoped(
+                services, mirror, DATA_ROOT, args.run_id
+            )
+        except ScopedExportRefused as exc:
+            print(f"Scoped export refused: {exc}")
+            print("Re-run without --scoped (full export) instead.")
+            return 1
+    else:
+        print("Exporting canonical documents and source text...")
+        written, manifest, removed, warnings, errors, stats = orchestrate_export(
+            services, mirror, DATA_ROOT, walk, export_source_texts, find_queue, read_queue
+        )
 
     if errors:
         print("Prune skipped because of export errors - stale files (if any) survive until a clean run.")
@@ -497,6 +724,11 @@ def main() -> int:
           f"files_skipped_unchanged={stats.files_skipped_unchanged} "
           f"retries_total={stats.retries_total} errors={stats.errors_count} "
           f"warnings={stats.warnings_count} elapsed_total_ms={stats.elapsed_total_ms:.0f}")
+    if stats.mode == "scoped":
+        # scope_warnings are also already in `warnings` above (printed as
+        # "note:") - this line is just the scoped-mode-specific counts.
+        print(f"  scoped: run_id={args.run_id} scoped_prefix_count={stats.scoped_prefix_count} "
+              f"scoped_exact_count={stats.scoped_exact_count}")
     slowest = stats.slowest_files()
     if slowest:
         print("  slowest files:")
@@ -514,13 +746,15 @@ def main() -> int:
         return 0
     stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     msg = args.message or f"workspace state {stamp}"
+    exported_by = (f"Exported {stamp} by commit_workspace_state.py "
+                  f"(scoped export, run {args.run_id})" if args.scoped
+                  else f"Exported {stamp} by commit_workspace_state.py")
     if errors:
         msg += f" [PARTIAL: {len(errors)} export failure(s)]"
         body = "\n".join(f"  failed: {e.splitlines()[0][:200]}" for e in errors)
-        res = mirror_git(mirror, "commit", "-m",
-                      f"{msg}\n\nExported {stamp} by commit_workspace_state.py\n{body}")
+        res = mirror_git(mirror, "commit", "-m", f"{msg}\n\n{exported_by}\n{body}")
     else:
-        res = mirror_git(mirror, "commit", "-m", f"{msg}\n\nExported {stamp} by commit_workspace_state.py")
+        res = mirror_git(mirror, "commit", "-m", f"{msg}\n\n{exported_by}")
     if res.returncode != 0:
         print(f"git commit failed: {res.stderr.strip()}")
         return 1
