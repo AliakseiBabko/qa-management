@@ -652,7 +652,22 @@ These are what actually runs day to day, once a project's folder already exists:
   `archive-source <run-id>` moves the original from `00_Inbox` to a
   run-specific `90_Storage/Processed_Sources/YYYY/MM/<run-id>` folder,
   records its current path/disposition without changing immutable source
-  identity, and requires a fresh workspace snapshot afterward. `complete` is
+  identity, and requires a fresh workspace snapshot afterward. If a
+  pre-processing `00_Inbox` source was intentionally edited after `scan`
+  recorded it (e.g. manually adding speaker names/person-card details to a
+  transcript before `start`), **`refresh-source-hash <run-id>`** explicitly
+  recomputes the same short hash `scan` uses and, only if it actually
+  differs, updates `Source hash` plus an appended `Reason` note and `Last
+  mutation` — nothing else (never source_type/route/scope/status/stage/
+  entries/outcomes/disposition). It refuses any run not in
+  `discovered`/`needs_scope`/`ready`, an archived disposition, a path
+  outside `00_Inbox`, or a file it can't hash the way `scan` would (not a
+  plain-text extension, or undecodable as UTF-8) — so an accidental source
+  replacement is never silently reconciled instead of surfaced; it never
+  moves/archives/processes the file, and is never called automatically by
+  `start`/`complete`. `guide`/`pack` surface a recommendation to run it
+  when a pre-processing run's live file hash no longer matches the queue's
+  recorded one. `complete` is
   a verification gate — requires stage=closure, valid entry outcomes and
   strict closure per every (project, person, variant) scope (a scope-less
   run is checked as the workspace scope — never zero iterations), the

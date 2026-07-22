@@ -32,6 +32,16 @@ anything, same as `classify` already requires.
 > Run `gates --project <Project>`, read the pending round's questions,
 > and record my answer(s) as an `m2_conversation` pass.
 
+## I edited an inbox transcript to add speaker names/details
+
+> I manually added speaker names/emails/person-card details to
+> `00_Inbox/<Project>/<file>` after it was scanned, so its recorded
+> `Source hash` no longer matches. Before processing, run
+> `refresh-source-hash <run-id>` to reconcile the hash explicitly (it only
+> touches `Source hash` + an audit note + `Last mutation`, and refuses
+> anything past a pre-processing state or outside `00_Inbox`) - do not
+> hand-edit the queue row, and do not assume the mismatch away.
+
 ## Search project knowledge for `<topic>`
 
 > Search `30_Project_Knowledge/<Project>/` for "`<topic>`" and summarize
