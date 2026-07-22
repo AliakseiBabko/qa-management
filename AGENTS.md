@@ -268,16 +268,26 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
-     After `complete` (or after any conversational rollup pass that ends with its own
-     `commit_workspace_state.py` snapshot - an M2 answer pass, a repo-maintenance fix, etc.),
-     record one telemetry row: `.agents\scripts\measure_operator_outputs.py --case
-     completed_run_review --run-id <run-id> --append-csv` (or `--case pack_discovered`/
-     `--case search_current`, whichever command you actually used to review the finished
-     pass). This is a closing step for every real intake/rollup pass, not optional
-     instrumentation - see `.agents\telemetry\README.md`. The row stores only redacted
-     command labels and counts (byte/char/deterministic token estimates); it never stores
-     real output, source text, or names - actual token fields stay blank unless you have
-     real agent-log telemetry for that pass (`extract_agent_telemetry.py`), never invented.
+     After `complete`, record one `.agents\telemetry\operator-runs.csv` telemetry row:
+     `.agents\scripts\measure_operator_outputs.py --case completed_run_review --run-id
+     <run-id> --append-csv`. This is the mandatory closing step for every queue-backed
+     intake run (it has a real `run_id` to attach the row to).
+     **No-queue direct-note/conversational rollup passes are different** - an M2 answer
+     pass, a repo-maintenance fix, a direct owner-note enrichment, anything that ends with
+     its own `commit_workspace_state.py` snapshot but never went through `start`/`complete`
+     has no `run_id`, so `completed_run_review` cannot be recorded (it requires one). For
+     these, the mandatory closing step is instead a `.agents\telemetry\agent-sessions.csv`
+     row: `.agents\scripts\record_agent_session.py --runtime <runtime> --session-id
+     <session-id> --objective "<short description>" [--linked-operator-run-ids <id1>,<id2>]
+     --append-csv` (or `--manual` with explicit `--actual-*` flags if extraction isn't
+     available) - see `.agents\telemetry\README.md`'s "Two CSVs, two different questions"
+     section. Recording a `dashboard_overview`/other operator-runs.csv row for a no-queue
+     pass is optional and measures only that one command's output, never a substitute for
+     the session-level row - it does not represent the whole pass.
+     Either way, rows store only redacted command labels and counts (byte/char/
+     deterministic token estimates); they never store real output, source text, or names -
+     actual token fields stay blank unless you have real agent-log telemetry for that pass
+     (`extract_agent_telemetry.py`), never invented.
    - Need to find new/unprocessed source files? —
      `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
      documents) or `.agents\scripts\detect_strategy_chats.py`
@@ -326,10 +336,15 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      (only if you have real agent-log data - never invented) and a
      baseline reduction ratio; `check_operator_csv.py` validates the CSV
      and diff-guards a specific append. Recording a row after every real
-     intake/rollup pass is a mandatory closing step (see the intake
-     workflow above) - not optional instrumentation. This does not change
-     which command is the default entry point — `dashboard` still is — it
-     only measures/records the existing workflow.
+     queue-backed intake run is a mandatory closing step (see the intake
+     workflow above) - not optional instrumentation; for a no-queue direct-
+     note/rollup pass, the mandatory closing step is instead an
+     `.agents\telemetry\agent-sessions.csv` row (`record_agent_session.py`
+     - see the intake workflow bullet and `.agents\telemetry\README.md`),
+     and an operator-runs.csv row there is optional, command-level-only
+     measurement. This does not change which command is the default entry
+     point — `dashboard` still is — it only measures/records the existing
+     workflow.
 3. Only fall back to raw filesystem exploration (`find`/`Glob`) under
    `G:\My Drive\QA_Management` for genuinely new source files that haven't been
    classified yet — not for inspecting already-canonical project documents, which
