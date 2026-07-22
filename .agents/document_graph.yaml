@@ -48,6 +48,8 @@ lanes:
     root_folder: 20_M2_Project_Management
   project_knowledge:
     root_folder: 30_Project_Knowledge
+  m1_people_management:
+    root_folder: 10_M1_People_Management
 
 sources:
   qa_1to1:

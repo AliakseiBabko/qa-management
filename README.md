@@ -488,7 +488,18 @@ These are what actually runs day to day, once a project's folder already exists:
   the pass at the end of any pass that wrote canonical documents; a no-op
   when nothing changed. One commit per pass = the whole cascade rolls back
   as one unit. The mirror holds real names and real source text: never inside this public repo,
-  never a public remote.
+  never a public remote. Full export (walking the entire Drive tree) is
+  still the only mode and the default - every run prints per-file export
+  timing/counts (folders scanned, files considered/exported/skipped-unchanged,
+  retries, slowest files); pass `--stats-out <path>` to also dump that as
+  JSON (opt-in, not written by default; local output only, may contain real
+  Drive path names). `_manifest.json` entries also carry a non-volatile
+  Drive fingerprint (`drive_path`, `mimeType`, `headRevisionId`,
+  `modifiedTime`) alongside the existing `fileId`/`name`/`kind` - old entries
+  without these fields remain valid. This telemetry and fingerprinting is
+  prep for a future **scoped** export mode (only the files a specific run
+  touched) that is planned but not implemented yet; until then every commit
+  is a full export.
 - `export_source_text.py` — invoked by `commit_workspace_state.py` or manually via CLI.
   Extracts text from file-backed sources (`.txt`, `.md`, `.docx`) of eligible types
   (`qa_1to1`, `strategy_chat`, `meeting_transcript`, `people_case_chat`). Uses a

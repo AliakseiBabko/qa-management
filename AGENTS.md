@@ -251,6 +251,12 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      Put the exact token `run:<run-id>` in the `_skill_invocations`
      Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
      pass also automatically extracts and commits the source text into the private mirror.
+     It still always does a full Drive export (walking the entire tree, skipping only
+     `90_Storage`/`01_Recordings` as before) and prints per-file export timing/counts every
+     run; pass `--stats-out <path>` to also dump those stats as JSON. A scoped (run-only)
+     export mode is planned but not implemented yet - this instrumentation and the
+     `_manifest.json` Drive fingerprints it now records are preparation for that, not a
+     behavior change.
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.

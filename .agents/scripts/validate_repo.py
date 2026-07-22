@@ -138,6 +138,22 @@ def check_graph(source_types: set[str]) -> None:
     sources = graph.get("sources") or {}
     scripts = {p.name for p in SCRIPTS_DIR.glob("*.py")}
 
+    lanes = graph.get("lanes") or {}
+    seen_roots: dict[str, str] = {}
+    for lane_name, lane_spec in lanes.items():
+        root = (lane_spec or {}).get("root_folder")
+        if not str(root or "").strip():
+            fail(f"graph lane {lane_name!r} has no non-empty 'root_folder'")
+            continue
+        if root in seen_roots:
+            fail(f"graph lanes {seen_roots[root]!r} and {lane_name!r} both use "
+                 f"root_folder {root!r} - each lane needs a distinct folder")
+        seen_roots[root] = lane_name
+    for stype, spec in sources.items():
+        lane = (spec or {}).get("lane")
+        if lane and lane not in lanes:
+            fail(f"graph source {stype!r} names lane {lane!r} which is not in 'lanes:'")
+
     for name, node in docs.items():
         for edge in (node or {}).get("downstream") or []:
             target, kind = edge.get("to"), edge.get("kind")

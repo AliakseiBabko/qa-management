@@ -80,6 +80,54 @@ from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
 DEFAULT_MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
 BUNDLE_DIR = Path(r"G:\My Drive\QA_Management\90_Storage\Backups")
 SKIP_FOLDERS = {"90_Storage", "01_Recordings"}
+DEFAULT_SLOWEST_FILES_LIMIT = 10
+
+
+class ExportStats:
+    """Per-run export instrumentation, collected during `walk()`/the export
+    helpers and printed as a summary (optionally dumped via --stats-out).
+    Purely observational - never influences what gets written, pruned, or
+    the process exit code. `mode` exists so a future scoped-export mode
+    (Phase 14) can reuse this same collector; only "full" is produced
+    today."""
+
+    def __init__(self, mode: str = "full") -> None:
+        self.mode = mode
+        self.folders_scanned = 0
+        self.files_considered = 0
+        self.files_exported_or_checked = 0
+        self.files_written_changed = 0
+        self.files_skipped_unchanged = 0
+        self.retries_total = 0
+        self.errors_count = 0
+        self.warnings_count = 0
+        self.elapsed_total_ms = 0.0
+        self._file_timings: list[tuple[str, float, str]] = []
+
+    def record_file(self, path: str, elapsed_ms: float, operation: str) -> None:
+        self._file_timings.append((path, elapsed_ms, operation))
+
+    def record_retry(self) -> None:
+        self.retries_total += 1
+
+    def slowest_files(self, limit: int = DEFAULT_SLOWEST_FILES_LIMIT) -> list[dict]:
+        top = sorted(self._file_timings, key=lambda t: t[1], reverse=True)[:limit]
+        return [{"path": p, "elapsed_ms": round(e, 1), "operation": op} for p, e, op in top]
+
+    def to_dict(self) -> dict:
+        return {
+            "mode": self.mode,
+            "folders_scanned": self.folders_scanned,
+            "files_considered": self.files_considered,
+            "files_exported_or_checked": self.files_exported_or_checked,
+            "files_written_changed": self.files_written_changed,
+            "files_skipped_unchanged": self.files_skipped_unchanged,
+            "retries_total": self.retries_total,
+            "errors_count": self.errors_count,
+            "warnings_count": self.warnings_count,
+            "elapsed_total_ms": round(self.elapsed_total_ms, 1),
+            "slowest_files": self.slowest_files(),
+        }
 
 MIME_FOLDER = "application/vnd.google-apps.folder"
 MIME_GSHEET = "application/vnd.google-apps.spreadsheet"
@@ -125,7 +173,7 @@ def list_children(drive, folder_id: str) -> list[dict]:
     while True:
         resp = drive.files().list(
             q=f"'{folder_id}' in parents and trashed = false",
-            fields="nextPageToken, files(id, name, mimeType)",
+            fields="nextPageToken, files(id, name, mimeType, modifiedTime, headRevisionId)",
             pageSize=200, pageToken=token,
         ).execute()
         items.extend(resp.get("files", []))
@@ -138,10 +186,26 @@ def is_403(exc: Exception) -> bool:
     return "403" in str(exc) and "appNotAuthorizedToFile" in str(exc)
 
 
+def drive_fingerprint(item: dict, mirror_path: str) -> dict:
+    """Non-volatile Drive-side metadata for a manifest entry: identifies
+    *which* Drive revision was exported without any wall-clock timestamp, so
+    re-running the export over an unchanged file never dirties the manifest
+    (see orchestrate_export). Fields are best-effort - `list_children` may
+    not populate headRevisionId/modifiedTime for every file type, and older
+    manifest entries predate this function entirely; missing values are
+    always blank, never a failure."""
+    return {
+        "drive_path": mirror_path,
+        "mimeType": item.get("mimeType", ""),
+        "headRevisionId": item.get("headRevisionId", ""),
+        "modifiedTime": item.get("modifiedTime", ""),
+    }
+
+
 T = TypeVar("T")
 
 
-def with_retry(fn: Callable[[], T], attempts: int = 3) -> T:
+def with_retry(fn: Callable[[], T], attempts: int = 3, stats: "ExportStats | None" = None) -> T:
     """Retry transient failures (timeouts, 5xx); 403s are permanent, raise at
     once. A 429 is the Sheets per-minute read quota (60/min/user) - short
     backoff can't clear it, so wait out the window instead."""
@@ -151,6 +215,8 @@ def with_retry(fn: Callable[[], T], attempts: int = 3) -> T:
         except Exception as exc:
             if is_403(exc) or i == attempts - 1:
                 raise
+            if stats is not None:
+                stats.record_retry()
             if "429" in str(exc) or "RATE_LIMIT_EXCEEDED" in str(exc):
                 time.sleep(65)
             else:
@@ -158,8 +224,9 @@ def with_retry(fn: Callable[[], T], attempts: int = 3) -> T:
     raise RuntimeError("Retry limit reached")
 
 
-def export_bytes(drive, file_id: str, mime: str) -> bytes:
-    res = with_retry(lambda: drive.files().export(fileId=file_id, mimeType=mime).execute())
+def export_bytes(drive, file_id: str, mime: str, stats: "ExportStats | None" = None) -> bytes:
+    res = with_retry(lambda: drive.files().export(fileId=file_id, mimeType=mime).execute(),
+                     stats=stats)
     return res if isinstance(res, bytes) else b""
 
 
@@ -172,21 +239,21 @@ def write_if_changed(path: Path, data: bytes) -> bool:
 
 
 def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
-                 warnings: list[str]) -> list[str]:
+                 warnings: list[str], stats: "ExportStats | None" = None) -> list[str]:
     name = sanitize(item["name"])
     rel = f"{rel}/" if rel else ""
     written = []
     # Diff layer (CSV per tab) + universal values restore layer - Sheets API,
     # works regardless of who created the file.
     meta = with_retry(lambda: services["sheets"].spreadsheets().get(
-        spreadsheetId=item["id"], fields="sheets.properties.title").execute())
+        spreadsheetId=item["id"], fields="sheets.properties.title").execute(), stats=stats)
     all_values: dict[str, list] = {}
     changed = False
     sheets = meta.get("sheets", []) if isinstance(meta, dict) else []
     for tab in sheets:
         title = tab["properties"]["title"]
         val_resp = with_retry(lambda t=title: services["sheets"].spreadsheets().values().get(
-            spreadsheetId=item["id"], range=f"'{t}'").execute())
+            spreadsheetId=item["id"], range=f"'{t}'").execute(), stats=stats)
         values = val_resp.get("values", []) if isinstance(val_resp, dict) else []
         all_values[title] = values
         buf = io.StringIO()
@@ -198,7 +265,8 @@ def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
     if write_if_changed(out_dir / f"{name}.values.json",
                         json.dumps(all_values, ensure_ascii=False, indent=1).encode("utf-8")):
         changed = True
-    manifest[values_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet-values"}
+    manifest[values_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet-values",
+                            **drive_fingerprint(item, values_rel)}
     written.append(values_rel)
     # Preferred restore layer (needs Drive content access; 403 on
     # manually-created files under drive.file scope). Google's binary export
@@ -208,14 +276,22 @@ def export_sheet(services, item: dict, out_dir: Path, rel: str, manifest: dict,
     xlsx_rel = f"{rel}{name}.xlsx"
     try:
         if changed or not xlsx_path.exists():
-            write_if_changed(xlsx_path, export_bytes(services["drive"], item["id"], MIME_XLSX))
-        manifest[xlsx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet"}
+            if write_if_changed(xlsx_path, export_bytes(services["drive"], item["id"], MIME_XLSX, stats=stats)):
+                changed = True
+        manifest[xlsx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "spreadsheet",
+                              **drive_fingerprint(item, xlsx_rel)}
         written.append(xlsx_rel)
     except Exception as exc:
         if not is_403(exc):
             raise
         warnings.append(f"{rel}{item['name']}: no Drive content access (drive.file scope) - "
                         "values-only restore layer")
+    if stats is not None:
+        stats.files_exported_or_checked += 1
+        if changed:
+            stats.files_written_changed += 1
+        else:
+            stats.files_skipped_unchanged += 1
     return written
 
 
@@ -233,53 +309,73 @@ def doc_plain_text(services, doc_id: str) -> str:
 
 
 def export_doc(services, item: dict, out_dir: Path, rel: str, manifest: dict,
-               warnings: list[str]) -> list[str]:
+               warnings: list[str], stats: "ExportStats | None" = None) -> list[str]:
     name = sanitize(item["name"])
     rel = f"{rel}/" if rel else ""
     written = []
+    changed = False
     try:
         try:
-            text, ext = export_bytes(services["drive"], item["id"], "text/markdown"), "md"
+            text, ext = export_bytes(services["drive"], item["id"], "text/markdown", stats=stats), "md"
         except Exception as exc:
             if is_403(exc):
                 raise
-            text, ext = export_bytes(services["drive"], item["id"], "text/plain"), "txt"
+            text, ext = export_bytes(services["drive"], item["id"], "text/plain", stats=stats), "txt"
         changed = write_if_changed(out_dir / f"{name}.{ext}", text)
         written.append(f"{rel}{name}.{ext}")
         # Binary restore layer only when the text layer changed (see
         # export_sheet on byte-unstable exports).
         docx_path = out_dir / f"{name}.docx"
         if changed or not docx_path.exists():
-            write_if_changed(docx_path, export_bytes(services["drive"], item["id"], MIME_DOCX))
+            if write_if_changed(docx_path, export_bytes(services["drive"], item["id"], MIME_DOCX, stats=stats)):
+                changed = True
         docx_rel = f"{rel}{name}.docx"
-        manifest[docx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "document"}
+        manifest[docx_rel] = {"fileId": item["id"], "name": item["name"], "kind": "document",
+                              **drive_fingerprint(item, docx_rel)}
         written.append(docx_rel)
     except Exception as exc:
         if not is_403(exc):
             raise
         warnings.append(f"{rel}{item['name']}: no Drive content access (drive.file scope) - "
                         "diff layer only via Docs API, NOT restorable")
-        write_if_changed(out_dir / f"{name}.txt",
-                         doc_plain_text(services, item["id"]).encode("utf-8"))
+        changed = write_if_changed(out_dir / f"{name}.txt",
+                                   doc_plain_text(services, item["id"]).encode("utf-8"))
         written.append(f"{rel}{name}.txt")
+    if stats is not None:
+        stats.files_exported_or_checked += 1
+        if changed:
+            stats.files_written_changed += 1
+        else:
+            stats.files_skipped_unchanged += 1
     return written
 
 
 def walk(services, folder_id: str, out_dir: Path, rel: str, manifest: dict,
-         written: list[str], errors: list[str], warnings: list[str]) -> None:
+         written: list[str], errors: list[str], warnings: list[str],
+         stats: "ExportStats | None" = None) -> None:
+    if stats is not None:
+        stats.folders_scanned += 1
     for item in sorted(list_children(services["drive"], folder_id), key=lambda i: i["name"]):
         if item["mimeType"] == MIME_FOLDER:
             if item["name"] in SKIP_FOLDERS:
                 continue
             sub = sanitize(item["name"])
             walk(services, item["id"], out_dir / sub,
-                 f"{rel}/{sub}" if rel else sub, manifest, written, errors, warnings)
+                 f"{rel}/{sub}" if rel else sub, manifest, written, errors, warnings, stats)
         elif item["mimeType"] in (MIME_GSHEET, MIME_GDOC):
+            if stats is not None:
+                stats.files_considered += 1
+            label = f"{rel}/{item['name']}" if rel else item["name"]
+            operation = "sheet" if item["mimeType"] == MIME_GSHEET else "doc"
+            start = time.perf_counter()
             try:
                 fn = export_sheet if item["mimeType"] == MIME_GSHEET else export_doc
-                written.extend(fn(services, item, out_dir, rel, manifest, warnings))
+                written.extend(fn(services, item, out_dir, rel, manifest, warnings, stats))
             except Exception as exc:
                 errors.append(f"{rel}/{item['name']}: {exc}")
+            finally:
+                if stats is not None:
+                    stats.record_file(label, (time.perf_counter() - start) * 1000, operation)
         # non-native files: Drive keeps them; not this mirror's job
 
 
@@ -301,13 +397,17 @@ def prune_stale(mirror: Path, expected: set[str]) -> int:
     return removed
 
 
-def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts_fn, find_queue_fn, read_queue_fn):
+def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts_fn, find_queue_fn, read_queue_fn,
+                       stats: "ExportStats | None" = None):
+    t0 = time.perf_counter()
+    if stats is None:
+        stats = ExportStats(mode="full")
     manifest: dict = {}
     written: list[str] = []
     errors: list[str] = []
     warnings: list[str] = []
 
-    walk_fn(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings)
+    walk_fn(services, ROOT_FOLDER_ID, mirror, "", manifest, written, errors, warnings, stats)
 
     try:
         q = find_queue_fn(services)
@@ -335,7 +435,11 @@ def orchestrate_export(services, mirror, data_root, walk_fn, export_source_texts
 
     removed = prune_stale(mirror, set(written)) if not errors else 0
 
-    return written, manifest, removed, warnings, errors
+    stats.errors_count = len(errors)
+    stats.warnings_count = len(warnings)
+    stats.elapsed_total_ms = (time.perf_counter() - t0) * 1000
+
+    return written, manifest, removed, warnings, errors, stats
 
 def main() -> int:
     module_doc = __doc__ or "Commit the Google Workspace state to the private mirror"
@@ -345,6 +449,10 @@ def main() -> int:
                              "(skill, source), same info as the _skill_invocations row")
     parser.add_argument("--mirror", default=str(DEFAULT_MIRROR), help="mirror repo path")
     parser.add_argument("--no-bundle", action="store_true", help="skip the Drive bundle backup")
+    parser.add_argument("--stats-out", default=None,
+                        help="write a JSON export-stats object to this path (opt-in; nothing is "
+                             "written unless this is passed). Local/private output only - may "
+                             "contain real Drive path names.")
     args = parser.parse_args()
 
     mirror = Path(args.mirror)
@@ -369,7 +477,7 @@ def main() -> int:
     services = get_services()
     print("Exporting canonical documents and source text...")
 
-    written, manifest, removed, warnings, errors = orchestrate_export(
+    written, manifest, removed, warnings, errors, stats = orchestrate_export(
         services, mirror, DATA_ROOT, walk, export_source_texts, find_queue, read_queue
     )
 
@@ -381,6 +489,24 @@ def main() -> int:
         print(f"  note: {warn}")
     for err in errors:
         print(f"  EXPORT FAILED: {err}")
+
+    print(f"  stats: mode={stats.mode} folders_scanned={stats.folders_scanned} "
+          f"files_considered={stats.files_considered} "
+          f"files_exported_or_checked={stats.files_exported_or_checked} "
+          f"files_written_changed={stats.files_written_changed} "
+          f"files_skipped_unchanged={stats.files_skipped_unchanged} "
+          f"retries_total={stats.retries_total} errors={stats.errors_count} "
+          f"warnings={stats.warnings_count} elapsed_total_ms={stats.elapsed_total_ms:.0f}")
+    slowest = stats.slowest_files()
+    if slowest:
+        print("  slowest files:")
+        for f in slowest:
+            print(f"    {f['elapsed_ms']:.0f}ms {f['operation']:5s} {f['path']}")
+    if args.stats_out:
+        stats_path = Path(args.stats_out)
+        stats_path.parent.mkdir(parents=True, exist_ok=True)
+        stats_path.write_text(json.dumps(stats.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Stats written to {stats_path}")
 
     mirror_git(mirror, "add", "-A")
     if not mirror_git(mirror, "status", "--porcelain").stdout.strip():
