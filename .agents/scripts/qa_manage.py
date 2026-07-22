@@ -75,6 +75,25 @@ Commands (all support --json for machine-readable output):
     archive-source <run-id>       move the closure-stage original from
                                   00_Inbox to its run-specific processed
                                   archive before taking the final snapshot
+    refresh-source-hash <run-id>  explicit, safe hash refresh for a
+                                  pre-processing run (discovered/
+                                  needs_scope/ready) whose Current source
+                                  under 00_Inbox was intentionally edited
+                                  after scan (e.g. adding speaker names/
+                                  person-card details to a transcript) -
+                                  recomputes the same short hash scan uses
+                                  and updates only Source hash + an
+                                  appended Reason note + Last mutation;
+                                  changed:false with no write when the
+                                  hash already matches. Refuses any run
+                                  not in a pre-processing state, an
+                                  archived disposition, a path outside
+                                  00_Inbox, or a file it can't hash the
+                                  way scan would - so an accidental source
+                                  replacement is never silently
+                                  reconciled instead of surfaced. Never
+                                  called automatically by start/complete;
+                                  always an explicit, separate step
     complete <run-id>             verification gate: every entry document
                                   has a per-scope outcome, strict closure
                                   per scope, a `run:<run-id>` token in
@@ -2109,6 +2128,95 @@ def cmd_archive_source(args) -> CommandResult:
     )
 
 
+def cmd_refresh_source_hash(args) -> CommandResult:
+    """Explicit, safe hash refresh for a pre-processing run whose 00_Inbox
+    file was intentionally edited after `scan` recorded it (e.g. adding
+    speaker names/person-card details to a transcript before `start`).
+    Recomputes the same short hash `scan` uses and, only if it actually
+    differs, updates Source hash + an appended Reason note + Last mutation -
+    never source_type/route/scope/status/stage/entries/outcomes/
+    disposition, and never moves, archives, or processes the file. Refuses
+    any run not in discovered/needs_scope/ready, an archived disposition,
+    a path outside 00_Inbox, a missing file, or a file this command can't
+    hash the way `scan` would (not a plain-text extension, or undecodable
+    as UTF-8) - so an accidental source replacement never gets silently
+    reconciled instead of surfaced."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    if not sheet:
+        raise SystemExit("No _intake_queue sheet yet - run scan first.")
+    rows = read_queue(services, sheet)
+    row = get_run(rows, args.run_id)
+
+    status = row.get("Status", "")
+    if status not in PRE_PROCESSING_STATUSES:
+        raise SystemExit(
+            f"refresh-source-hash only applies to a pre-processing run "
+            f"({'/'.join(sorted(PRE_PROCESSING_STATUSES))}) - {args.run_id!r} is {status!r}. "
+            "A run already being processed, blocked, finalizing, or terminal must not have "
+            "its hash silently reconciled outside the normal workflow."
+        )
+    if row.get("Source disposition") == "archived":
+        raise SystemExit(f"refresh-source-hash refuses an archived source ({args.run_id!r}).")
+
+    path_used, path_field_used = resolve_source_path(row)
+    if not path_under_inbox(path_used):
+        raise SystemExit(
+            f"refresh-source-hash only applies to sources under 00_Inbox - "
+            f"{path_field_used}={path_used!r} does not resolve there."
+        )
+
+    file_path = resolve_source_file_path(path_used)
+    if not file_path.is_file():
+        raise SystemExit(
+            f"Source file not found on disk: {file_path} (read from {path_field_used}={path_used!r})"
+        )
+
+    extension = file_path.suffix.lower()
+    if extension not in TEXT_READABLE_EXTS:
+        raise SystemExit(
+            f"refresh-source-hash only applies to plain-text inbox sources "
+            f"({', '.join(sorted(TEXT_READABLE_EXTS))}) - {file_path.name!r} is {extension!r}."
+        )
+
+    raw_bytes = file_path.read_bytes()
+    try:
+        raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(
+            f"{file_path.name!r} could not be decoded as UTF-8 text - refusing to refresh "
+            f"a hash for a source this command expects to be plain text ({exc})."
+        ) from exc
+
+    new_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
+    old_hash = str(row.get("Source hash", ""))
+
+    if new_hash == old_hash:
+        return CommandResult(
+            ok=True,
+            data={"run_id": args.run_id, "changed": False, "old_hash": old_hash, "new_hash": new_hash,
+                  "path_used": path_used, "path_field_used": path_field_used},
+            human_lines=[f"{args.run_id}: Source hash already matches the current file ({old_hash}) - no change."],
+            exit_code=0,
+        )
+
+    note = ("source hash refreshed before processing because inbox file was intentionally "
+            f"edited (old: {old_hash}, new: {new_hash})")
+    existing_reason = str(row.get("Reason", "")).strip()
+    row["Source hash"] = new_hash
+    row["Reason"] = f"{existing_reason}; {note}" if existing_reason else note
+    row["Last mutation"] = now()
+    write_queue(services, sheet, rows)
+
+    return CommandResult(
+        ok=True,
+        data={"run_id": args.run_id, "changed": True, "old_hash": old_hash, "new_hash": new_hash,
+              "path_used": path_used, "path_field_used": path_field_used},
+        human_lines=[f"{args.run_id}: Source hash refreshed {old_hash} -> {new_hash}."],
+        exit_code=0,
+    )
+
+
 def cmd_resume(args) -> CommandResult:
     services = get_services_cached()
     sheet = find_queue(services)
@@ -2627,6 +2735,18 @@ def cmd_guide(args) -> CommandResult:
     checklist, commands, extra = guide_stage_details(row, graph, route, eval_res, ctx)
     guardrails = guide_guardrails(row, interpretation)
 
+    hash_mismatch = detect_source_hash_mismatch(row)
+    if hash_mismatch:
+        checklist.append(
+            f"Current source's file hash ({hash_mismatch['current_hash']}) no longer matches "
+            f"the queue's recorded Source hash ({hash_mismatch['recorded_hash']}) - if this is an "
+            "intentional inbox edit (e.g. added speaker names/details), refresh it before start; "
+            "if not, treat it as a possible accidental source replacement instead."
+        )
+        commands.append(f'refresh-source-hash {args.run_id}  '
+                        '(only if the inbox file was intentionally edited)')
+    extra["source_hash_mismatch"] = hash_mismatch
+
     data = {
         "run_id": args.run_id,
         "identity": identity,
@@ -2682,6 +2802,53 @@ def resolve_source_file_path(path_used: str) -> Path:
     if not parts or ".." in parts:
         raise SystemExit(f"Unsafe source path recorded: {path_used!r}")
     return DATA_ROOT.joinpath(*parts)
+
+
+def path_under_inbox(path_used: str) -> bool:
+    normalized = path_used.replace("\\", "/").strip("/")
+    return normalized == "00_Inbox" or normalized.startswith("00_Inbox/")
+
+
+PRE_PROCESSING_STATUSES = {"discovered", "needs_scope", "ready"}
+
+
+def detect_source_hash_mismatch(row: dict) -> dict | None:
+    """For a pre-processing run only, cheaply check whether the live file at
+    Current source (falling back to Source) still hashes to the queue's
+    recorded Source hash - the same signal `refresh-source-hash` acts on.
+    Returns None whenever the check doesn't apply (wrong status/
+    disposition/path, file missing, not a plain-text inbox source) or the
+    hashes already agree; never raises; used by `guide`/`pack` to recommend
+    `refresh-source-hash` before `start` - never called from `dashboard`/
+    `review`'s per-row bulk evaluation, since hashing a file is real I/O
+    this repo doesn't want paid for every open run on every dashboard call."""
+    if row.get("Status") not in PRE_PROCESSING_STATUSES:
+        return None
+    if row.get("Source disposition") == "archived":
+        return None
+    try:
+        path_used, path_field_used = resolve_source_path(row)
+    except SystemExit:
+        return None
+    if not path_under_inbox(path_used):
+        return None
+    try:
+        file_path = resolve_source_file_path(path_used)
+    except SystemExit:
+        return None
+    if not file_path.is_file() or file_path.suffix.lower() not in TEXT_READABLE_EXTS:
+        return None
+    try:
+        raw_bytes = file_path.read_bytes()
+        raw_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    current_hash = hashlib.sha256(raw_bytes).hexdigest()[:16]
+    recorded_hash = str(row.get("Source hash", ""))
+    if current_hash == recorded_hash:
+        return None
+    return {"path_used": path_used, "path_field_used": path_field_used,
+            "recorded_hash": recorded_hash, "current_hash": current_hash}
 
 
 def build_source_preview(row: dict, max_chars: int) -> tuple[dict, str | None, list[str]]:
@@ -3156,6 +3323,17 @@ def cmd_pack(args) -> CommandResult:
 
     commands = classify_block["commands"] if classify_block else guide_commands
 
+    hash_mismatch = detect_source_hash_mismatch(row)
+    if hash_mismatch:
+        checklist.append(
+            f"Current source's file hash ({hash_mismatch['current_hash']}) no longer matches "
+            f"the queue's recorded Source hash ({hash_mismatch['recorded_hash']}) - if this is an "
+            "intentional inbox edit (e.g. added speaker names/details), refresh it before start; "
+            "if not, treat it as a possible accidental source replacement instead."
+        )
+        commands = commands + [f'refresh-source-hash {args.run_id}  '
+                               '(only if the inbox file was intentionally edited)']
+
     # evaluate_run always appends "Run cannot be completed from state X"
     # for any non-processing/closure status (discovered, blocked,
     # completed, ...) - true and expected, never an actual finding (same
@@ -3206,6 +3384,7 @@ def cmd_pack(args) -> CommandResult:
         "classify": classify_block,
         "graph_context": graph_context,
         "source_preview": preview,
+        "source_hash_mismatch": hash_mismatch,
         "agent_handoff": agent_handoff,
     }
 
@@ -3651,6 +3830,11 @@ def main() -> int:
     p = sub.add_parser("archive-source", help="move a closure-stage source from inbox to processed archive", parents=[parent])
     p.add_argument("run_id")
 
+    p = sub.add_parser("refresh-source-hash", help="explicit hash refresh for a pre-processing "
+                                                    "00_Inbox source intentionally edited after scan",
+                       parents=[parent])
+    p.add_argument("run_id")
+
     p = sub.add_parser("review", help="read-only run evaluation", parents=[parent])
     p.add_argument("run_id")
 
@@ -3733,6 +3917,7 @@ def main() -> int:
         "add-scope": cmd_add_scope,
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
         "mark-historical": cmd_mark_historical, "archive-source": cmd_archive_source,
+        "refresh-source-hash": cmd_refresh_source_hash,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
         "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,
         "recommend-next": cmd_recommend_next,
