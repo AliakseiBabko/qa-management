@@ -26,6 +26,7 @@ Current Drive layout:
 - `00_Inbox/`: the single recursive intake folder. Drop transcripts,
   chats, emails, spreadsheets, or other source files here without manually
   classifying them. Empty means there is no unprocessed file intake.
+  Everyday discovery scans this folder only.
 - `05_People_Management/`: `_people_registry` — the single workspace-wide
   people Sheet, covering everyone (M1-managed, M2-staffed, client-side)
   regardless of which skill is looking at it. Deliberately not nested under
@@ -42,6 +43,8 @@ Current Drive layout:
   - `_System/`: generated extracts and review bundles
   - `Backups/`: private-mirror recovery bundle
   - `Retired/`: retired outputs and legacy folders
+  This root is explicitly excluded from source discovery; moving a file
+  here means it is no longer part of the active intake backlog.
 
 No raw video/multimedia is stored in Drive - only transcripts and
 documents. Folder moves use the Drive API so file IDs, links, revisions,
@@ -624,9 +627,10 @@ These are what actually runs day to day, once a project's folder already exists:
   not an intake source at all, reachable only from pre-processing states).
   Neither mutation moves or deletes the source file — a terminal-status
   queue row's (path, hash) identity already keeps `scan` from
-  rediscovering it. Categorically non-intake subtrees (the M2
-  course homework folders) live under `90_Storage/Reference`, outside the only
-  scanned root. All commands support `--json` for a strict programmatic contract:
+  rediscovering it. Categorically non-intake, processed, generated,
+  backup, and retired material lives under `90_Storage`, which is
+  explicitly excluded from discovery and outside the only scanned root.
+  All commands support `--json` for a strict programmatic contract:
   stdout is suppressed during execution, and exactly one JSON envelope containing
   the command status, structured data, warnings, and errors is
   emitted at the end. Transitions are validated against an explicit table

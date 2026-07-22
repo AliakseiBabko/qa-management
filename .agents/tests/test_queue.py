@@ -119,17 +119,21 @@ class TestDiscoveryIdentity(unittest.TestCase):
 
 
 class TestScanExclusion(unittest.TestCase):
-    def test_reference_tree_needs_no_special_exclusion(self):
-        self.assertFalse(is_excluded(
-            r"90_Storage\Reference\Source_Documents\M2_role_vision\Task 1.docx"))
-        self.assertFalse(is_excluded(
-            "90_Storage/Reference/Source_Documents/M2_personal_development_plan/x.docx"))
+    def test_storage_and_archive_roots_are_excluded(self):
+        self.assertTrue(is_excluded(
+            r"90_Storage\Reference\Source_Documents\placeholder\Task 1.docx"))
+        self.assertTrue(is_excluded(
+            "90_Storage/Processed_Sources/2026/07/run-id/source.txt"))
+        self.assertTrue(is_excluded("90_Archive/legacy/source.txt"))
+        self.assertTrue(is_excluded("80_Exports/package/source.txt"))
 
     def test_sibling_paths_not_excluded(self):
         self.assertFalse(is_excluded(
             r"00_Inbox\metrics.xlsx"))
         self.assertFalse(is_excluded(
             r"00_Inbox\M2_role_vision_notes.docx"))
+        self.assertFalse(is_excluded(
+            r"90_Storage_old\source.txt"))
 
 
 class TestMintRunId(unittest.TestCase):
