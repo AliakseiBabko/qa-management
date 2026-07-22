@@ -29,6 +29,9 @@ non_intake_course_material / reference_material / duplicate_data_quality /
 other) is for sources that are not intake at all - distinct from
 historical, which asserts prior processing. Subtrees that are categorically
 non-intake are additionally excluded from discovery via SCAN_EXCLUDE.
+`90_Storage` is never an intake source: it contains processed originals,
+references, backups, retired material, and internal generated files, so
+everyday scan must not recurse into it.
 
 Source identity is (path, content hash): a changed file at a known path is
 rediscovered as a new run (noting what it supersedes); identical content at
@@ -262,7 +265,11 @@ MIRROR = Path.home() / "Documents" / "qa-drive-mirror"
 SCAN_DIRS = [
     "00_Inbox",
 ]
-SCAN_EXCLUDE: list[str] = []
+SCAN_EXCLUDE: list[str] = [
+    "90_Storage",
+    "90_Archive",
+    "80_Exports",
+]
 SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
 
 QUEUE_SHEET = "_intake_queue"

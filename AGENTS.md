@@ -387,6 +387,8 @@ Expected data folders under that root:
 - `80_Exports` (optional): created only when an explicit immutable package/copy is prepared for external sharing
 - `90_Storage`: the single non-actionable storage root, containing `Reference`,
   `Processed_Sources`, `_System`, `Backups`, and `Retired`
+  It is explicitly excluded from source discovery; moving a file here means it
+  is no longer part of the active intake backlog.
 
 M2 project-management outputs are project-based. Each active project should have
 its own folder under `20_M2_Project_Management`, for example:
