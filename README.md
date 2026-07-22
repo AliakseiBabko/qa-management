@@ -855,13 +855,24 @@ These are what actually runs day to day, once a project's folder already exists:
   fields. `--diff-guard --run-id <id>` asserts the working CSV only added
   that one row versus `HEAD`.
 - `extract_agent_telemetry.py` — best-effort actual-token extraction from
-  local Claude Code session logs (`~/.claude/projects/*/<session>.jsonl`)
-  for `finalize_operator_run.py --telemetry-json`. Codex/Antigravity log
-  locations were not verified on this machine and raise a documented
-  `NotImplementedError` pointing at the manual-entry fallback
-  (`finalize_operator_run.py --actual-input-tokens ...` etc.) — manual token
-  entry is a first-class supported path, not a workaround, and does not
-  block using the rest of Phase 11.
+  local agent-runtime session logs, for `finalize_operator_run.py
+  --telemetry-json`. Ported from the erp-web-tests benchmark-playwright-debugging
+  skill's extractor, re-normalized to this repo's own `actual_*` CSV field
+  names. Supports `claude`/`claude-code` (`~/.claude/projects/*/<session>.jsonl`,
+  verified against this repo's own sessions), `codex`
+  (`~/.codex/sessions/<Y>/<M>/<D>/rollout-*-<session>.jsonl`, including
+  session_meta-linked continuation files — confirmed against a real Codex
+  session log on this machine), `cline` (VSCode extension
+  `taskHistory.json`), and `antigravity` (`agy` CLI, then a best-effort
+  SQLite fallback — decoded plausible numbers from a real local `.db` file
+  on this machine, but with no independent ground truth to confirm the
+  field mapping, so lower-confidence than Claude/Codex). Antigravity may
+  still require the manual-entry fallback depending on local installation
+  or session shape — this
+  raises a clear error pointing at `finalize_operator_run.py
+  --actual-input-tokens ...` etc., a first-class supported path, not a
+  workaround. Never writes raw log content anywhere, only small numeric
+  summaries (to `--out`, conventionally under `tmp/telemetry/`).
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
