@@ -195,6 +195,32 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      anywhere, and never puts the preview text or full source content into
      the queue or this repo - the classification decision, made after
      actually reading the source, stays with the agent.
+   - Working a specific project and want a shortlist instead of picking
+     one `discovered`/`needs_scope` run by hand? — `.agents\scripts\
+     qa_manage.py recommend-next --project <Project> [--lane
+     m2_project_management|project_knowledge|m1_people_management]
+     [--focus <keyword>[,<keyword>...]] [--limit N]` (Phase 15A). Read-only
+     convenience ranking, reusing `classify`'s own signal/candidate-route
+     computation for every candidate - never a decision. `discovered` rows
+     match the project by `Current source` path prefix
+     (`00_Inbox\<Project>\...` - never by content, and never by the
+     canonical `30_Project_Knowledge` lane path, since discovered sources
+     live in `00_Inbox`); `needs_scope` rows use their already-declared
+     `Project` field. `--lane` keeps only candidates whose classify-style
+     candidate route(s) resolve to that lane via `document_graph.yaml`
+     (explicit graph `lane` wins; otherwise a project-scoped route
+     defaults to `m2_project_management` and a person-scoped one to
+     `m1_people_management`) - for `needs_scope` rows the lane comes from
+     the already-chosen Source type/variant instead. `--focus` only
+     re-ranks the already-eligible set (matches filename/preview/
+     candidate-reason text) - it never infers a project/person scope and
+     never changes which rows are eligible. Every candidate's
+     `score_breakdown` is returned so the ranking is never a black box.
+     Never calls `write_queue`, `start`, `archive-source`, `complete`, any
+     Drive/Sheets write, mirror export, or telemetry append. See
+     `.agents\references\operator-prompts.md` (Phase 15A) for ready-made
+     prompts, and its note that final closure is still the explicit
+     workflow below (no `finish-run` shortcut yet).
    - Handing a run off to another agent session (or resuming one cold)? —
      `.agents\scripts\qa_manage.py pack <run-id>` (add `--json` for the
      strict envelope; `--max-preview-chars N` caps the source preview,

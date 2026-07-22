@@ -367,7 +367,9 @@ These are what actually runs day to day, once a project's folder already exists:
   examples — "where was X last mentioned", "what changed since date",
   canonical-only vs. source-only search, one run by run-id, and when to
   prefer `show_project_state.py` instead (live Drive vs. the mirror's last
-  committed snapshot).
+  committed snapshot). See `.agents/references/operator-prompts.md`
+  (Phase 15A) for ready-made prompts covering `recommend-next`, gate
+  answers, project-knowledge search, inbox cleanup, and qa-retro.
 - `migrate_m2_visibility_layout.py` — one-time, idempotent Drive migration
   for the M2 permission-boundary layout. `audit` is read-only and reports
   planned moves plus unrecognized artifacts; `apply` creates only the
@@ -589,7 +591,31 @@ These are what actually runs day to day, once a project's folder already exists:
   never writes anywhere, and never puts the preview text or full source
   content into the queue or this repo — only short operational summaries
   belong there; the classification decision, made after actually reading
-  the source, stays with the agent. Handing a run off to another agent
+  the source, stays with the agent. Working a specific project and want a
+  shortlist instead of picking one `discovered`/`needs_scope` run by hand?
+  **`recommend-next --project <Project> [--lane m2_project_management|
+  project_knowledge|m1_people_management] [--focus <keyword>[,<keyword>...]]
+  [--limit N]`** (Phase 15A) is a read-only convenience ranking, reusing
+  `classify`'s own signal/candidate-route computation for every candidate
+  it considers — never a decision. `discovered` rows are matched to the
+  project by `Current source` path prefix (`00_Inbox/<Project>/...` —
+  never by content, and never by the canonical `30_Project_Knowledge` lane
+  path, since discovered sources live in `00_Inbox`); `needs_scope` rows
+  use their already-declared `Project` field. `--lane` keeps only
+  candidates whose `classify`-style candidate route(s) resolve to that
+  lane via `document_graph.yaml` (explicit graph `lane`, else a
+  project-scoped route defaults to `m2_project_management` and a
+  person-scoped one to `m1_people_management`) — for `needs_scope` rows
+  the lane comes from the already-chosen Source type/variant instead of
+  re-deriving candidates. `--focus` is a ranking hint only (matches
+  filename/preview/candidate-reason text) — it never infers a project/
+  person scope and never changes which rows are eligible, only their
+  order. Every candidate's `score_breakdown` is returned alongside the
+  score so the ranking is never a black box; see the guardrails in its own
+  JSON output and `.agents/references/operator-prompts.md` for ready-made
+  prompts. Never calls `write_queue`, `start`, `archive-source`,
+  `complete`, any Drive/Sheets write, mirror export, or telemetry append.
+  Handing a run off to another agent
   session, or resuming one cold? **`pack <run-id>`** (`--max-preview-chars
   N`, same default) is one compact read-only handoff packet: identity
   (status/stage, `Source` vs `Current source`, source_type/variant,

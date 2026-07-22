@@ -1546,6 +1546,70 @@ def classify_candidate_routes(graph: dict, signals: dict, row: dict) -> list[dic
     return candidates
 
 
+def compute_classify_preview(graph: dict, row: dict, max_chars: int) -> tuple[dict, list[str]]:
+    """Shared read-only signal-detection + candidate-route computation,
+    used by both `classify` (which requires a readable file and raises
+    otherwise - see its own file_exists check) and `recommend-next` (which
+    must survive one bad/missing file among many candidates without
+    aborting the whole ranking). Returns (result, warnings): result merges
+    build_source_preview()'s fields with signals/confidence/candidate_routes.
+    No regex or route logic is duplicated here - this only glues together
+    build_source_preview(), detect_format_signals(), and
+    classify_candidate_routes(), each still defined exactly once."""
+    preview, text, warnings = build_source_preview(row, max_chars)
+    signals = detect_format_signals(text, preview["extension"])
+    candidates = classify_candidate_routes(graph, signals, row) if preview["file_exists"] else []
+    result = dict(preview)
+    result["signals"] = signals
+    result["confidence"] = "signals_detected" if candidates else "low"
+    result["candidate_routes"] = candidates
+    return result, warnings
+
+
+def _lane_from_scope_requirement(explicit_lane: str | None, required_scope) -> str | None:
+    """Shared lane-defaulting rule (mirrors scope_resolver.py's Phase 14B
+    convention, applied here pre-`start` instead of post-hoc): an explicit
+    graph `lane` always wins; otherwise a project-scoped requirement
+    defaults to `m2_project_management` (every M1/M2 project-scoped type
+    that isn't Project Knowledge lands there today) and a person-scoped-
+    only requirement defaults to `m1_people_management`. A route needing
+    neither (e.g. a purely workspace-scoped type like admin_note) has no
+    lane at all."""
+    if explicit_lane:
+        return explicit_lane
+    required = set(required_scope or [])
+    if "project" in required:
+        return "m2_project_management"
+    if "person" in required:
+        return "m1_people_management"
+    return None
+
+
+def lane_for_candidate(graph: dict, candidate: dict) -> str | None:
+    """Best-effort lane classification for one classify candidate route -
+    used by `recommend-next --lane` to filter still-unclassified
+    `discovered` rows, which have no declared scope yet to resolve a lane
+    from post-hoc (see scope_resolver.py for the post-`start` equivalent)."""
+    source_type = candidate.get("source_type", "")
+    explicit_lane = ((graph.get("sources") or {}).get(source_type) or {}).get("lane")
+    return _lane_from_scope_requirement(explicit_lane, candidate.get("required_scope"))
+
+
+def lane_for_row_source_type(graph: dict, source_type: str, variant: str) -> str | None:
+    """Lane classification for an already-classified `needs_scope` row
+    (Source type/Route variant already chosen by a prior `start`) - unlike
+    `lane_for_candidate`, this resolves the one route directly rather than
+    scanning unranked candidates."""
+    if not source_type:
+        return None
+    explicit_lane = ((graph.get("sources") or {}).get(source_type) or {}).get("lane")
+    try:
+        route = resolve_route(graph, source_type, variant)
+    except SystemExit:
+        return None
+    return _lane_from_scope_requirement(explicit_lane, needed_scopes(graph, route))
+
+
 def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: dict | None) -> list[str]:
     commands = [f'guide {run_id}']
     for c in candidates:
@@ -2676,31 +2740,26 @@ def cmd_classify(args) -> CommandResult:
     rows = read_queue(services, sheet) if sheet else []
     row = get_run(rows, args.run_id)
 
-    path_used, path_field_used = resolve_source_path(row)
     current_source = str(row.get("Current source", "")).strip()
     source = str(row.get("Source", "")).strip()
-
-    file_path = resolve_source_file_path(path_used)
-    if not file_path.is_file():
-        raise SystemExit(f"Source file not found on disk: {file_path} (read from {path_field_used}={path_used!r})")
-
-    extension = file_path.suffix.lower()
-    size_bytes = file_path.stat().st_size
     max_chars = (args.max_preview_chars if getattr(args, "max_preview_chars", None)
                  and args.max_preview_chars > 0 else DEFAULT_MAX_PREVIEW_CHARS)
 
-    text = None
-    if extension in TEXT_READABLE_EXTS:
-        text = file_path.read_text(encoding="utf-8", errors="replace")
-
-    signals = detect_format_signals(text, extension)
-    preview = text[:max_chars] if text is not None else ""
-    preview_truncated = text is not None and len(text) > max_chars
-
     graph = load_graph()
-    candidates = classify_candidate_routes(graph, signals, row)
+    result, warnings = compute_classify_preview(graph, row, max_chars)
+    if not result["file_exists"]:
+        raise SystemExit(warnings[0] if warnings else f"Source file not found for {args.run_id!r}")
+
+    path_used = result["source_path_used"]
+    path_field_used = result["source_path_field_used"]
+    extension = result["extension"]
+    size_bytes = result["size_bytes"]
+    preview = result["preview"]
+    preview_truncated = result["preview_truncated"]
+    signals = result["signals"]
+    candidates = result["candidate_routes"]
+    confidence = result["confidence"]
     routed_source_types = sorted((graph.get("sources") or {}).keys())
-    confidence = "signals_detected" if candidates else "low"
 
     reason_field = str(row.get("Reason", ""))
     ignore_suggestion = None
@@ -2758,6 +2817,200 @@ def cmd_classify(args) -> CommandResult:
         lines.append(f"  ignore_suggestion: {ignore_suggestion['category']} - {ignore_suggestion['reason_hint']}")
     lines.append("  commands:")
     lines += [f"    $ {c}" for c in commands]
+    lines.append("  guardrails:")
+    lines += [f"    ! {g}" for g in guardrails]
+
+    return CommandResult(ok=True, data=data, human_lines=lines, exit_code=0)
+
+
+# ---------- recommend-next (read-only ranking, one project) ----------
+
+RECOMMEND_NEXT_DEFAULT_LIMIT = 5
+RECOMMEND_NEXT_LANES = {"m2_project_management", "project_knowledge", "m1_people_management"}
+RECOMMEND_NEXT_FOCUS_BONUS = 0.3
+RECOMMEND_NEXT_RECENCY_MAX_BONUS = 0.1
+RECOMMEND_NEXT_LARGE_FILE_BYTES = 5_000_000
+RECOMMEND_NEXT_SIZE_PENALTY = -0.05
+
+
+def discovered_row_matches_project_path(row: dict, project: str) -> bool:
+    """Path-prefix project match for a still-`discovered` row: never
+    infers a project from content, only recognizes it when the file
+    already sits in a project-named 00_Inbox subfolder
+    (00_Inbox/<Project>/...) - the same convention scan/start already rely
+    on elsewhere. A discovered row has no declared Scopes/Project yet (see
+    row_projects), so a path prefix is the only signal available pre-
+    classification; a bare 00_Inbox/<file> with no project subfolder never
+    matches any project, by design (not yet attributable without reading
+    content, which this command never does for ranking purposes)."""
+    prefix = f"00_inbox/{project.strip().casefold()}/"
+    for field in ("Current source", "Source"):
+        raw = str(row.get(field, "")).strip().replace("\\", "/")
+        if raw.casefold().startswith(prefix):
+            return True
+    return False
+
+
+def compute_focus_match(source_path: str, preview_text: str, candidates: list[dict],
+                        keywords: list[str]) -> dict:
+    """Ranking-only keyword hint: matches the filename, the capped preview
+    text classify already reads, and candidate reason strings - never the
+    full source, never anything beyond what classify's own preview cap
+    already exposes. Never inferred as project/person scope; only ever
+    feeds the score, nothing else."""
+    if not keywords:
+        return {"matched": False, "keywords_found": []}
+    haystack = " ".join([
+        Path(source_path).name if source_path else "",
+        preview_text or "",
+        " ".join(c.get("reason", "") for c in candidates),
+    ]).casefold()
+    found = [k for k in keywords if k.casefold() in haystack]
+    return {"matched": bool(found), "keywords_found": found}
+
+
+def compute_recency_bonus_by_run_id(discovered_by_run_id: dict[str, str]) -> dict[str, float]:
+    """Relative-only recency ranking, bounded [0, RECENCY_MAX_BONUS]: the
+    OLDEST Discovered timestamp among the current candidate set scores
+    highest, scaling down to 0 for the newest. Deliberately never depends
+    on wall-clock "now" - only the relative order within this call's own
+    candidate set - so results are reproducible regardless of when
+    recommend-next is actually run, and fully deterministic for tests."""
+    if not discovered_by_run_id:
+        return {}
+    ordered = sorted(discovered_by_run_id.items(), key=lambda kv: parse_ts(kv[1]))
+    n = len(ordered)
+    if n == 1:
+        return {ordered[0][0]: RECOMMEND_NEXT_RECENCY_MAX_BONUS}
+    return {
+        run_id: round(RECOMMEND_NEXT_RECENCY_MAX_BONUS * (1 - i / (n - 1)), 4)
+        for i, (run_id, _ts) in enumerate(ordered)
+    }
+
+
+def cmd_recommend_next(args) -> CommandResult:
+    """Read-only ranking of discovered/needs_scope 00_Inbox sources for one
+    project - a convenience shortlist, never a decision. Reuses
+    compute_classify_preview() (the same signal/candidate-route logic
+    `classify` calls) for every candidate; never calls write_queue, start,
+    archive-source, complete, any Drive/Sheets write, mirror export, or
+    telemetry append. `--lane`/`--focus` only narrow/rank the shortlist -
+    they never infer or declare a project/person scope, and nothing here
+    ever starts a run."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    rows = read_queue(services, sheet) if sheet else []
+    graph = load_graph()
+
+    project = (args.project or "").strip()
+    lane_filter = args.lane or ""
+    focus_keywords = [k.strip() for k in (args.focus or "").split(",") if k.strip()]
+    limit = args.limit if getattr(args, "limit", None) else RECOMMEND_NEXT_DEFAULT_LIMIT
+    max_chars = DEFAULT_MAX_PREVIEW_CHARS
+
+    prelim: list[dict] = []
+    for row in rows:
+        status = row.get("Status")
+        if status not in ("discovered", "needs_scope"):
+            continue
+
+        if status == "discovered":
+            if not discovered_row_matches_project_path(row, project):
+                continue
+        else:
+            declared = {p.casefold() for p in row_projects(row)}
+            if project.casefold() not in declared:
+                continue
+
+        result, warnings = compute_classify_preview(graph, row, max_chars)
+
+        if status == "discovered":
+            candidate_lanes = {lane_for_candidate(graph, c) for c in result["candidate_routes"]}
+        else:
+            candidate_lanes = {lane_for_row_source_type(
+                graph, row.get("Source type", ""), row.get("Route variant", ""))}
+        candidate_lanes.discard(None)
+
+        if lane_filter and lane_filter not in candidate_lanes:
+            continue
+
+        prelim.append({
+            "row": row, "status": status, "result": result,
+            "warnings": warnings, "candidate_lanes": candidate_lanes,
+        })
+
+    recency_bonus = compute_recency_bonus_by_run_id(
+        {p["row"]["Run ID"]: p["row"].get("Discovered", "") for p in prelim}
+    )
+
+    candidates_out: list[dict] = []
+    for p in prelim:
+        row, status, result = p["row"], p["status"], p["result"]
+        run_id = row["Run ID"]
+        focus_match = compute_focus_match(
+            result.get("source_path_used", ""), result.get("preview", ""),
+            result["candidate_routes"], focus_keywords,
+        )
+        size_bytes = result.get("size_bytes") or 0
+        breakdown = {
+            "project_match": 1.0,
+            "lane_match": 1.0 if lane_filter else 0.0,
+            "focus_match": RECOMMEND_NEXT_FOCUS_BONUS if focus_match["matched"] else 0.0,
+            "recency": recency_bonus.get(run_id, 0.0),
+            "size_penalty": RECOMMEND_NEXT_SIZE_PENALTY if size_bytes > RECOMMEND_NEXT_LARGE_FILE_BYTES else 0.0,
+        }
+        score = round(breakdown["focus_match"] + breakdown["recency"] + breakdown["size_penalty"], 4)
+        candidates_out.append({
+            "run_id": run_id,
+            "status": status,
+            "current_source": result.get("source_path_used", ""),
+            "extension": result.get("extension", ""),
+            "size_bytes": result.get("size_bytes"),
+            "signals": result.get("signals", {}),
+            "candidate_routes": result.get("candidate_routes", []),
+            "candidate_lanes": sorted(p["candidate_lanes"]),
+            "focus_match": focus_match,
+            "score": score,
+            "score_breakdown": breakdown,
+            "warnings": p["warnings"],
+        })
+
+    # Deterministic sort: highest score first, run_id breaks exact ties so
+    # ordering never depends on incidental queue-row/dict iteration order.
+    candidates_out.sort(key=lambda c: (-c["score"], c["run_id"]))
+    truncated = len(candidates_out) > limit
+    candidates_out = candidates_out[:limit]
+
+    guardrails = [
+        "This is a ranked shortlist, not a classification or a recommendation to `start` - read the "
+        "source and run `classify` before starting anything, same as always.",
+        "score/score_breakdown are a convenience ranking only (project/lane are hard filters shown for "
+        "transparency at 1.0; focus/recency/size are the only components that actually move the score) "
+        "- a close second is common, don't trust rank order over reading the source.",
+        "--focus only re-ranks candidates already matched by --project/--lane; it never infers a "
+        "project/person scope and never changes which rows are eligible.",
+        "recommend-next never starts a run, writes the queue, or touches Drive/mirror/telemetry - "
+        "read the source and use `start` yourself once you've decided.",
+    ]
+
+    data = {
+        "project": project,
+        "lane_filter": lane_filter,
+        "focus_keywords": focus_keywords,
+        "candidates": candidates_out,
+        "recommended": candidates_out[0]["run_id"] if candidates_out else None,
+        "truncated": truncated,
+        "guardrails": guardrails,
+    }
+
+    lines = [f"recommend-next for project={project!r}"
+             + (f" lane={lane_filter!r}" if lane_filter else "")
+             + (f" focus={focus_keywords!r}" if focus_keywords else "")]
+    if not candidates_out:
+        lines.append("  (none - nothing actionable for this project/lane; see dashboard/triage for the full backlog)")
+    for c in candidates_out:
+        lines.append(f"  - {c['run_id']}  score={c['score']}  ({c['status']}, {c['extension']}, "
+                     f"{c['size_bytes']} bytes)  source={c['current_source']}")
     lines.append("  guardrails:")
     lines += [f"    ! {g}" for g in guardrails]
 
@@ -3431,6 +3684,17 @@ def main() -> int:
     p.add_argument("--max-preview-chars", type=int, default=DEFAULT_MAX_PREVIEW_CHARS,
                    help=f"cap on the returned preview excerpt (default {DEFAULT_MAX_PREVIEW_CHARS})")
 
+    p = sub.add_parser("recommend-next", help="read-only ranked shortlist of discovered/needs_scope "
+                                              "00_Inbox sources for one project - a convenience, "
+                                              "never a decision", parents=[parent])
+    p.add_argument("--project", required=True, help="project to shortlist sources for")
+    p.add_argument("--lane", default="", choices=sorted(RECOMMEND_NEXT_LANES) + [""],
+                   help="only keep candidates whose classify candidate route maps to this lane")
+    p.add_argument("--focus", default="", help="comma-separated keyword(s) - ranking hint only, "
+                                                "never a scope filter")
+    p.add_argument("--limit", type=int, default=RECOMMEND_NEXT_DEFAULT_LIMIT,
+                   help=f"candidates listed (default {RECOMMEND_NEXT_DEFAULT_LIMIT})")
+
     p = sub.add_parser("pack", help="read-only cross-agent handoff/resume packet for one run",
                        parents=[parent])
     p.add_argument("run_id")
@@ -3471,6 +3735,7 @@ def main() -> int:
         "mark-historical": cmd_mark_historical, "archive-source": cmd_archive_source,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
         "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,
+        "recommend-next": cmd_recommend_next,
         "pack": cmd_pack, "triage": cmd_triage, "triage-one": cmd_triage_one,
         "gates": cmd_gates,
     }
