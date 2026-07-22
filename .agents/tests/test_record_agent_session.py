@@ -400,5 +400,27 @@ class CliTests(unittest.TestCase):
             self.assertEqual(set(header), set(common.AGENT_SESSION_CSV_HEADER))
 
 
+# ---------------------------------------------------------------------------
+# Docs: no-queue passes must point at agent-sessions.csv, not
+# completed_run_review (which requires a run_id they don't have).
+# ---------------------------------------------------------------------------
+
+class NoQueuePassDocsTests(unittest.TestCase):
+    REPO_ROOT = Path(__file__).resolve().parents[2]
+
+    def test_agents_md_distinguishes_queue_vs_no_queue_closing_step(self):
+        text = (self.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("No-queue direct-note/conversational rollup passes are different", text)
+        self.assertIn("record_agent_session.py", text)
+        self.assertIn("completed_run_review", text)
+
+    def test_telemetry_readme_distinguishes_queue_vs_no_queue_closing_step(self):
+        text = (self.REPO_ROOT / ".agents" / "telemetry" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("No-queue direct-note or conversational rollup pass", text)
+        self.assertIn("record_agent_session.py", text)
+        self.assertIn("completed_run_review", text)
+        self.assertIn("optional and only measures", text)
+
+
 if __name__ == "__main__":
     unittest.main()

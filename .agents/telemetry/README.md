@@ -4,12 +4,29 @@ Measurement layer for the QA-management operator workflow: does
 `dashboard`/`guide`/`classify`/`pack`/`triage`/`search_workspace`/
 `show_project_state` actually reduce output size and token usage versus an
 older full-read/manual workflow - and, since Phase 13.1's follow-up fixes,
-a mandatory closing step: **every real intake/rollup pass records one
-telemetry row after `complete`/its own mirror snapshot** (see AGENTS.md's
-intake-workflow bullet), not just ad hoc measurement runs. This directory
-holds the canonical CSVs and run-note template; the scripts live in
-`.agents/scripts/` alongside every other pipeline script (this repo's
-convention - scripts are not nested under per-topic subfolders).
+a mandatory closing step for every real pass, not just ad hoc measurement
+runs (see AGENTS.md's intake-workflow bullet). Which row is mandatory
+depends on whether the pass had a queue `run_id`:
+
+- **Queue-backed intake run** (went through `start`/.../`complete`): record
+  one `operator-runs.csv` row after `complete` -
+  `measure_operator_outputs.py --case completed_run_review --run-id
+  <run-id> --append-csv`.
+- **No-queue direct-note or conversational rollup pass** (an M2 answer
+  pass, a repo-maintenance fix, a direct owner-note enrichment - anything
+  that ends with its own `commit_workspace_state.py` snapshot but never
+  had a `run_id` to `start`/`complete`): `completed_run_review` cannot be
+  recorded - it requires a `run_id`. Record one `agent-sessions.csv` row
+  instead - `record_agent_session.py ... --append-csv` (see "Recording an
+  agent session" below). This is the pass-level record for this shape of
+  work; an `operator-runs.csv` row here is optional and only measures
+  whichever single command you happened to run, never a stand-in for the
+  whole pass.
+
+This directory holds the canonical CSVs and run-note template; the
+scripts live in `.agents/scripts/` alongside every other pipeline script
+(this repo's convention - scripts are not nested under per-topic
+subfolders).
 
 ## Two CSVs, two different questions
 
@@ -246,14 +263,18 @@ python .agents/scripts/check_operator_csv.py --sessions --diff-guard --session-r
    gitignored `tmp/telemetry/`. No raw agent/session logs are ever stored
    in the repo - `extract_agent_telemetry.py --out` writes only small
    numeric-summary JSON, conventionally under `tmp/telemetry/`.
-5. Every real intake/rollup pass records one `operator-runs.csv` telemetry
-   row after it completes (see AGENTS.md's intake-workflow bullet) - this
-   is a mandatory closing step, not optional instrumentation. Never invent
-   actual token numbers to fill a row faster: leave `actual_*` token
-   fields blank unless you have real agent-log data for that pass
-   (`extract_agent_telemetry.py` or manual entry from the runtime's own
-   reporting) - the deterministic byte/char/token estimate columns are
-   always populated regardless. Recording an `agent-sessions.csv` row via
-   `record_agent_session.py` is encouraged whenever a session's real token
-   usage is available, but is not (yet) a mandatory per-pass step the way
-   the `operator-runs.csv` row is.
+5. Every real pass records one mandatory closing telemetry row (see
+   AGENTS.md's intake-workflow bullet) - not optional instrumentation -
+   and WHICH CSV depends on whether the pass had a queue `run_id`:
+   - Queue-backed intake run → one `operator-runs.csv` row
+     (`completed_run_review`, tied to that `run_id`).
+   - No-queue direct-note/conversational rollup pass (no `run_id` to tie
+     `completed_run_review` to) → one `agent-sessions.csv` row
+     (`record_agent_session.py`) instead. An `operator-runs.csv` row is
+     optional here and measures only whichever single command you ran,
+     never a substitute for the session-level row.
+   Never invent actual token numbers to fill either row faster: leave
+   `actual_*` token fields blank unless you have real agent-log data for
+   that pass (`extract_agent_telemetry.py` or manual entry from the
+   runtime's own reporting) - the deterministic byte/char/token estimate
+   columns on `operator-runs.csv` rows are always populated regardless.
