@@ -873,6 +873,19 @@ These are what actually runs day to day, once a project's folder already exists:
   --actual-input-tokens ...` etc., a first-class supported path, not a
   workaround. Never writes raw log content anywhere, only small numeric
   summaries (to `--out`, conventionally under `tmp/telemetry/`).
+- `record_agent_session.py` — appends one row to
+  `.agents/telemetry/agent-sessions.csv`, the session-level counterpart to
+  `operator-runs.csv`: since a session's token total can't be honestly
+  attributed back to any one command within it (several `operator-runs.csv`
+  rows commonly share one long session), session-wide usage gets its own
+  table instead of backfilling those rows. Extracts via
+  `extract_agent_telemetry.py`'s adapters (or accepts `--manual` entry),
+  computes `total_tokens`/`estimated_cost_usd`, and defaults `confidence`
+  from `extraction_method` (`claude_log`/`codex_log`/`cline_history`/
+  `antigravity_cli` → high, `antigravity_db` → medium, manual → `manual`).
+  Never touches `operator-runs.csv`; `--linked-operator-run-ids` entries
+  not found there are a warning, not a failure. Same append-only/diff-guard
+  model as the other CSV.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See

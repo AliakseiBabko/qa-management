@@ -412,8 +412,30 @@ class NoRawLogLeakageTests(unittest.TestCase):
             written = json.loads(out_path.read_text(encoding="utf-8"))
             allowed_keys = {"actual_input_tokens", "actual_output_tokens",
                            "actual_cache_creation_tokens", "actual_cache_read_tokens",
-                           "actual_reasoning_tokens", "model_label", "estimated_cost_usd"}
+                           "actual_reasoning_tokens", "model_label", "estimated_cost_usd",
+                           "extraction_method", "session_started_at", "session_ended_at"}
             self.assertTrue(set(written) <= allowed_keys)
+
+    def test_real_claude_adapter_output_contains_only_known_keys(self):
+        # Same check, but against a REAL adapter (fake log fixture), not a
+        # hand-built totals dict - proves the actual production code path
+        # never emits an unexpected key either.
+        with TemporaryDirectory() as td:
+            home = Path(td)
+            projects_dir = home / ".claude" / "projects" / "fake-hash"
+            projects_dir.mkdir(parents=True)
+            session_id = "real-adapter-check"
+            (projects_dir / f"{session_id}.jsonl").write_text(
+                json.dumps({"type": "assistant", "timestamp": "2026-01-01T00:00:00.000Z",
+                           "message": {"model": "claude-sonnet-5",
+                                       "usage": {"input_tokens": 1, "output_tokens": 1}}}) + "\n",
+                encoding="utf-8")
+            totals = ext.ClaudeAdapter().extract(session_id, home=home)
+            allowed_keys = {"actual_input_tokens", "actual_output_tokens",
+                           "actual_cache_creation_tokens", "actual_cache_read_tokens",
+                           "actual_reasoning_tokens", "model_label", "estimated_cost_usd",
+                           "extraction_method", "session_started_at", "session_ended_at"}
+            self.assertTrue(set(totals) <= allowed_keys)
 
 
 if __name__ == "__main__":

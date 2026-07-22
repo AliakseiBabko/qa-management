@@ -1,6 +1,6 @@
 """Shared schema/constants for the Phase 11 operator-telemetry scripts
 (measure_operator_outputs.py, finalize_operator_run.py, check_operator_csv.py,
-extract_agent_telemetry.py).
+extract_agent_telemetry.py, record_agent_session.py).
 
 Modeled on the erp-web-tests benchmark-playwright-debugging skill's
 methodology (canonical append-only CSV, finalizer/extractor split,
@@ -15,6 +15,22 @@ The CSV must never contain real command output, source previews, or real
 names/projects (see the module docstring on CSV_HEADER below and
 check_operator_csv.py's leak guard). Only counts and redacted command
 labels are stored.
+
+Two separate CSVs, two separate questions
+------------------------------------------
+`operator-runs.csv` (CSV_HEADER below) answers "how large was this
+command's output?" - one row per measured read-only command invocation.
+`agent-sessions.csv` (AGENT_SESSION_CSV_HEADER below) answers "how many
+model tokens did this agent session actually consume?" - one row per
+extracted/recorded agent runtime session, which commonly spans MANY
+operator-runs.csv rows (a single long conversation can run many measured
+commands). They are intentionally not the same table: a session's token
+total cannot be honestly attributed back to any one command within it, so
+operator-runs.csv's `actual_*` fields stay blank unless a row genuinely
+was its own dedicated one-command session (rare) - see agent-sessions.csv's
+`linked_operator_run_ids` for the (many-rows -> one session) relationship
+instead. Neither CSV's append/diff-guard functions ever rewrite an existing
+row of the OTHER CSV, or of their own.
 """
 
 from __future__ import annotations
@@ -27,6 +43,7 @@ from pathlib import Path
 TELEMETRY_ROOT = Path(__file__).resolve().parent.parent / "telemetry"
 CSV_PATH = TELEMETRY_ROOT / "operator-runs.csv"
 TEMPLATE_PATH = TELEMETRY_ROOT / "templates" / "operator-run-note.md"
+AGENT_SESSION_CSV_PATH = TELEMETRY_ROOT / "agent-sessions.csv"
 
 # One row per measured command invocation. Every column here is either a
 # count, a boolean-ish yes/no, an enum, or a redacted label - never raw
@@ -83,6 +100,54 @@ NUMERIC_FIELDS = [
 VALID_RUNTIME = {"Codex", "Claude Code", "Antigravity", "manual_script"}
 VALID_YES_NO = {"yes", "no"}
 VALID_STATUS = {"ok", "error"}
+
+# One row per recorded agent-runtime session (see the module docstring's
+# "Two separate CSVs" section for why this is not just another
+# operator-runs.csv column).
+AGENT_SESSION_CSV_HEADER = [
+    "session_run_id",
+    "date",
+    "runtime",
+    "model_label",
+    "session_id",
+    "linked_operator_run_ids",
+    "objective",
+    "started_at",
+    "ended_at",
+    "elapsed_min",
+    "actual_input_tokens",
+    "actual_cache_creation_tokens",
+    "actual_cache_read_tokens",
+    "actual_output_tokens",
+    "actual_reasoning_tokens",
+    "total_tokens",
+    "estimated_cost_usd",
+    "extraction_method",
+    "confidence",
+    "notes",
+]
+
+AGENT_SESSION_REQUIRED_FIELDS = [
+    "session_run_id", "date", "runtime", "session_id", "objective",
+    "extraction_method", "confidence",
+]
+
+AGENT_SESSION_NUMERIC_FIELDS = [
+    "elapsed_min", "actual_input_tokens", "actual_cache_creation_tokens",
+    "actual_cache_read_tokens", "actual_output_tokens", "actual_reasoning_tokens",
+    "total_tokens", "estimated_cost_usd",
+]
+
+VALID_EXTRACTION_METHOD = {
+    "claude_log", "codex_log", "antigravity_cli", "antigravity_db",
+    "cline_history", "manual",
+}
+# "manual" is a 4th confidence bucket beyond high/medium/low, deliberately -
+# a manually-entered figure (read off a runtime's own usage UI, typed in by
+# a person) has a different trust profile than any of the three automatic-
+# extraction confidence levels, and conflating it with one of them would
+# overstate or understate it depending on which was picked.
+VALID_CONFIDENCE = {"high", "medium", "low", "manual"}
 
 # Case catalog: case_id -> command template. `{target}` is substituted from
 # --target at measurement time and is REDACTED back to a placeholder before
@@ -207,16 +272,98 @@ def redact_argv(argv: list[str], target_placeholder: str = "<target>") -> str:
     return " ".join(argv)
 
 
-def read_rows() -> tuple[list[str], list[dict]]:
-    """Read the CSV, returning (header, rows). Creates no file as a side
-    effect - callers that need the file to exist should check CSV_PATH."""
-    if not CSV_PATH.exists():
-        return list(CSV_HEADER), []
-    with open(CSV_PATH, encoding="utf-8", newline="") as f:
+def _read_csv_rows(csv_path: Path, default_header: list[str]) -> tuple[list[str], list[dict]]:
+    """Read a CSV, returning (header, rows). Creates no file as a side
+    effect - callers that need the file to exist should check the path."""
+    if not csv_path.exists():
+        return list(default_header), []
+    with open(csv_path, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        header = list(reader.fieldnames or CSV_HEADER)
+        header = list(reader.fieldnames or default_header)
         rows = list(reader)
     return header, rows
+
+
+def _append_csv_row(csv_path: Path, header: list[str], id_field: str, row: dict,
+                    read_fn) -> None:
+    """Append exactly one row to a canonical-header CSV, creating it with
+    that header if it does not exist yet. Never rewrites an existing row -
+    a pure append, keyed on `id_field`. Raises ValueError (writing nothing)
+    if `id_field`'s value already exists or the on-disk header has drifted
+    from `header`."""
+    existing_header, existing_rows = read_fn()
+    if existing_header != header:
+        raise ValueError(
+            f"CSV header does not match canonical schema.\n  expected: {header}\n  found:    {existing_header}"
+        )
+    key = row.get(id_field)
+    if any(r.get(id_field) == key for r in existing_rows):
+        raise ValueError(f"{id_field} '{key}' already exists in the CSV - refusing to duplicate.")
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not csv_path.exists()
+    with open(csv_path, "a", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        if write_header:
+            writer.writeheader()
+        writer.writerow({k: row.get(k, "") for k in header})
+
+
+def _diff_guard_new_row_only(csv_path: Path, id_field: str, target_id: str, read_fn,
+                             ref: str = "HEAD", repo_root: Path | None = None) -> tuple[bool, list[str]]:
+    """Compare the working-tree CSV against `ref` (default HEAD) and assert
+    that the only difference is the addition of `target_id`'s row (matched
+    on `id_field`). Any other added/removed/modified row, or a header
+    change, is a violation - the diff-guard pattern from the erp-web-tests
+    benchmark skill's check_csv.py, adapted for a pure-append (no in-place
+    row update) model. Returns (ok, violations)."""
+    root = repo_root or csv_path.parent.parent.parent
+    try:
+        rel = csv_path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = csv_path.name
+
+    committed = subprocess.run(
+        ["git", "-C", str(root), "show", f"{ref}:{rel}"],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    if committed.returncode != 0:
+        return True, []  # no baseline (new file) - nothing to guard against
+
+    import io
+    base_reader = csv.DictReader(io.StringIO(committed.stdout))
+    base_header = list(base_reader.fieldnames or [])
+    base_rows = {r.get(id_field): r for r in base_reader}
+
+    work_header, work_rows_list = read_fn()
+    work_rows = {r.get(id_field): r for r in work_rows_list}
+
+    violations = []
+    if base_header != work_header:
+        violations.append(f"Header changed.\n    {ref}: {base_header}\n    work: {work_header}")
+
+    for rid in base_rows:
+        if rid not in work_rows:
+            violations.append(f"Row removed since {ref}: '{rid}'.")
+        elif base_rows[rid] != work_rows[rid]:
+            violations.append(f"Unrelated row '{rid}' was modified since {ref}.")
+
+    for rid in work_rows:
+        if rid not in base_rows and rid != target_id:
+            violations.append(f"Row added that is not the target: '{rid}'.")
+
+    return (len(violations) == 0), violations
+
+
+# ---------------------------------------------------------------------------
+# operator-runs.csv (command-footprint rows)
+# ---------------------------------------------------------------------------
+
+def read_rows() -> tuple[list[str], list[dict]]:
+    """Read operator-runs.csv, returning (header, rows). Creates no file as
+    a side effect - callers that need the file to exist should check
+    CSV_PATH."""
+    return _read_csv_rows(CSV_PATH, CSV_HEADER)
 
 
 def validate_row(row: dict) -> list[str]:
@@ -262,65 +409,73 @@ def append_row(row: dict) -> None:
     errors = validate_row(row)
     if errors:
         raise ValueError("Row failed validation:\n  " + "\n  ".join(errors))
-
-    header, existing_rows = read_rows()
-    if header != CSV_HEADER:
-        raise ValueError(
-            f"CSV header does not match canonical schema.\n  expected: {CSV_HEADER}\n  found:    {header}"
-        )
-    run_id = row.get("run_id")
-    if any(r.get("run_id") == run_id for r in existing_rows):
-        raise ValueError(f"run_id '{run_id}' already exists in the CSV - refusing to duplicate.")
-
-    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
-    write_header = not CSV_PATH.exists()
-    with open(CSV_PATH, "a", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_HEADER)
-        if write_header:
-            writer.writeheader()
-        writer.writerow({k: row.get(k, "") for k in CSV_HEADER})
+    _append_csv_row(CSV_PATH, CSV_HEADER, "run_id", row, read_rows)
 
 
 def diff_guard_new_row_only(run_id: str, ref: str = "HEAD", repo_root: Path | None = None) -> tuple[bool, list[str]]:
-    """Compare the working-tree CSV against `ref` (default HEAD) and assert
-    that the only difference is the addition of `run_id`'s row. Any other
-    added/removed/modified row, or a header change, is a violation - this is
-    the diff-guard pattern from the erp-web-tests benchmark skill's
-    check_csv.py, adapted for a pure-append (no in-place row update) model.
-    Returns (ok, violations)."""
-    root = repo_root or CSV_PATH.parent.parent.parent
-    try:
-        rel = CSV_PATH.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        rel = CSV_PATH.name
+    """diff-guard for operator-runs.csv - see _diff_guard_new_row_only."""
+    return _diff_guard_new_row_only(CSV_PATH, "run_id", run_id, read_rows, ref=ref, repo_root=repo_root)
 
-    committed = subprocess.run(
-        ["git", "-C", str(root), "show", f"{ref}:{rel}"],
-        capture_output=True, text=True, encoding="utf-8",
-    )
-    if committed.returncode != 0:
-        return True, []  # no baseline (new file) - nothing to guard against
 
-    import io
-    base_reader = csv.DictReader(io.StringIO(committed.stdout))
-    base_header = list(base_reader.fieldnames or [])
-    base_rows = {r.get("run_id"): r for r in base_reader}
+# ---------------------------------------------------------------------------
+# agent-sessions.csv (session-level token telemetry)
+# ---------------------------------------------------------------------------
 
-    work_header, work_rows_list = read_rows()
-    work_rows = {r.get("run_id"): r for r in work_rows_list}
+def read_agent_session_rows() -> tuple[list[str], list[dict]]:
+    """Read agent-sessions.csv, returning (header, rows). Creates no file as
+    a side effect - callers that need the file to exist should check
+    AGENT_SESSION_CSV_PATH."""
+    return _read_csv_rows(AGENT_SESSION_CSV_PATH, AGENT_SESSION_CSV_HEADER)
 
-    violations = []
-    if base_header != work_header:
-        violations.append(f"Header changed.\n    {ref}: {base_header}\n    work: {work_header}")
 
-    for rid in base_rows:
-        if rid not in work_rows:
-            violations.append(f"Row removed since {ref}: '{rid}'.")
-        elif base_rows[rid] != work_rows[rid]:
-            violations.append(f"Unrelated row '{rid}' was modified since {ref}.")
+def validate_agent_session_row(row: dict) -> list[str]:
+    """Return a list of validation error strings; empty means valid."""
+    errors = []
+    for field in AGENT_SESSION_REQUIRED_FIELDS:
+        if not str(row.get(field, "")).strip():
+            errors.append(f"required field '{field}' is blank")
+    for field in AGENT_SESSION_NUMERIC_FIELDS:
+        val = row.get(field, "")
+        if val is None or str(val).strip() == "":
+            continue
+        try:
+            float(val)
+        except (TypeError, ValueError):
+            errors.append(f"field '{field}' has non-numeric value {val!r}")
+    extraction_method = row.get("extraction_method")
+    if extraction_method and extraction_method not in VALID_EXTRACTION_METHOD:
+        errors.append(
+            f"field 'extraction_method' has invalid value {extraction_method!r} "
+            f"(allowed: {sorted(VALID_EXTRACTION_METHOD)})"
+        )
+    confidence = row.get("confidence")
+    if confidence and confidence not in VALID_CONFIDENCE:
+        errors.append(
+            f"field 'confidence' has invalid value {confidence!r} (allowed: {sorted(VALID_CONFIDENCE)})"
+        )
+    for field in ("objective", "notes"):
+        val = str(row.get(field, ""))
+        if val and not is_ascii_safe(val):
+            errors.append(
+                f"field '{field}' failed the ASCII-safe leak guard (possible real-data leak): {val!r}"
+            )
+    return errors
 
-    for rid in work_rows:
-        if rid not in base_rows and rid != run_id:
-            violations.append(f"Row added that is not the target: '{rid}'.")
 
-    return (len(violations) == 0), violations
+def append_agent_session_row(row: dict) -> None:
+    """Append exactly one validated row to agent-sessions.csv, creating the
+    file with the canonical header if it does not exist yet. Never rewrites
+    an existing row, and never touches operator-runs.csv. Raises ValueError
+    on any validation failure, writing nothing."""
+    errors = validate_agent_session_row(row)
+    if errors:
+        raise ValueError("Row failed validation:\n  " + "\n  ".join(errors))
+    _append_csv_row(AGENT_SESSION_CSV_PATH, AGENT_SESSION_CSV_HEADER, "session_run_id", row,
+                    read_agent_session_rows)
+
+
+def diff_guard_agent_session_new_row_only(session_run_id: str, ref: str = "HEAD",
+                                          repo_root: Path | None = None) -> tuple[bool, list[str]]:
+    """diff-guard for agent-sessions.csv - see _diff_guard_new_row_only."""
+    return _diff_guard_new_row_only(AGENT_SESSION_CSV_PATH, "session_run_id", session_run_id,
+                                    read_agent_session_rows, ref=ref, repo_root=repo_root)
