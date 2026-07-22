@@ -60,6 +60,10 @@ class DocumentGraphProjectKnowledgeTests(unittest.TestCase):
         lanes = graph.get("lanes") or {}
         self.assertEqual(lanes["m2_project_management"]["root_folder"], "20_M2_Project_Management")
         self.assertEqual(lanes["project_knowledge"]["root_folder"], "30_Project_Knowledge")
+        # Phase 14A: added so a future scoped-export mode can resolve
+        # person-scoped M1 runs to a folder root the same way project-scoped
+        # runs already resolve via the two lanes above.
+        self.assertEqual(lanes["m1_people_management"]["root_folder"], "10_M1_People_Management")
 
     def test_pk_source_edges_match_spec(self):
         graph = qa_manage.load_graph()

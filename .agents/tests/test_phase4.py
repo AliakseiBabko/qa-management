@@ -155,14 +155,14 @@ class TestPhase4(unittest.TestCase):
             "Source text version": "1"
         }]
 
-        def fake_walk(services, folder_id, out_dir, rel, manifest, written, errors, warnings):
+        def fake_walk(services, folder_id, out_dir, rel, manifest, written, errors, warnings, stats=None):
             written.append("dummy.txt")
             (out_dir / "dummy.txt").write_text("hello", encoding="utf-8")
 
         def fake_find(services): return "q_id"
         def fake_read(services, q): return rows
 
-        written, manifest, removed, warnings, errors = orchestrate_export(
+        written, manifest, removed, warnings, errors, stats = orchestrate_export(
             None, self.mirror, self.data_root, fake_walk, export_source_text.export, fake_find, fake_read
         )
 
@@ -320,7 +320,7 @@ class TestPhase4(unittest.TestCase):
         def failing_read_queue(services, queue_id):
             raise Exception("orchestrated error")
 
-        written, manifest, removed, warnings, errors = commit_workspace_state.orchestrate_export(
+        written, manifest, removed, warnings, errors, stats = commit_workspace_state.orchestrate_export(
             None, self.mirror, self.data_root,
             lambda *args: None,
             lambda rows, droot, mir: (set(), [], []),
