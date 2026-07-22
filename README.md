@@ -488,18 +488,36 @@ These are what actually runs day to day, once a project's folder already exists:
   the pass at the end of any pass that wrote canonical documents; a no-op
   when nothing changed. One commit per pass = the whole cascade rolls back
   as one unit. The mirror holds real names and real source text: never inside this public repo,
-  never a public remote. Full export (walking the entire Drive tree) is
-  still the only mode and the default - every run prints per-file export
-  timing/counts (folders scanned, files considered/exported/skipped-unchanged,
-  retries, slowest files); pass `--stats-out <path>` to also dump that as
-  JSON (opt-in, not written by default; local output only, may contain real
-  Drive path names). `_manifest.json` entries also carry a non-volatile
-  Drive fingerprint (`drive_path`, `mimeType`, `headRevisionId`,
-  `modifiedTime`) alongside the existing `fileId`/`name`/`kind` - old entries
-  without these fields remain valid. This telemetry and fingerprinting is
-  prep for a future **scoped** export mode (only the files a specific run
-  touched) that is planned but not implemented yet; until then every commit
-  is a full export.
+  never a public remote. Full export (walking the entire Drive tree) remains
+  the **default** - every run prints per-file export timing/counts (folders
+  scanned, files considered/exported/skipped-unchanged, retries, slowest
+  files); pass `--stats-out <path>` to also dump that as JSON (opt-in, not
+  written by default; local output only, may contain real Drive path names).
+  `_manifest.json` entries also carry a non-volatile Drive fingerprint
+  (`drive_path`, `mimeType`, `headRevisionId`, `modifiedTime`) alongside the
+  existing `fileId`/`name`/`kind` - old entries without these fields remain
+  valid. **Phase 14B**: `--scoped --run-id <run-id>` is an opt-in mode for
+  routine single-project/single-person/workspace-only-bookkeeping runs -
+  it exports only that run's scope (via `scope_resolver.py`) plus
+  workspace-root/lane-root bookkeeping and source-text, instead of walking
+  the whole tree. It never prunes or overwrites anything outside that
+  scope (out-of-scope `_manifest.json` entries and files are carried
+  forward byte-for-byte); it fails closed (exits 1, full export
+  recommended) if the scope, a lane, or a folder can't be resolved, or if
+  `_manifest.json` is missing/malformed. Multi-project rollups and
+  periodic audits should keep using full export - measured speedup there
+  is minor since most of the lane is in scope anyway. Run one full export
+  once after adopting `--scoped` (and anytime `90_Storage` isn't the only
+  thing that changed outside the pipeline) so the manifest scoped mode
+  carries forward from stays trustworthy.
+- `scope_resolver.py` — Phase 14B: given a run_id, resolves its queue-declared
+  scope (via the same `enumerate_run_scopes()` helper `qa_manage.py review`/
+  `complete` trust) to the Drive lane(s)/folder prefixes a scoped
+  `commit_workspace_state.py --scoped` export must cover. Pure queue/graph
+  logic - no Drive calls. Fails closed (returns a refusal reason) rather
+  than ever silently narrowing scope; warns (without blocking) when a run
+  touches more than a handful of distinct project/person scopes, since
+  scoped mode saves little there.
 - `export_source_text.py` — invoked by `commit_workspace_state.py` or manually via CLI.
   Extracts text from file-backed sources (`.txt`, `.md`, `.docx`) of eligible types
   (`qa_1to1`, `strategy_chat`, `meeting_transcript`, `people_case_chat`). Uses a

@@ -251,12 +251,20 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      Put the exact token `run:<run-id>` in the `_skill_invocations`
      Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
      pass also automatically extracts and commits the source text into the private mirror.
-     It still always does a full Drive export (walking the entire tree, skipping only
-     `90_Storage`/`01_Recordings` as before) and prints per-file export timing/counts every
-     run; pass `--stats-out <path>` to also dump those stats as JSON. A scoped (run-only)
-     export mode is planned but not implemented yet - this instrumentation and the
-     `_manifest.json` Drive fingerprints it now records are preparation for that, not a
-     behavior change.
+     Full export (walking the entire tree, skipping only `90_Storage`/`01_Recordings` as
+     before) remains the **default** and prints per-file export timing/counts every run;
+     pass `--stats-out <path>` to also dump those stats as JSON. **Phase 14B:**
+     `--scoped --run-id <run-id>` is an opt-in mode for routine single-project/
+     single-person/workspace-only-bookkeeping runs - it exports only that run's scope
+     (`scope_resolver.py`, reusing the same `enumerate_run_scopes()` `review`/`complete`
+     trust) plus workspace-root/lane-root bookkeeping and source-text, never touching or
+     pruning anything outside that scope. It fails closed (exits 1, telling you to re-run
+     without `--scoped`) if the scope, a lane, or a folder can't be resolved, or if the
+     mirror's `_manifest.json` is missing/malformed. Multi-project rollups and periodic
+     audits should keep using full export - scoping barely helps there since most of the
+     lane is already in scope. Run one full export once after adopting `--scoped` (and
+     after any manual Drive edit or folder-layout change) so the manifest scoped mode
+     carries forward from stays trustworthy.
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
