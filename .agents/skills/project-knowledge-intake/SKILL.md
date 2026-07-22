@@ -38,12 +38,38 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    Known Constraints, Glossary) and update Open Questions/Source Index/
    Change Log. Record `no_change` explicitly when the source adds nothing
    durable - do not force an update just because a source was processed.
-4. **Optionally update QA docs.** Only when the source's knowledge clearly
-   affects performance-test scope/approach (`pk_performance_test_plan`),
-   test scope (`pk_test_plan`), or overall test approach
-   (`pk_test_strategy`) - these are the exception, not the default; most
-   passes leave all three untouched.
-5. **Log `_skill_invocations`** via `pipeline_common.log_skill_invocation()`
+4. **Run the closing quality gate (mandatory) before finishing.** With
+   `pk_summary` written and `pk_knowledge_base` updated, do one more pass
+   comparing them before moving on:
+   - For every section of the `pk_summary` you just wrote, decide: has its
+     durable content been promoted into `pk_knowledge_base`, or is it
+     deliberately staying summary-only? If the latter, the reason should
+     be evident (genuinely one-off, unconfirmed, or source-local detail) -
+     not just an oversight.
+   - Check specifically for concrete formulas, worked examples,
+     configuration/string syntax, and thresholds - these are exactly the
+     details a summary-only pass tends to drop. Promote them into the
+     knowledge base (or the relevant QA doc) if they're durable, per
+     `../project-knowledge-roles/SKILL.md`.
+   - Check specifically for performance-test-relevant facts: workload
+     formulas, data volumes, latency/timing targets, concurrency
+     assumptions, async/batch boundaries, consistency windows,
+     startup/restart behavior, scaling/failover assumptions, observability
+     signals, and configurable limits. Any of these appearing or changing
+     is the signal that decides step 5 below, not source_type alone.
+   - Check whether any open question this source touches should be
+     corrected in place (resolved uncertainty) rather than left standing
+     beside the new fact, and whether every open question you're leaving
+     open is specific and actionable enough to drive a follow-up question
+     or a concrete test-design decision.
+5. **Update QA docs when the gate found a reason to.** Update
+   `pk_performance_test_plan`, test scope (`pk_test_plan`), or overall test
+   approach (`pk_test_strategy`) when step 4's performance-relevant check
+   turned up something that actually changes scope/approach - these
+   remain the exception, not the default; most passes leave all three
+   untouched, but "most passes skip this" is not a reason to skip the
+   check itself.
+6. **Log `_skill_invocations`** via `pipeline_common.log_skill_invocation()`
    with `source_type` set to the source's actual type and `Documents
    touched` listing everything actually written this pass.
 
