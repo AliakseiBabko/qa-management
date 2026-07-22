@@ -57,11 +57,20 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
      startup/restart behavior, scaling/failover assumptions, observability
      signals, and configurable limits. Any of these appearing or changing
      is the signal that decides step 5 below, not source_type alone.
-   - Check whether any open question this source touches should be
-     corrected in place (resolved uncertainty) rather than left standing
-     beside the new fact, and whether every open question you're leaving
-     open is specific and actionable enough to drive a follow-up question
-     or a concrete test-design decision.
+   - **Cross-check new source content against the existing KB Open
+     Questions section before closing (mandatory).** Read
+     `pk_knowledge_base`'s current Open Questions list for this project and
+     compare it against what this source actually said - not just the open
+     questions that happen to come to mind while writing the summary. If
+     the source resolves or supersedes an open question, that question
+     must be corrected in place with the resolved fact, never left
+     standing next to the new information as stale uncertainty. If the
+     source adds a genuinely new uncertainty, add a specific and
+     actionable open question for it - concrete enough to drive a
+     follow-up question or a test-design decision, not a vague
+     placeholder. Never duplicate a contradictory open question beside the
+     one it should have replaced - merge or correct instead of appending a
+     second, conflicting version.
 5. **Update QA docs when the gate found a reason to.** Update
    `pk_performance_test_plan`, test scope (`pk_test_plan`), or overall test
    approach (`pk_test_strategy`) when step 4's performance-relevant check

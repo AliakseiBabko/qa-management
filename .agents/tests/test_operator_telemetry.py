@@ -243,6 +243,122 @@ class TestMeasurement(unittest.TestCase):
         self.assertFalse(common.is_ascii_safe("qa_manage.py review {target} --json проект"))
 
 
+class TestLeakGuardPrimitives(unittest.TestCase):
+    """contains_email_address / contains_watch_string are pure and
+    registry-agnostic - no Drive access needed to test them. Only
+    placeholder emails/names appear here, never real ones."""
+
+    def test_contains_email_address_detects_email(self):
+        self.assertTrue(common.contains_email_address("contact fake.person@example.com about this"))
+
+    def test_contains_email_address_false_for_plain_text(self):
+        self.assertFalse(common.contains_email_address("processed run 20260101-example-abc123"))
+
+    def test_contains_watch_string_finds_literal_match(self):
+        hits = common.contains_watch_string(
+            "added Example Placeholder Person to the registry", {"Example Placeholder Person"}
+        )
+        self.assertEqual(hits, ["Example Placeholder Person"])
+
+    def test_contains_watch_string_no_match(self):
+        hits = common.contains_watch_string(
+            "added a new participant to the registry", {"Example Placeholder Person"}
+        )
+        self.assertEqual(hits, [])
+
+    def test_contains_watch_string_empty_watch_is_safe(self):
+        self.assertEqual(common.contains_watch_string("anything at all", set()), [])
+        self.assertEqual(common.contains_watch_string("anything at all", None), [])
+
+    def test_contains_watch_string_empty_text_is_safe(self):
+        self.assertEqual(common.contains_watch_string("", {"Example Placeholder Person"}), [])
+
+
+class TestValidateRowWatchParam(unittest.TestCase):
+    """validate_row/validate_agent_session_row's optional `watch` param -
+    default (no watch) behavior must be unchanged; a real-looking
+    placeholder must pass when it isn't on the watch-list, and a
+    watch-list hit must be rejected with a clear message. Fixtures below
+    are synthetic - no real names or projects."""
+
+    def test_default_watch_none_keeps_existing_behavior(self):
+        row = _base_row(notes="Example Placeholder Person worked on this")
+        self.assertEqual(common.validate_row(row), [])
+
+    def test_watch_hit_in_notes_is_rejected(self):
+        row = _base_row(notes="Example Placeholder Person worked on this")
+        errors = common.validate_row(row, watch={"Example Placeholder Person"})
+        self.assertTrue(any("Example Placeholder Person" in e for e in errors))
+
+    def test_realistic_placeholder_passes_with_watch_supplied(self):
+        row = _base_row(notes="a fake participant, not on the watch-list, was referenced")
+        errors = common.validate_row(row, watch={"Example Placeholder Person", "Example Placeholder Project"})
+        self.assertEqual(errors, [])
+
+    def test_email_in_command_args_redacted_is_rejected_with_specific_message(self):
+        row = _base_row(command_args_redacted="qa_manage.py review {target} --json fake.person@example.com")
+        errors = common.validate_row(row)
+        self.assertTrue(any("email address" in e for e in errors))
+
+
+class TestValidateAgentSessionRowWatchParam(unittest.TestCase):
+    """Same coverage as above, for agent-sessions.csv's validate function -
+    the one record_agent_session.py --check-registry actually calls."""
+
+    def _row(self, **overrides):
+        row = {k: "" for k in common.AGENT_SESSION_CSV_HEADER}
+        row.update({
+            "session_run_id": "session-fake-2026-01-01-aaaa1111",
+            "date": "2026-01-01",
+            "runtime": "claude",
+            "session_id": "fake-session-id",
+            "objective": "fake objective for tests",
+            "extraction_method": "claude_log",
+            "confidence": "high",
+        })
+        row.update(overrides)
+        return row
+
+    def test_default_watch_none_keeps_existing_behavior(self):
+        row = self._row(notes="Example Placeholder Person worked on this")
+        self.assertEqual(common.validate_agent_session_row(row), [])
+
+    def test_watch_hit_in_objective_is_rejected(self):
+        row = self._row(objective="processed a source about Example Placeholder Person")
+        errors = common.validate_agent_session_row(row, watch={"Example Placeholder Person"})
+        self.assertTrue(any("Example Placeholder Person" in e for e in errors))
+        self.assertTrue(any("registry watch-list" in e for e in errors))
+
+    def test_watch_hit_in_notes_is_rejected(self):
+        row = self._row(notes="added Example Placeholder Person to the registry")
+        errors = common.validate_agent_session_row(row, watch={"Example Placeholder Person"})
+        self.assertTrue(any("Example Placeholder Person" in e for e in errors))
+
+    def test_realistic_placeholder_passes_when_not_on_watch_list(self):
+        row = self._row(
+            objective="processed a source about a fake participant not on the watch-list",
+            notes="everything folded cleanly, no unusual findings",
+        )
+        errors = common.validate_agent_session_row(
+            row, watch={"Example Placeholder Person", "Example Placeholder Project"}
+        )
+        self.assertEqual(errors, [])
+
+    def test_email_in_objective_rejected_even_without_watch(self):
+        row = self._row(objective="contact fake.person@example.com about this run")
+        errors = common.validate_agent_session_row(row)
+        self.assertTrue(any("email address" in e for e in errors))
+
+    def test_email_check_takes_precedence_over_ascii_safe_message(self):
+        # An email already fails is_ascii_safe (via '@' not being
+        # allowlisted) - the dedicated email check must fire first so the
+        # error names the actual reason instead of the generic one.
+        row = self._row(notes="fake.person@example.com")
+        errors = common.validate_agent_session_row(row)
+        self.assertTrue(any("email address" in e for e in errors))
+        self.assertFalse(any("ASCII-safe" in e for e in errors))
+
+
 class TestFinalize(unittest.TestCase):
     def test_compute_total_tokens_blank_when_all_missing(self):
         row = _base_row()

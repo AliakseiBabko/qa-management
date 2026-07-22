@@ -92,6 +92,59 @@ SKILL_INVOCATION_SOURCE_TYPES = {
 }
 
 
+_DOCUMENT_GRAPH_PATH = Path(__file__).resolve().parent.parent / "document_graph.yaml"
+
+
+def _canonical_document_tokens() -> set[str] | None:
+    """Lowercased document_graph.yaml node ids plus alias keys, for
+    warn_unknown_documents_touched() below. Returns None if the graph can't
+    be loaded (missing file, bad yaml) - callers must treat that as "skip
+    the check", since this is an advisory-only warning, never a hard
+    failure. Deliberately re-reads and re-parses the yaml file directly
+    rather than importing check_cascade_closure.py's own loader, so this
+    stays a plain local file read with no import-time side effects (that
+    module reconfigures stdout encoding at import time)."""
+    try:
+        import yaml
+        graph = yaml.safe_load(_DOCUMENT_GRAPH_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    tokens = {k.lower() for k in (graph.get("aliases") or {}).keys()}
+    tokens.update(k.lower() for k in (graph.get("documents") or {}).keys())
+    return tokens
+
+
+def warn_unknown_documents_touched(documents_touched: str) -> list[str]:
+    """Advisory-only check (never raises): for each comma-separated,
+    non-prose token in `documents_touched`, warn if it doesn't resolve to a
+    document_graph.yaml node or alias id. Skips empty values and any token
+    containing whitespace (treated as a prose note, not a document id) -
+    historical/manual _skill_invocations rows sometimes hold free text
+    here, and this check must never block logging over that. Found live:
+    a pass logged "PKF_knowledge_base" and a Google Doc's literal title
+    instead of the canonical `pk_knowledge_base`/`pk_summary` node ids,
+    which silently broke check_cascade_closure.py --from-log's matching
+    until caught and fixed by hand."""
+    tokens = [t.strip() for t in (documents_touched or "").split(",") if t.strip()]
+    if not tokens:
+        return []
+    known = _canonical_document_tokens()
+    if known is None:
+        return []
+    warnings: list[str] = []
+    for token in tokens:
+        if " " in token:
+            continue
+        key = token.lower().removesuffix(".gsheet").removesuffix(".csv")
+        if key not in known:
+            warnings.append(
+                f"documents_touched token {token!r} does not match a document_graph.yaml "
+                "node or alias - check spelling/casing, or add it to document_graph.yaml "
+                "if this is a genuinely new document type."
+            )
+    return warnings
+
+
 def get_skill_invocations_sheet(services):
     """Resolve the workspace-wide skill-invocations log (creating it if this
     is the first call ever - unlike the people registry, an empty log is a
@@ -130,6 +183,8 @@ def log_skill_invocation(
             f"Unrecognized source_type {source_type!r} - add it to SKILL_INVOCATION_SOURCE_TYPES "
             "(and google-workspace-rules.md) if this is a genuinely new source shape."
         )
+    for w in warn_unknown_documents_touched(documents_touched):
+        print(f"Warning: {w}", file=sys.stderr)
     sheet = get_skill_invocations_sheet(services)
     rows = read_sheet_values(services, sheet["id"])
     header, body = (rows[0], rows[1:]) if rows else (SKILL_INVOCATIONS_HEADER, [])

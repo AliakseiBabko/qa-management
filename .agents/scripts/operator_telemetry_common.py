@@ -263,6 +263,30 @@ def is_ascii_safe(value: str) -> bool:
     return bool(_ASCII_SAFE_RE.match(value or ""))
 
 
+# Email addresses are already rejected by is_ascii_safe (the '@' character
+# isn't in its allowlist), but that rejection is incidental and produces a
+# vague "ASCII-safe leak guard" message. This dedicated check runs first so
+# a caller gets a precise reason instead - found live: an agent-session
+# `notes` field is exactly the kind of free text a real email is most
+# likely to slip into (e.g. quoting a person-card verbatim).
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def contains_email_address(value: str) -> bool:
+    return bool(_EMAIL_RE.search(value or ""))
+
+
+def contains_watch_string(text: str, watch) -> list[str]:
+    """Return every entry in `watch` that appears as a literal substring of
+    `text`. Pure and registry-agnostic - the caller supplies the watch-list
+    (e.g. check_sensitive_data.load_watch_strings()'s live Drive fetch, or a
+    synthetic set in a test); this function never loads anything itself, so
+    it never needs network/Drive access to be exercised in tests."""
+    if not text or not watch:
+        return []
+    return [w for w in watch if w and w in text]
+
+
 def redact_argv(argv: list[str], target_placeholder: str = "<target>") -> str:
     """Render an argv list as a redacted, space-joined label - substituting
     any resolved target value back to a generic placeholder token so the
@@ -366,8 +390,37 @@ def read_rows() -> tuple[list[str], list[dict]]:
     return _read_csv_rows(CSV_PATH, CSV_HEADER)
 
 
-def validate_row(row: dict) -> list[str]:
-    """Return a list of validation error strings; empty means valid."""
+def _check_free_text_field(field: str, val: str, watch) -> list[str]:
+    """Shared leak-guard body for one free-text CSV field: email pattern,
+    then the ASCII-safe structural check, then (if a watch-list was
+    supplied) a literal-substring match against known real names/projects.
+    Returns error strings for `field`; empty means clean. Order matters -
+    the email check is tried first so a caller gets the precise reason
+    instead of the vaguer ASCII-safe message (an email is already ASCII-
+    unsafe today because '@' isn't allowlisted, but that overlap is
+    incidental, not the intended signal)."""
+    if not val:
+        return []
+    if contains_email_address(val):
+        return [f"field '{field}' contains what looks like an email address (possible real-data leak): {val!r}"]
+    if not is_ascii_safe(val):
+        return [f"field '{field}' failed the ASCII-safe leak guard (possible real-data leak): {val!r}"]
+    hits = contains_watch_string(val, watch)
+    if hits:
+        return [
+            f"field '{field}' matches a known real name/project in the registry watch-list "
+            f"{hits!r} (possible real-data leak) - use a placeholder instead"
+        ]
+    return []
+
+
+def validate_row(row: dict, watch=None) -> list[str]:
+    """Return a list of validation error strings; empty means valid. `watch`
+    is an optional iterable of known real names/projects (e.g. from
+    check_sensitive_data.load_watch_strings()) to additionally reject as a
+    literal substring of any free-text field - omitted by default so
+    existing callers/tests keep their current (registry-independent)
+    behavior."""
     errors = []
     for field in REQUIRED_FIELDS:
         if not str(row.get(field, "")).strip():
@@ -393,11 +446,7 @@ def validate_row(row: dict) -> list[str]:
     if status and status not in VALID_STATUS:
         errors.append(f"field 'status' has invalid value {status!r} (allowed: ok/error)")
     for field in ("command_args_redacted", "notes", "notes_file"):
-        val = str(row.get(field, ""))
-        if val and not is_ascii_safe(val):
-            errors.append(
-                f"field '{field}' failed the ASCII-safe leak guard (possible real-data leak): {val!r}"
-            )
+        errors.extend(_check_free_text_field(field, str(row.get(field, "")), watch))
     return errors
 
 
@@ -428,8 +477,14 @@ def read_agent_session_rows() -> tuple[list[str], list[dict]]:
     return _read_csv_rows(AGENT_SESSION_CSV_PATH, AGENT_SESSION_CSV_HEADER)
 
 
-def validate_agent_session_row(row: dict) -> list[str]:
-    """Return a list of validation error strings; empty means valid."""
+def validate_agent_session_row(row: dict, watch=None) -> list[str]:
+    """Return a list of validation error strings; empty means valid. `watch`
+    is an optional iterable of known real names/projects (e.g. from
+    check_sensitive_data.load_watch_strings()) to additionally reject as a
+    literal substring of `objective`/`notes` - omitted by default so
+    existing callers/tests keep their current (registry-independent)
+    behavior. See record_agent_session.py's --check-registry flag, the
+    only caller that currently supplies one."""
     errors = []
     for field in AGENT_SESSION_REQUIRED_FIELDS:
         if not str(row.get(field, "")).strip():
@@ -454,11 +509,7 @@ def validate_agent_session_row(row: dict) -> list[str]:
             f"field 'confidence' has invalid value {confidence!r} (allowed: {sorted(VALID_CONFIDENCE)})"
         )
     for field in ("objective", "notes"):
-        val = str(row.get(field, ""))
-        if val and not is_ascii_safe(val):
-            errors.append(
-                f"field '{field}' failed the ASCII-safe leak guard (possible real-data leak): {val!r}"
-            )
+        errors.extend(_check_free_text_field(field, str(row.get(field, "")), watch))
     return errors
 
 
