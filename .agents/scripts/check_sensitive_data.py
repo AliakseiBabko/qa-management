@@ -22,6 +22,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from google_api_smoke_test import ensure_utf8_stdout
+from operator_telemetry_common import contains_watch_string
 from pipeline_common import get_people_registry_sheet, get_services
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values
 
@@ -85,9 +86,8 @@ def main() -> int:
     hits: list[tuple[str, int, str, str]] = []
     for diff_args in ([], ["--cached"]):
         for file, line_no, text in added_lines(diff_args):
-            for name in watch:
-                if name in text:
-                    hits.append((file, line_no, name, text.strip()))
+            for name in contains_watch_string(text, watch):
+                hits.append((file, line_no, name, text.strip()))
 
     if not hits:
         print("No known real names/projects found in added .agents/ lines. "

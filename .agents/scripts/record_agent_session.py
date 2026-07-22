@@ -36,6 +36,11 @@ Usage
       --actual-input-tokens 12000 --actual-output-tokens 3400 \\
       --confidence manual --objective "..." --append-csv
 
+  # Additionally reject a known real name/project pulled live from Drive
+  python .agents/scripts/record_agent_session.py \\
+      --runtime claude --session-id <session-id> --objective "..." \\
+      --check-registry --append-csv
+
   # Dry run - extract/compute and print, write nothing
   python .agents/scripts/record_agent_session.py \\
       --runtime claude --session-id <session-id> --objective "..." --dry-run
@@ -52,6 +57,20 @@ A listed id that isn't actually in operator-runs.csv is a WARNING, not a
 failure - linking is informational cross-referencing, not a structural
 guarantee, and a typo shouldn't block recording real session telemetry.
 The warning is printed to stderr and the row is still appended.
+
+Leak guard on --objective/--notes
+------------------------------------
+Every row's `objective`/`notes` fields are always checked for an email
+address and for non-ASCII content (operator_telemetry_common.py's
+ASCII-safe guard) before anything is written - both hard failures, no
+flag needed. Pass --check-registry to additionally reject a literal
+real name/project pulled live from `_people_registry`/`_project_registry`
+(the same registry check_sensitive_data.py runs before a commit) - this
+requires Drive access, so it is opt-in rather than always-on: this
+script otherwise has no Google API dependency, and a missing/expired
+credential shouldn't block recording routine telemetry. If the registry
+can't be loaded even with the flag set, that degrades to a warning
+(structural checks alone still apply) rather than a hard failure.
 """
 
 from __future__ import annotations
@@ -103,6 +122,29 @@ def _compute_elapsed_min(started_at: str, ended_at: str) -> str:
     except ValueError:
         return ""
     return f"{(end - start).total_seconds() / 60:.2f}"
+
+
+def load_registry_watchlist() -> tuple[set[str], list[str]]:
+    """Best-effort load of the known real-name/project watch-list from
+    Drive, reusing check_sensitive_data.py's own loader (see that module's
+    load_watch_strings()) rather than re-fetching the registries here.
+    Returns (watch, warnings) - never raises. Any failure (missing/expired
+    credentials, no network, Drive API error) degrades to an empty
+    watch-list plus a warning string, since this script's core job -
+    recording telemetry - must not hard-depend on Drive being reachable.
+    Only called when --check-registry is passed; see the module docstring."""
+    try:
+        import check_sensitive_data
+        from pipeline_common import get_services
+
+        services = get_services()
+        watch = check_sensitive_data.load_watch_strings(services)
+        return watch, []
+    except Exception as e:  # noqa: BLE001 - deliberately broad, see docstring
+        return set(), [
+            f"Could not load the real-name/project registry watch-list ({e}) - "
+            "proceeding with structural (email/ASCII-safe) checks only."
+        ]
 
 
 def _warn_on_unknown_linked_run_ids(linked_ids: list[str]) -> list[str]:
@@ -207,6 +249,10 @@ def main() -> int:
     parser.add_argument("--confidence", choices=["high", "medium", "low", "manual"], default=None,
                         help="Override the extraction_method-based confidence default.")
     parser.add_argument("--notes", default=None)
+    parser.add_argument("--check-registry", action="store_true",
+                        help="Additionally reject a known real name/project (from _people_registry/"
+                             "_project_registry) in --objective/--notes. Requires Drive access; degrades "
+                             "to a warning (not a failure) if the registry can't be loaded.")
     parser.add_argument("--append-csv", action="store_true", help="Append the row to agent-sessions.csv.")
     parser.add_argument("--dry-run", action="store_true", help="Print the row; do not write the CSV.")
     args = parser.parse_args()
@@ -228,7 +274,13 @@ def main() -> int:
     for w in warnings:
         print(f"Warning: {w}", file=sys.stderr)
 
-    errors = validate_agent_session_row(row)
+    watch: set[str] = set()
+    if args.check_registry:
+        watch, registry_warnings = load_registry_watchlist()
+        for w in registry_warnings:
+            print(f"Warning: {w}", file=sys.stderr)
+
+    errors = validate_agent_session_row(row, watch=watch)
     if errors:
         print("Error: row failed validation:", file=sys.stderr)
         for e in errors:

@@ -85,6 +85,36 @@ class ProjectKnowledgeIntakeQualityGateTests(unittest.TestCase):
         self.assertIn("specific and actionable", normalized_text)
 
 
+class OpenQuestionsCrossCheckRuleTests(unittest.TestCase):
+    """Guards the explicit Open-Questions cross-check rule in the intake
+    skill's closing quality gate - added after a recurring miss where a
+    later source resolved an earlier open question but the stale wording
+    was left standing beside the new fact instead of being corrected in
+    place, and to make explicit that a new source's uncertainty should
+    become a specific open question, not a duplicate/contradictory one."""
+
+    def setUp(self):
+        self.text = _read("project-knowledge-intake/SKILL.md")
+        self.normalized = " ".join(self.text.split())
+
+    def test_mandatory_cross_check_against_existing_open_questions(self):
+        self.assertIn(
+            "Cross-check new source content against the existing KB Open Questions section before closing",
+            self.normalized,
+        )
+        self.assertIn("(mandatory)", self.normalized)
+
+    def test_resolved_or_superseded_question_corrected_in_place(self):
+        self.assertIn("resolves or supersedes an open question", self.normalized)
+        self.assertIn("corrected in place with the resolved fact", self.normalized)
+
+    def test_new_uncertainty_becomes_specific_actionable_question(self):
+        self.assertIn("specific and actionable open question", self.normalized)
+
+    def test_no_duplicate_contradictory_open_questions(self):
+        self.assertIn("Never duplicate a contradictory open question", self.normalized)
+
+
 class NoRealNamesInEditedSkillsTests(unittest.TestCase):
     def test_no_real_project_or_person_names(self):
         for relative_path in (

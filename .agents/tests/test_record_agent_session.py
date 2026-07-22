@@ -304,6 +304,29 @@ class BuildRowExtractionTests(unittest.TestCase):
         self.assertEqual(row.get("estimated_cost_usd", ""), "")
 
 
+class LoadRegistryWatchlistTests(unittest.TestCase):
+    """load_registry_watchlist() is best-effort: any failure (missing
+    credentials, no Drive access, import error) degrades to an empty
+    watch-list plus a warning, never an exception - the whole point is
+    that this script must not hard-depend on Drive being reachable."""
+
+    def test_success_path_returns_loaded_watch_and_no_warnings(self):
+        fake_module = mock.MagicMock()
+        fake_module.load_watch_strings.return_value = {"Example Placeholder Person"}
+        with mock.patch.dict(sys.modules, {"check_sensitive_data": fake_module}), \
+             mock.patch("pipeline_common.get_services", return_value={"drive": mock.MagicMock()}, create=True):
+            watch, warnings = record.load_registry_watchlist()
+        self.assertEqual(watch, {"Example Placeholder Person"})
+        self.assertEqual(warnings, [])
+
+    def test_failure_degrades_to_empty_watch_with_warning(self):
+        with mock.patch.dict(sys.modules, {"check_sensitive_data": None}):
+            watch, warnings = record.load_registry_watchlist()
+        self.assertEqual(watch, set())
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Could not load", warnings[0])
+
+
 class LinkedRunIdWarningTests(unittest.TestCase):
     def test_unknown_linked_run_id_warns_but_does_not_raise(self):
         with TemporaryDirectory() as td:
@@ -398,6 +421,90 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 header, rows = common.read_agent_session_rows()
             self.assertEqual(set(header), set(common.AGENT_SESSION_CSV_HEADER))
+
+
+class CheckRegistryCliTests(unittest.TestCase):
+    """--check-registry end to end: load_registry_watchlist() is mocked so
+    no real Drive access happens, but main()'s actual wiring (call the
+    loader, pass its result into validate_agent_session_row, refuse on a
+    hit) is exercised for real. Only placeholder names appear here."""
+
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        argv_backup = sys.argv
+        try:
+            sys.argv = ["record_agent_session.py"] + argv
+            out_buf, err_buf = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+                rc = record.main()
+        finally:
+            sys.argv = argv_backup
+        return rc, out_buf.getvalue(), err_buf.getvalue()
+
+    def test_check_registry_blocks_a_known_watchlist_match(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv), \
+                 mock.patch.object(record, "load_registry_watchlist",
+                                    return_value=({"Example Placeholder Person"}, [])):
+                rc, _out, err = self._run_cli([
+                    "--runtime", "manual", "--session-id", "fake", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual",
+                    "--objective", "processed a source about Example Placeholder Person",
+                    "--check-registry", "--append-csv",
+                ])
+            self.assertNotEqual(rc, 0)
+            self.assertIn("Example Placeholder Person", err)
+            self.assertFalse(session_csv.exists())
+
+    def test_without_flag_registry_loader_is_never_called(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv), \
+                 mock.patch.object(record, "load_registry_watchlist",
+                                    side_effect=AssertionError("must not be called without --check-registry")):
+                rc, _out, _err = self._run_cli([
+                    "--runtime", "manual", "--session-id", "fake", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual",
+                    "--objective", "processed a source about Example Placeholder Person",
+                    "--append-csv",
+                ])
+            self.assertEqual(rc, 0)
+            self.assertTrue(session_csv.exists())
+
+    def test_check_registry_degrades_to_warning_when_load_fails(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv), \
+                 mock.patch.object(record, "load_registry_watchlist",
+                                    return_value=(set(), ["Could not load the real-name/project "
+                                                          "registry watch-list (fake failure)"])):
+                rc, _out, err = self._run_cli([
+                    "--runtime", "manual", "--session-id", "fake", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual",
+                    "--objective", "fake objective, nothing sensitive here",
+                    "--check-registry", "--append-csv",
+                ])
+            self.assertEqual(rc, 0)
+            self.assertIn("Could not load", err)
+            self.assertTrue(session_csv.exists())
+
+    def test_email_in_objective_is_always_blocked_even_without_flag(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                rc, _out, err = self._run_cli([
+                    "--runtime", "manual", "--session-id", "fake", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual",
+                    "--objective", "contact fake.person@example.com about this",
+                    "--append-csv",
+                ])
+            self.assertNotEqual(rc, 0)
+            self.assertIn("email address", err)
+            self.assertFalse(session_csv.exists())
 
 
 # ---------------------------------------------------------------------------
