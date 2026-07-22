@@ -33,7 +33,8 @@ benchmark.
   measure_operator_outputs.py    run one read-only case, measure it, optionally append a row
   finalize_operator_run.py       append one enriched row (manual token telemetry, baseline ratio)
   check_operator_csv.py          validate the CSV / diff-guard a specific run_id's append
-  extract_agent_telemetry.py     best-effort actual-token extraction from local Claude Code logs
+  extract_agent_telemetry.py     best-effort actual-token extraction from local agent-runtime logs
+                                  (Claude Code, Codex, Cline, Antigravity - see below)
 
 tmp/telemetry/               gitignored - local-only working space
   <run_id>.md                 run notes written by measure_operator_outputs.py
@@ -93,18 +94,47 @@ python .agents/scripts/measure_operator_outputs.py --case dashboard_overview --a
 python .agents/scripts/measure_operator_outputs.py --case completed_run_review \
     --target <run-id> --runtime "Claude Code" --model-label claude-sonnet-5 --append-csv
 
-# Enrich with actual token telemetry after the fact (Claude Code sessions only -
-# see extract_agent_telemetry.py's documented limitation for Codex/Antigravity)
+# Enrich with actual token telemetry after the fact - extract_agent_telemetry.py
+# writes a small JSON blob (actual_* counts only, never raw log content) that
+# finalize_operator_run.py then merges into the row.
 python .agents/scripts/extract_agent_telemetry.py --runtime claude \
     --session-id <session-uuid> --out tmp/telemetry/telemetry.json
 python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \
     --telemetry-json tmp/telemetry/telemetry.json
 ```
 
-For Codex/Antigravity, or whenever automatic extraction isn't available,
-pass actual token counts manually (from the runtime's own UI/CLI reporting)
-via `finalize_operator_run.py --actual-input-tokens ... --actual-output-tokens ...`
+### Automatic extraction support by runtime
+
+- **claude / claude-code**: reads `~/.claude/projects/<hash>/<session-uuid>.jsonl`
+  - the exact log a Claude Code session itself writes. Verified against
+  this repo's own sessions.
+- **codex**: reads `~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-*-<session-uuid>.jsonl`,
+  including continuation files linked via `session_meta`, using the last
+  `token_count` event per file summed across files. Ported from the
+  erp-web-tests benchmark skill's verified logic, and confirmed against a
+  real Codex session log on this machine (from other work, not this
+  repo's own history) - not just fake-log tests.
+- **cline**: reads the VSCode extension's `taskHistory.json` - a plain
+  JSON read, lowest-risk of the newly-added adapters.
+- **antigravity**: tries the `agy` CLI (`agy usage --session <id> --json`)
+  first (no working `agy` CLI is installed on this machine), then a
+  best-effort SQLite conversation-DB fallback (a heuristic field-position
+  scan, not a documented/verified schema) - tried against a real local
+  `.db` file on this machine and it decoded plausible, coherently-scaled
+  numbers, but there's no independent ground truth to confirm the field
+  mapping is exactly right, so treat Antigravity figures as lower-
+  confidence than Claude/Codex. If neither path yields data it raises a
+  clear error and falls back to the manual path below - this is a normal,
+  expected outcome for Antigravity today, depending on local installation,
+  not a bug.
+
+Whenever automatic extraction isn't available for your runtime/session
+(unsupported runtime, extraction error, or you'd rather read the
+runtime's own usage UI), pass actual token counts manually via
+`finalize_operator_run.py --actual-input-tokens ... --actual-output-tokens ...`
 - this is a first-class supported path, not a fallback of last resort.
+`actual_*` token fields stay blank only when extraction was never run or
+no reliable telemetry source exists for that session - never invented.
 
 ## Validating the CSV
 

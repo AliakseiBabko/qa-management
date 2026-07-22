@@ -19,6 +19,20 @@ Usage
   python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \\
       --actual-input-tokens 1200 --actual-output-tokens 340
 
+  # Normal automatic-extraction flow: extract_agent_telemetry.py writes a
+  # small JSON blob (actual_* counts only, never raw log content) that this
+  # script merges in. This is the enrichment path over
+  # measure_operator_outputs.py --append-csv's direct append - it never
+  # rewrites the row that --append-csv already wrote; it appends a NEW,
+  # separately-run-id'd row carrying the enriched fields. Run
+  # measure_operator_outputs.py WITHOUT --append-csv first (--json to a
+  # file) so its row's fields feed --from-json here instead of being
+  # double-appended.
+  python .agents/scripts/extract_agent_telemetry.py --runtime codex \\
+      --session-id <session-id> --out tmp/telemetry/telemetry.json
+  python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \\
+      --telemetry-json tmp/telemetry/telemetry.json
+
   # Attach a baseline for reduction_ratio_vs_baseline (baseline row_id must
   # already be in the CSV)
   python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \\
@@ -58,6 +72,20 @@ PRICING = {
     "claude-sonnet-5": {"input": 3.00e-6, "output": 15.00e-6, "cache_creation": 3.75e-6, "cache_read": 0.30e-6},
     "claude-opus-4-8": {"input": 15.00e-6, "output": 75.00e-6, "cache_creation": 18.75e-6, "cache_read": 1.50e-6},
     "claude-haiku-4-5": {"input": 0.80e-6, "output": 4.00e-6, "cache_creation": 1.00e-6, "cache_read": 0.08e-6},
+    # Codex/Gemini entries mirror the erp-web-tests benchmark skill's table
+    # (same source pricing, ported for parity - see extract_agent_telemetry.py's
+    # Codex/Antigravity adapters). No Codex/Gemini usage exists in this repo's
+    # own telemetry yet, so these are illustrative/unverified-here placeholders,
+    # not confirmed against a real invoice - add/adjust keys to match whatever
+    # model_label string a real session actually reports. estimate_cost() does
+    # an exact (post lower/strip) key match, not ERP's substring match, so a
+    # label spelled differently (e.g. "gpt-5.4" vs "gpt-5-4") needs its own key
+    # here - an unmatched label safely returns blank cost, never a failure.
+    "gpt-5-4": {"input": 5.00e-6, "output": 15.00e-6, "cache_read": 2.50e-6},
+    "gpt-5.4": {"input": 5.00e-6, "output": 15.00e-6, "cache_read": 2.50e-6},
+    "gpt-4o": {"input": 2.50e-6, "output": 10.00e-6, "cache_read": 1.25e-6},
+    "gemini-3-5-flash": {"input": 1.50e-6, "output": 9.00e-6, "cache_read": 0.375e-6},
+    "gemini-3.5-flash": {"input": 1.50e-6, "output": 9.00e-6, "cache_read": 0.375e-6},
 }
 
 
@@ -143,6 +171,16 @@ def main() -> int:
                     "actual_cache_read_tokens", "actual_output_tokens", "actual_reasoning_tokens"):
             if key in telemetry:
                 row[key] = telemetry[key]
+        # model_label/estimated_cost_usd from telemetry are optional and only
+        # ever set by an adapter when directly available - a per-runtime CLI
+        # flag (e.g. --model-label) still wins if the row already has one; a
+        # telemetry-supplied estimated_cost_usd is a runtime-REPORTED figure
+        # (e.g. Cline's own totalCost), never a pricing-table estimate - that
+        # stays computed below, once, keyed off model_label.
+        if telemetry.get("model_label") and not row.get("model_label"):
+            row["model_label"] = telemetry["model_label"]
+        if telemetry.get("estimated_cost_usd") and not row.get("estimated_cost_usd"):
+            row["estimated_cost_usd"] = telemetry["estimated_cost_usd"]
 
     row["total_tokens"] = compute_total_tokens(row)
     if row["total_tokens"] and not row.get("estimated_cost_usd"):
