@@ -67,6 +67,38 @@ happened yet.
 - **No presentations, no Slides.** This lane does not produce
   presentation decks. A later phase may read a reviewed brief and generate
   one; nothing in this lane does that today.
+- **Promote concrete, test-useful detail into the durable record.** A
+  formula, worked example, configuration/string syntax, threshold, or
+  calculation rule is exactly the kind of detail a summary-only pass tends
+  to drop - if it's durable (true beyond this one source/moment), fold it
+  into `pk_knowledge_base` or the relevant QA doc, not just the source's
+  `pk_summary`. A vague paraphrase of a concrete rule is a regression, not
+  a simplification.
+- **Correct resolved uncertainty in place.** When a later source resolves
+  an existing "unclear"/"unconfirmed"/"TBD" statement, update that
+  statement directly with the resolved fact - do not leave the stale
+  uncertain wording standing next to the correction. The knowledge base
+  should read as the current understanding, not as a changelog of every
+  belief ever held.
+- **Keep the knowledge base keyed by topic, not append-only.** When new
+  source content addresses a topic the knowledge base already covers,
+  update that topic's existing statement in place (upsert) rather than
+  appending a second, possibly competing statement beside it. Two
+  differently-worded statements about the same fact is a sign one of them
+  needs to be corrected or merged, not coexistence.
+- **Open questions must be specific and actionable.** A question worth
+  keeping open should be concrete enough to drive a follow-up question to
+  a real person, or a concrete test-design decision - not a vague "needs
+  more detail" placeholder. If a question can't be phrased that
+  concretely, it usually means the underlying fact isn't durable enough to
+  track yet, or has already been answered elsewhere in the source.
+- **`pk_summary` is source-local; `pk_knowledge_base` is durable and
+  consolidated.** `pk_summary` captures what one specific source said, in
+  that source's own framing - useful for provenance and context even after
+  its facts are folded elsewhere. `pk_knowledge_base` captures the
+  project's current, cross-source understanding of a topic. The same fact
+  can appear in both, but the summary should never be the only place a
+  durable fact lives.
 
 ## Guardrails
 
