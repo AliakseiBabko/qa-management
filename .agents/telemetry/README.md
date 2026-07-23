@@ -55,15 +55,20 @@ both CSVs' append-only/diff-guard model.
 one command's `output_chars` against a baseline command's - it says nothing
 about `agent-sessions.csv` token totals, and applies to command-output rows
 only, unless a deliberately-designed one-session-per-case experiment is run
-(not this repo's current setup, which is many commands per session).
+## Raw Telemetry vs Derived Normalization Analytics
 
-Methodology adapted from the erp-web-tests repo's
-`benchmark-playwright-debugging` skill (canonical append-only CSV,
-finalizer/extractor split, diff-guarded rewrites, deterministic derived
-metrics). The debugging-specific concepts (fix/patch counts, EQA/IRR,
-diagnostic profiles, worktree isolation) do not apply here and were not
-carried over - this is pure output/token measurement, not a debugging
-benchmark.
+`agent-sessions.csv` stores raw, provider-native telemetry evidence (`actual_input_tokens`, `actual_cache_read_tokens`, `actual_reasoning_tokens`, etc.) without forcing unlike provider metrics to look identical at ingestion time.
+
+For cross-runtime analytics and comparisons, use `.agents/scripts/summarize_agent_telemetry.py`, which dynamically computes normalized metrics:
+
+- **Model Work Estimate**: `actual_input_tokens + actual_output_tokens + actual_reasoning_tokens` — excludes cache-read token multiplication to reflect actual generative work.
+- **Context Pressure**: `actual_input_tokens + actual_cache_read_tokens` — reflects total context reuse depth across multi-turn sessions.
+- **Billing Estimate**: Provider-specific pricing calculated only when `model_label` and pricing are explicitly known; returns `N/A` otherwise.
+
+### Key Data Interpretation Principles
+1. **Cache-read tokens vs Fresh input tokens**: Anthropic prompt caching (`claude_log`) records `cache_read_input_tokens` on every turn. In long multi-turn sessions, cache-read tokens accumulate to hundreds of millions or billions of tokens; they represent context reuse and should not be interpreted as fresh input tokens or new work done.
+2. **Antigravity DB Confidence**: `antigravity_db` extraction uses a heuristic SQLite protobuf field scan (`medium` confidence). It represents trend-quality data, not authoritative accounting.
+3. **Single Session Rule & One-Time Repair**: `agent-sessions.csv` enforces exactly one canonical row per unique `session_id` (`check_operator_csv.py --sessions` fails on duplicates). A one-time telemetry repair migration (`repair_agent_sessions_csv.py`) consolidated historical duplicate cumulative Claude rows into single canonical rows with unioned operator run IDs and public-safe objectives.
 
 ## Directory layout
 

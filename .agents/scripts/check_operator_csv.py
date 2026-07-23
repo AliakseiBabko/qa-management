@@ -98,8 +98,35 @@ def validate_csv() -> bool:
 
 
 def validate_agent_sessions_csv() -> bool:
-    return _validate_csv(AGENT_SESSION_CSV_PATH, AGENT_SESSION_CSV_HEADER, read_agent_session_rows,
-                         validate_agent_session_row, "session_run_id", "agent-sessions")
+    ok = _validate_csv(AGENT_SESSION_CSV_PATH, AGENT_SESSION_CSV_HEADER, read_agent_session_rows,
+                       validate_agent_session_row, "session_run_id", "agent-sessions")
+    if not ok:
+        return False
+
+    # Enforce strict single session_id rule post-migration
+    _, rows = read_agent_session_rows()
+    seen_sids: dict[str, int] = {}
+    dup_errors: list[str] = []
+    for i, r in enumerate(rows):
+        sid = r.get("session_id", "").strip()
+        if not sid:
+            continue
+        line_num = i + 2
+        if sid in seen_sids:
+            dup_errors.append(
+                f"Line {line_num} ({r.get('session_run_id')}): duplicate session_id '{sid}' "
+                f"(first seen at line {seen_sids[sid]}). agent-sessions.csv allows only one canonical row per session."
+            )
+        else:
+            seen_sids[sid] = line_num
+
+    if dup_errors:
+        print("\n--- agent-sessions CSV duplicate session_id errors ---", file=sys.stderr)
+        for e in dup_errors:
+            print(f" - {e}", file=sys.stderr)
+        return False
+
+    return True
 
 
 def main() -> int:
