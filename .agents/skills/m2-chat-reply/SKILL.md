@@ -1,22 +1,35 @@
 ---
 name: m2-chat-reply
-description: Draft a short chat-ready reply to a specific incoming question/message, using collected M2 project and person context (recent 1:1s, project_metrics, project_risk, m2_input, action_items, evidence_log). Use when the user says "help me answer this" / "help me reply to this" and pastes or describes a message someone sent them, as opposed to a periodic status update or 1:1 prep list.
+description: Draft a short chat-ready reply to someone else's incoming question/message (chat, email, whatever), enriched with collected M2 project and person context (recent 1:1s, project_metrics, project_risk, m2_input, action_items, evidence_log). Use when the user says "help me answer this" / "help me reply to this" and pastes or describes a message another person sent them — not for the user's own project/person questions with no incoming message (use show_project_state.py, search_workspace.py, gates, m2-project-status-report, or ad hoc analysis for those instead). Read-only: never writes to Drive, updates an M2 document, records closure, archives a source, or runs telemetry unless the user explicitly asks to save a copy.
 ---
 
 # M2 Chat Reply
 
 Use this skill for one output family only:
 
-- a short, chat-ready reply to one specific incoming question or message,
-  blending new information from M2's own project/person records with the
-  user's own stated plan or judgment
+- a short, chat-ready reply to **someone else's** incoming question or
+  message, blending new information from M2's own project/person records
+  with the user's own stated position
 
-This is different from `m2-project-status-report` (a periodic/on-demand
-status update with no specific question to answer) and `m2-1to1-prep` (a
-question list for a call that hasn't happened yet). This skill answers a
-message that already exists — a question from a manager, a client-facing
-colleague, a teammate — where the reply needs facts this workspace has
-already collected, not a fresh 1:1.
+**The triggering input must be an incoming message/question from another
+person** — a manager, a client-facing colleague, a teammate, an email.
+The output is a reply the user can send back. Anything the user adds about
+their own attitude, concerns, or intended direction is guidance for the
+reply's tone and position, never the question being answered — it doesn't
+replace Required Start step 1 below, and it doesn't turn this into a
+skill for the user's own analysis questions (there is no incoming message
+in that case, so this skill doesn't apply — see the description above for
+what to use instead).
+
+This is not an intake/document-update skill. It never writes to Drive,
+updates an M2 document, records a closure, archives a source, or runs
+telemetry — existing M2 records are read-only supporting evidence here,
+exactly like `m2-project-status-report`/`m2-1to1-prep`. It also differs
+from those two: `m2-project-status-report` is a periodic/on-demand status
+update with no specific question to answer, and `m2-1to1-prep` is a
+question list for a call that hasn't happened yet. This skill answers a
+message that already exists, where the reply needs facts this workspace
+has already collected.
 
 ## Required Start
 
@@ -24,7 +37,11 @@ already collected, not a fresh 1:1.
    what is being asked, and — just as important — what that message
    already tells its own recipient (context it states, claims it makes,
    numbers it cites). That part is already known to whoever sent it; it
-   never belongs in the reply.
+   never belongs in the reply. If the user hasn't actually provided an
+   incoming message to answer — only their own question about a project
+   or person — stop and point them at `show_project_state.py`,
+   `search_workspace.py`, `gates`, `m2-project-status-report`, or ad hoc
+   analysis instead; this skill doesn't apply.
 2. Read `../qa-management-roles/references/chat-message-style-rules.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Identify the project and/or person this question concerns. If it can't
@@ -112,6 +129,15 @@ fact motivate the plan in the same breath:
 
 ## Guardrails
 
+- Read-only unless the user explicitly asks to save a copy (see
+  `references/document-contract.md`): never write to Drive, update an M2
+  document, record a closure outcome, archive a source, or run telemetry
+  as part of drafting a reply.
+- Only trigger on an actual incoming message/question from another
+  person. The user's own stated attitude, concerns, or direction shape the
+  reply's tone and position — they are not themselves the question being
+  answered, and their presence alone (with no incoming message) doesn't
+  make this skill apply.
 - Never restate the substance of the message being answered, or anything
   already established in that same chat thread — the recipient wrote it
   or already knows it.
