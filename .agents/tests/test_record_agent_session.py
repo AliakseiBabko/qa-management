@@ -202,6 +202,7 @@ class Args:
             actual_input_tokens=None, actual_cache_creation_tokens=None,
             actual_cache_read_tokens=None, actual_output_tokens=None, actual_reasoning_tokens=None,
             estimated_cost_usd=None, extraction_method=None, confidence=None, notes=None,
+            since=None, until=None, from_run=None,
         )
         defaults.update(overrides)
         for k, v in defaults.items():
@@ -344,6 +345,157 @@ class BuildRowExtractionTests(unittest.TestCase):
         with mock.patch.object(ext, "extract", return_value=fake_totals):
             row, _ = record.build_row(Args(runtime="claude"))
         self.assertEqual(row.get("estimated_cost_usd", ""), "")
+
+
+class QueueTimestampConversionTests(unittest.TestCase):
+    """_queue_ts_to_iso_utc converts qa_manage.py's naive-local, minute-
+    precision '%Y-%m-%d %H:%M' queue timestamps to UTC ISO8601. Offset-
+    agnostic: computed against datetime's own local<->UTC conversion
+    rather than a hardcoded offset, so this passes under any machine
+    timezone."""
+
+    def test_round_trips_through_local_to_utc(self):
+        naive_local = record.datetime.strptime("2026-07-23 09:00", "%Y-%m-%d %H:%M")
+        expected_utc = naive_local.astimezone().astimezone(record.timezone.utc)
+        result = record._queue_ts_to_iso_utc("2026-07-23 09:00")
+        self.assertEqual(result, expected_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+
+    def test_blank_input_returns_none(self):
+        self.assertIsNone(record._queue_ts_to_iso_utc(""))
+        self.assertIsNone(record._queue_ts_to_iso_utc(None))
+        self.assertIsNone(record._queue_ts_to_iso_utc("   "))
+
+    def test_unparseable_input_returns_none(self):
+        self.assertIsNone(record._queue_ts_to_iso_utc("not a timestamp"))
+        self.assertIsNone(record._queue_ts_to_iso_utc("2026-07-23T09:00:00Z"))
+
+
+class DeriveTaskWindowFromRunTests(unittest.TestCase):
+    """derive_task_window_from_run is best-effort and must never raise -
+    every failure mode degrades to (None, None, [warning...])."""
+
+    def _fake_qa_manage(self, rows):
+        fake = mock.MagicMock()
+        fake.find_queue.return_value = {"id": "fake-sheet-id"}
+        fake.read_queue.return_value = rows
+        return fake
+
+    def test_success_derives_both_bounds(self):
+        rows = [{"Run ID": "run-1", "Started": "2026-07-23 09:00", "Completed": "2026-07-23 09:20"}]
+        with mock.patch.dict(sys.modules, {"qa_manage": self._fake_qa_manage(rows)}), \
+             mock.patch("pipeline_common.get_services", return_value={}, create=True):
+            since, until, warnings = record.derive_task_window_from_run("run-1")
+        self.assertIsNotNone(since)
+        self.assertIsNotNone(until)
+        self.assertEqual(warnings, [])
+
+    def test_missing_completed_leaves_until_open(self):
+        rows = [{"Run ID": "run-1", "Started": "2026-07-23 09:00", "Completed": ""}]
+        with mock.patch.dict(sys.modules, {"qa_manage": self._fake_qa_manage(rows)}), \
+             mock.patch("pipeline_common.get_services", return_value={}, create=True):
+            since, until, warnings = record.derive_task_window_from_run("run-1")
+        self.assertIsNotNone(since)
+        self.assertIsNone(until)
+        self.assertTrue(any("Completed" in w for w in warnings))
+
+    def test_run_not_found_degrades_to_both_bounds_open(self):
+        rows = [{"Run ID": "some-other-run", "Started": "2026-07-23 09:00", "Completed": "2026-07-23 09:20"}]
+        with mock.patch.dict(sys.modules, {"qa_manage": self._fake_qa_manage(rows)}), \
+             mock.patch("pipeline_common.get_services", return_value={}, create=True):
+            since, until, warnings = record.derive_task_window_from_run("run-1")
+        self.assertIsNone(since)
+        self.assertIsNone(until)
+        self.assertTrue(any("no matching queue row" in w for w in warnings))
+
+    def test_queue_unreachable_degrades_gracefully(self):
+        with mock.patch("pipeline_common.get_services", side_effect=RuntimeError("no Drive creds"), create=True):
+            since, until, warnings = record.derive_task_window_from_run("run-1")
+        self.assertIsNone(since)
+        self.assertIsNone(until)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("no Drive creds", warnings[0])
+
+
+class WindowedBuildRowTests(unittest.TestCase):
+    """build_row()'s --since/--until/--from-run wiring: explicit flags win
+    per-field over --from-run's derived window, and a windowed row gets the
+    '-task' session_run_id marker."""
+
+    def test_explicit_since_until_are_passed_to_extractor(self):
+        fake_totals = {
+            "actual_input_tokens": 10, "actual_output_tokens": 5,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals) as mocked_extract:
+            row, warnings = record.build_row(Args(
+                runtime="claude", since="2026-07-23T09:00:00.000Z", until="2026-07-23T09:20:00.000Z",
+            ))
+        mocked_extract.assert_called_once_with(
+            "claude", "fake-session",
+            since="2026-07-23T09:00:00.000Z", until="2026-07-23T09:20:00.000Z",
+        )
+        self.assertEqual(warnings, [])
+        self.assertTrue(row["session_run_id"].startswith("session-claude-task-"))
+
+    def test_from_run_derives_window_when_no_explicit_bounds(self):
+        fake_totals = {
+            "actual_input_tokens": 10, "actual_output_tokens": 5,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals) as mocked_extract, \
+             mock.patch.object(record, "derive_task_window_from_run",
+                                return_value=("2026-07-23T07:00:00.000Z", "2026-07-23T07:20:00.000Z", [])):
+            row, warnings = record.build_row(Args(runtime="claude", from_run="run-1"))
+        mocked_extract.assert_called_once_with(
+            "claude", "fake-session",
+            since="2026-07-23T07:00:00.000Z", until="2026-07-23T07:20:00.000Z",
+        )
+        self.assertEqual(warnings, [])
+        self.assertTrue(row["session_run_id"].startswith("session-claude-task-"))
+
+    def test_explicit_bound_overrides_from_run_derived_value_per_field(self):
+        fake_totals = {
+            "actual_input_tokens": 10, "actual_output_tokens": 5,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals) as mocked_extract, \
+             mock.patch.object(record, "derive_task_window_from_run",
+                                return_value=("2026-07-23T07:00:00.000Z", "2026-07-23T07:20:00.000Z", [])):
+            row, _ = record.build_row(Args(
+                runtime="claude", from_run="run-1", until="2026-07-23T08:00:00.000Z",
+            ))
+        mocked_extract.assert_called_once_with(
+            "claude", "fake-session",
+            since="2026-07-23T07:00:00.000Z", until="2026-07-23T08:00:00.000Z",
+        )
+
+    def test_from_run_warnings_are_surfaced(self):
+        fake_totals = {
+            "actual_input_tokens": 10, "actual_output_tokens": 5,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals), \
+             mock.patch.object(record, "derive_task_window_from_run",
+                                return_value=(None, None, ["Could not derive a task window for run 'run-1'"])):
+            row, warnings = record.build_row(Args(runtime="claude", from_run="run-1"))
+        self.assertTrue(any("Could not derive a task window" in w for w in warnings))
+        self.assertFalse(row["session_run_id"].startswith("session-claude-task-"))
+
+    def test_no_window_leaves_default_session_run_id_unmarked(self):
+        fake_totals = {
+            "actual_input_tokens": 10, "actual_output_tokens": 5,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals) as mocked_extract:
+            row, _ = record.build_row(Args(runtime="claude"))
+        mocked_extract.assert_called_once_with("claude", "fake-session", since=None, until=None)
+        self.assertTrue(row["session_run_id"].startswith("session-claude-"))
+        self.assertFalse(row["session_run_id"].startswith("session-claude-task-"))
 
 
 class LoadRegistryWatchlistTests(unittest.TestCase):
