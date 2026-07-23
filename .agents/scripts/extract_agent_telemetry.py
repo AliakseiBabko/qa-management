@@ -76,6 +76,51 @@ Usage
 
   python .agents/scripts/extract_agent_telemetry.py --runtime antigravity \\
       --session-id <session-id> --out tmp/telemetry/telemetry.json
+
+  # Windowed extraction (Claude only for now) - sum only the usage that
+  # happened inside [--since, --until], instead of the whole session. Both
+  # bounds are optional and inclusive; either can be omitted to leave that
+  # side of the window open.
+  python .agents/scripts/extract_agent_telemetry.py --runtime claude \\
+      --session-id <session-uuid> \\
+      --since 2026-07-23T09:00:00Z --until 2026-07-23T09:20:00Z \\
+      --out tmp/telemetry/telemetry.json
+
+Windowed (--since/--until) extraction - rollout status
+--------------------------------------------------------
+This exists to let one long agent session's token usage be attributed to
+individual task-outcome rows (task-outcomes.csv) instead of only ever
+reporting a single whole-session total - a long Claude session covering
+many unrelated tasks was the original motivating case. Support is added
+per-runtime in this order, because each runtime's log has a different
+shape and a different confidence level for "is this timestamp real":
+
+  1. Claude    - DONE. Every JSONL line is one turn with its own
+                 `timestamp` and its own (non-cumulative) `usage` block -
+                 filtering by timestamp and summing the matches is exact,
+                 not an estimate.
+  2. Antigravity - not yet implemented. The DB fallback's `steps` table has
+                 no timestamp *column*, but a plausible per-step Unix
+                 epoch-seconds field was found empirically inside the
+                 `metadata` protobuf blob (field path 1.1, shaped like a
+                 `google.protobuf.Timestamp.seconds`) - same "heuristic
+                 field-guess, not a documented schema" confidence tier as
+                 the existing usage-field decoding below. The `agy` CLI
+                 path has no per-step data at all and can never support
+                 windowing.
+  3. Codex     - not yet implemented, and a different algorithm from
+                 Claude/Antigravity: `token_count` events are a CUMULATIVE
+                 counter within one rollout file, not per-turn deltas, so
+                 windowing here means "last cumulative value at-or-before
+                 --until" minus "last cumulative value at-or-before
+                 --since", not a filtered sum.
+  4. Cline     - no work needed. One taskHistory.json entry already IS one
+                 task - there is nothing to window.
+
+Only Claude accepts --since/--until today; passing either for any other
+runtime raises ValueError rather than silently ignoring the window (a
+silently-ignored window would look like an exact per-task number while
+actually being the whole-session total).
 """
 
 from __future__ import annotations
@@ -100,11 +145,32 @@ def _empty_totals() -> dict:
     }
 
 
+def _parse_iso(ts: str | None):
+    """Parse an ISO8601 timestamp (Z or +00:00 offset) to an aware
+    datetime, or None if `ts` is falsy/unparseable. Returning None instead
+    of raising lets a malformed --since/--until value or a malformed log
+    timestamp fail soft (exclude the entry / treat the bound as absent)
+    rather than crash the whole extraction over one bad value."""
+    if not ts:
+        return None
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 class ClaudeAdapter:
     """Parses ~/.claude/projects/<project-hash>/<session-uuid>.jsonl - the
     same log this Claude Code session itself is writing right now."""
 
-    def extract(self, session_id: str, home: Path | None = None) -> dict:
+    def extract(self, session_id: str, home: Path | None = None,
+                since: str | None = None, until: str | None = None) -> dict:
+        """`since`/`until` (ISO8601, both optional, both inclusive) restrict
+        the sum to only the assistant turns whose own `timestamp` falls in
+        that range - see the module docstring's "Windowed extraction"
+        section for why this is an exact filter, not an estimate: every
+        JSONL line already carries its own non-cumulative usage block."""
         home = home or Path.home()
         projects_dir = home / ".claude" / "projects"
         if not projects_dir.exists():
@@ -121,6 +187,10 @@ class ClaudeAdapter:
                 f"No Claude Code JSONL found for session {session_id} under {projects_dir}"
             )
 
+        windowed = since is not None or until is not None
+        since_dt = _parse_iso(since)
+        until_dt = _parse_iso(until)
+
         totals = _empty_totals()
         model_label = ""
         first_ts = ""
@@ -136,6 +206,19 @@ class ClaudeAdapter:
                 except json.JSONDecodeError:
                     continue
                 ts = entry.get("timestamp")
+                if windowed:
+                    # An entry with no parseable timestamp can't be
+                    # verified as inside the window, so it's excluded
+                    # rather than guessed at - real Claude Code JSONL always
+                    # has one (see the module docstring), so this only
+                    # matters for malformed/truncated lines.
+                    ts_dt = _parse_iso(ts)
+                    if ts_dt is None:
+                        continue
+                    if since_dt is not None and ts_dt < since_dt:
+                        continue
+                    if until_dt is not None and ts_dt > until_dt:
+                        continue
                 if ts:
                     first_ts = first_ts or ts
                     last_ts = ts
@@ -154,6 +237,11 @@ class ClaudeAdapter:
                 turns += 1
 
         if turns == 0:
+            if windowed:
+                raise ValueError(
+                    f"Session {session_id} log found but had no assistant usage entries "
+                    f"in the requested window (since={since!r}, until={until!r})."
+                )
             raise ValueError(f"Session {session_id} log found but had no assistant usage entries.")
 
         if model_label:
@@ -551,11 +639,20 @@ ADAPTERS: dict[str, Any] = {
 }
 
 
-def extract(runtime: str, session_id: str) -> dict:
+def extract(runtime: str, session_id: str, since: str | None = None, until: str | None = None) -> dict:
     key = runtime.lower().replace(" ", "-")
     adapter = ADAPTERS.get(key)
     if not adapter:
         raise ValueError(f"Unknown runtime {runtime!r}. Supported: {sorted(ADAPTERS)}")
+    if since is not None or until is not None:
+        if not isinstance(adapter, ClaudeAdapter):
+            raise ValueError(
+                f"--since/--until windowing is not yet implemented for runtime {runtime!r} - "
+                "only claude/claude-code/claudecode support it today (see this module's "
+                "docstring for the planned per-runtime rollout order). Omit --since/--until "
+                "for this runtime, or use --runtime claude."
+            )
+        return adapter.extract(session_id, since=since, until=until)
     return adapter.extract(session_id)
 
 
@@ -563,12 +660,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runtime", required=True, choices=sorted(ADAPTERS))
     parser.add_argument("--session-id", required=True)
+    parser.add_argument("--since", default=None,
+                        help="ISO8601 timestamp (inclusive). Only sum usage from entries at or "
+                             "after this time. Claude only today - see module docstring.")
+    parser.add_argument("--until", default=None,
+                        help="ISO8601 timestamp (inclusive). Only sum usage from entries at or "
+                             "before this time. Claude only today - see module docstring.")
     parser.add_argument("--out", help="Write the extracted JSON to this path instead of stdout. "
                                       "Use a tmp/telemetry/ path - never a committed one.")
     args = parser.parse_args()
 
     try:
-        totals = extract(args.runtime, args.session_id)
+        totals = extract(args.runtime, args.session_id, since=args.since, until=args.until)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
