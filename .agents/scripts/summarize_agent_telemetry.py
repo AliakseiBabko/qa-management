@@ -1,16 +1,37 @@
 """Phase 11 operator telemetry: authoritative summarize agent session usage and health.
 
-Reads .agents/telemetry/agent-sessions.csv and computes:
-  1. Common Ground Comparison (default cross-runtime comparison layer):
+Reads .agents/telemetry/agent-sessions.csv (+ task-outcomes.csv where
+available) and computes, in order of recommended reliance for cross-
+runtime comparison (most reliable first):
+
+  1. Task-Outcome Ratios (RECOMMENDED comparison layer):
+     cost/wall-time/workload PER COMPLETED TASK (task-outcomes.csv row) -
+     cost_per_task_usd, wall_time_min_per_task, docs_updated_per_task,
+     closure_edges_resolved_per_task, cost_per_source_token_usd,
+     output_tokens_per_source_token. These divide numerators/denominators
+     that mean the same thing for every runtime (money, minutes, a
+     completed task, a source token processed) - unlike raw provider
+     token counts, whose meaning and availability differs per provider.
+  2. Provider Reporting Mode (metadata, not a metric):
+     per-runtime table of what actual_cache_creation_tokens/
+     actual_cache_read_tokens/actual_reasoning_tokens actually mean for
+     that runtime's adapter - not_reported (the provider's log has no
+     such concept), separately_reported (read verbatim from the
+     provider's own log), or heuristic/medium-confidence (Antigravity DB
+     fallback only). See PROVIDER_REPORTING_MODE below - read directly
+     from each adapter in extract_agent_telemetry.py, not guessed.
+  3. Common Ground Comparison (token-level, SECONDARY to #1):
      - work_done_tokens        = actual_input_tokens + actual_output_tokens + actual_reasoning_tokens
-                                 (excludes cache-read multiplication)
      - context_pressure_tokens = actual_input_tokens + actual_cache_read_tokens
-                                 (reflects total context window accumulation)
      - billable_estimate_usd   = existing estimated_cost_usd or provider pricing when model_label is known
-  2. Provider-Native Totals (preserved raw evidence, labeled provider-native):
+     These still blend fields with uneven support across runtimes (see #2) -
+     prefer #1 or billable_estimate_usd alone for cross-runtime comparison;
+     use this section only to compare sessions within one runtime.
+  4. Provider-Native Totals (preserved raw evidence, labeled provider-native,
+     audit/debug only - never for cross-runtime comparison):
      - provider_native_latest_snapshot_totals (default) or provider_native_all_snapshot_totals (--include-snapshots)
      - input, cache creation, cache read, output, reasoning, total tokens
-  3. Telemetry Health & Quality checks:
+  5. Telemetry Health & Quality checks:
      - cumulative snapshot detection (duplicate session_id rows)
      - rows with blank token totals
      - rows using legacy runtime aliases (claude-code)
@@ -65,6 +86,56 @@ DEFAULT_MODEL_LABELS_BY_RUNTIME = {
     "codex": "codex-5.5-medium",
 }
 
+# What each runtime's extract_agent_telemetry.py adapter ACTUALLY populates
+# for actual_cache_creation_tokens/actual_cache_read_tokens/actual_reasoning_
+# tokens - read directly from each adapter's code, not guessed. This is why
+# raw actual_* totals are not directly comparable across runtimes: a runtime
+# reporting "0" for a field it never populates looks identical to a runtime
+# that genuinely did zero of that kind of work, and there is no way to tell
+# the two apart from the CSV numbers alone.
+#   not_reported                        - adapter always writes 0; the
+#                                          provider's own log has no
+#                                          concept of this field at all.
+#   separately_reported                 - the provider's own log has a
+#                                          field for this, read verbatim.
+#   heuristic_reported_medium_confidence - populated, but via the
+#                                          Antigravity DB fallback's
+#                                          unverified protobuf field-
+#                                          position guess (see
+#                                          AntigravityAdapter._try_db).
+PROVIDER_REPORTING_MODE: dict[str, dict[str, str]] = {
+    "claude": {
+        "cache_creation": "separately_reported",
+        "cache_read": "separately_reported",
+        "reasoning": "not_reported",
+    },
+    "claude-code": {
+        "cache_creation": "separately_reported",
+        "cache_read": "separately_reported",
+        "reasoning": "not_reported",
+    },
+    "codex": {
+        "cache_creation": "not_reported",
+        "cache_read": "separately_reported",
+        "reasoning": "separately_reported",
+    },
+    "cline": {
+        "cache_creation": "separately_reported",
+        "cache_read": "separately_reported",
+        "reasoning": "not_reported",
+    },
+    "antigravity": {
+        "cache_creation": "not_reported",
+        "cache_read": "separately_reported_or_heuristic_medium_confidence",
+        "reasoning": "separately_reported_or_heuristic_medium_confidence",
+    },
+    "manual": {
+        "cache_creation": "as_entered_by_operator",
+        "cache_read": "as_entered_by_operator",
+        "reasoning": "as_entered_by_operator",
+    },
+}
+
 
 def _safe_int(val: str | None) -> int:
     if not val:
@@ -73,6 +144,15 @@ def _safe_int(val: str | None) -> int:
         return int(float(val))
     except (ValueError, TypeError):
         return 0
+
+
+def _safe_minutes(val: str | None) -> float:
+    if not val:
+        return 0.0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
 
 
 def _safe_float(val: str | None) -> float | None:
@@ -208,6 +288,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
 
         work_done = in_tok + out_tok + rs_tok
         context_pressure = in_tok + cr_tok
+        elapsed_min = _safe_minutes(r.get("elapsed_min"))
 
         # Common ground by runtime
         if rt not in runtimes_cg:
@@ -216,6 +297,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
                 "row_count": 0,
                 "work_done_tokens": 0,
                 "context_pressure_tokens": 0,
+                "elapsed_min_total": 0.0,
                 "billable_estimate_usd": 0.0,
                 "has_unknown_cost": False,
                 "confidence_breakdown": {},
@@ -224,6 +306,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         cg["session_count"] += 1
         cg["work_done_tokens"] += work_done
         cg["context_pressure_tokens"] += context_pressure
+        cg["elapsed_min_total"] += elapsed_min
         cg["confidence_breakdown"][conf] = cg["confidence_breakdown"].get(conf, 0) + 1
 
         if cost is not None:
@@ -299,16 +382,56 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
                     outcomes_payload["by_runtime"][ort] = {
                         "outcome_count": 0,
                         "source_chars": 0,
+                        "source_estimated_tokens": 0,
                         "record_apply_updated_count": 0,
                         "closure_edges_updated_count": 0,
                     }
                 op = outcomes_payload["by_runtime"][ort]
                 op["outcome_count"] += 1
                 op["source_chars"] += _safe_int(orow.get("source_chars"))
+                op["source_estimated_tokens"] += _safe_int(orow.get("source_estimated_tokens"))
                 op["record_apply_updated_count"] += _safe_int(orow.get("record_apply_updated_count"))
                 op["closure_edges_updated_count"] += _safe_int(orow.get("closure_edges_updated_count"))
     except Exception:
         pass
+
+    # Task-outcome-derived ratios: the RECOMMENDED layer for cross-runtime
+    # comparison (see summarize_agent_telemetry.py's module docstring).
+    # Unlike raw actual_*/work_done_tokens/context_pressure_tokens, these
+    # divide a consistently-defined numerator (cost, wall time, workload
+    # counts - all reported the same way regardless of provider) by a
+    # consistently-defined denominator (completed tasks, source tokens
+    # processed) - only computed for a runtime that has BOTH an
+    # agent-sessions.csv session unit and a task-outcomes.csv row, since a
+    # ratio needs both sides.
+    ratios_by_runtime: dict[str, dict] = {}
+    for rt, op in outcomes_payload["by_runtime"].items():
+        cg = runtimes_cg.get(rt)
+        if cg is None or op["outcome_count"] == 0:
+            continue
+        outcome_count = op["outcome_count"]
+        ratio: dict[str, float | None] = {
+            "cost_per_task_usd": (
+                round(cg["billable_estimate_usd"] / outcome_count, 6)
+                if not cg["has_unknown_cost"] else None
+            ),
+            "wall_time_min_per_task": round(cg["elapsed_min_total"] / outcome_count, 2),
+            "docs_updated_per_task": round(op["record_apply_updated_count"] / outcome_count, 2),
+            "closure_edges_resolved_per_task": round(op["closure_edges_updated_count"] / outcome_count, 2),
+        }
+        if op["source_estimated_tokens"] > 0:
+            raw = runtimes_raw.get(rt, {})
+            ratio["cost_per_source_token_usd"] = (
+                round(cg["billable_estimate_usd"] / op["source_estimated_tokens"], 8)
+                if not cg["has_unknown_cost"] else None
+            )
+            ratio["output_tokens_per_source_token"] = round(
+                raw.get("raw_output_tokens", 0) / op["source_estimated_tokens"], 4
+            )
+        else:
+            ratio["cost_per_source_token_usd"] = None
+            ratio["output_tokens_per_source_token"] = None
+        ratios_by_runtime[rt] = ratio
 
     raw_totals_key = "provider_native_all_snapshot_totals" if include_snapshots else "provider_native_latest_snapshot_totals"
 
@@ -327,6 +450,21 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             "by_runtime": runtimes_cg,
         },
         "task_outcomes": outcomes_payload,
+        "task_outcome_ratios": {
+            "note": "Recommended layer for cross-runtime comparison - cost/time/workload per "
+                    "completed task, not raw provider-native token counts. Only present for a "
+                    "runtime with both an agent-sessions.csv session unit and a task-outcomes.csv row.",
+            "by_runtime": ratios_by_runtime,
+        },
+        "provider_reporting_mode": {
+            "note": "What each runtime's extractor adapter actually populates for "
+                    "cache_creation/cache_read/reasoning - see PROVIDER_REPORTING_MODE in "
+                    "summarize_agent_telemetry.py. A field showing 'not_reported' for a runtime "
+                    "means its provider log has no such concept, not that zero of that work "
+                    "happened - do not compare that field across runtimes with different modes.",
+            "by_runtime": {rt: PROVIDER_REPORTING_MODE.get(rt, {"cache_creation": "unknown", "cache_read": "unknown", "reasoning": "unknown"})
+                          for rt in runtimes_cg},
+        },
         raw_totals_key: {
             "by_runtime": runtimes_raw,
         },
@@ -363,6 +501,8 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
     cg_runtimes = data["common_ground"]["by_runtime"]
     raw_totals_key = "provider_native_all_snapshot_totals" if "provider_native_all_snapshot_totals" in data else "provider_native_latest_snapshot_totals"
     raw_runtimes = data[raw_totals_key]["by_runtime"]
+    ratios_runtimes = data["task_outcome_ratios"]["by_runtime"]
+    reporting_mode = data["provider_reporting_mode"]["by_runtime"]
     health = data["health"]
 
     print("=" * 78)
@@ -375,7 +515,40 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
         print("WARNING: Aggregating all snapshot rows includes cumulative token counts.")
     print("")
 
-    print("1. COMMON GROUND COMPARISON (DEFAULT CROSS-RUNTIME PRODUCTIVITY METRICS)")
+    print("1. TASK-OUTCOME RATIOS (RECOMMENDED LAYER FOR CROSS-RUNTIME COMPARISON)")
+    print("-" * 78)
+    if ratios_runtimes:
+        print(f"{'Runtime':<12} | {'$/task':<10} | {'min/task':<10} | {'docs/task':<10} | {'edges/task':<11} | {'$/src-tok':<12} | {'out-tok/src-tok':<15}")
+        print("-" * 78)
+        for rt, ra in ratios_runtimes.items():
+            cost_s = f"${ra['cost_per_task_usd']:.4f}" if ra['cost_per_task_usd'] is not None else "N/A"
+            cps_s = f"{ra['cost_per_source_token_usd']:.6f}" if ra.get('cost_per_source_token_usd') is not None else "N/A"
+            otr_s = f"{ra['output_tokens_per_source_token']:.3f}" if ra.get('output_tokens_per_source_token') is not None else "N/A"
+            print(f"{rt:<12} | {cost_s:<10} | {ra['wall_time_min_per_task']:<10} | {ra['docs_updated_per_task']:<10} | "
+                  f"{ra['closure_edges_resolved_per_task']:<11} | {cps_s:<12} | {otr_s:<15}")
+        print("-" * 78)
+    else:
+        print("No runtime has both an agent-sessions.csv session unit and a task-outcomes.csv "
+              "row yet - nothing to compute a ratio from.")
+    print("  * These divide cost/wall-time/workload (comparable across providers) by completed")
+    print("    tasks or source tokens processed (also comparable) - unlike raw token counts,")
+    print("    these numerators and denominators mean the same thing for every runtime.")
+    print("")
+
+    print("2. PROVIDER REPORTING MODE (WHAT EACH RUNTIME ACTUALLY EXPOSES)")
+    print("-" * 78)
+    print(f"{'Runtime':<12} | {'cache_creation':<24} | {'cache_read':<40} | {'reasoning':<40}")
+    print("-" * 78)
+    for rt in cg_runtimes:
+        mode = reporting_mode.get(rt, {"cache_creation": "unknown", "cache_read": "unknown", "reasoning": "unknown"})
+        print(f"{rt:<12} | {mode['cache_creation']:<24} | {mode['cache_read']:<40} | {mode['reasoning']:<40}")
+    print("-" * 78)
+    print("  * 'not_reported' means the provider's own log has no such field at all - it is not")
+    print("    the same as genuinely reporting zero. Never compare a cache/reasoning column")
+    print("    across two runtimes with different modes for that field.")
+    print("")
+
+    print("3. COMMON GROUND COMPARISON (TOKEN-LEVEL - SECONDARY TO SECTION 1)")
     print("-" * 78)
     print(f"{'Runtime':<12} | {'Work Done (In+Out+Think)':<25} | {'Context Pressure (In+CacheRead)':<30} | {'Billing Est.':<12}")
     print("-" * 78)
@@ -392,11 +565,17 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
     print("-" * 78)
     print("  * Work Done = Fresh Input + Output + Reasoning (excludes cache-read multiplication).")
     print("  * Context Pressure = Fresh Input + Cache Reads (measures multi-turn context accumulation).")
+    print("  * WARNING: both metrics still blend fields with uneven support across runtimes (see")
+    print("    section 2) - e.g. Claude never reports reasoning tokens, Antigravity's CLI path")
+    print("    never reports cache-creation. Prefer section 1's task-outcome ratios or billing")
+    print("    estimate alone for cross-runtime comparison; use this section only within one runtime.")
     print("")
 
     header_mode_label = "ALL SNAPSHOT ROWS" if data['aggregation_mode'] == 'include_snapshots' else "LATEST SNAPSHOT PER SESSION"
-    print(f"2. PROVIDER-NATIVE TOTALS (PRESERVED EVIDENCE — {header_mode_label})")
+    print(f"4. PROVIDER-NATIVE TOTALS (PRESERVED EVIDENCE — {header_mode_label})")
     print("-" * 78)
+    print("  Do NOT compare raw actual_* columns across runtimes - see section 2. These exist")
+    print("  for audit/debug and single-runtime trend-watching only.")
     for rt, raw in raw_runtimes.items():
         cg = cg_runtimes.get(rt, {})
         print(f"Runtime: {rt} ({cg.get('session_count', 0)} session unit(s), {cg.get('row_count', 0)} row(s))")
@@ -409,7 +588,7 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
         print(f"    - Reasoning Tokens:    {raw['raw_reasoning_tokens']:,}")
         print("-" * 78)
 
-    print("\n3. TELEMETRY HEALTH & QUALITY REPORT")
+    print("\n5. TELEMETRY HEALTH & QUALITY REPORT")
     print("-" * 78)
     print(f"  Duplicate session_id groups: {health['duplicate_session_ids_count']} ({health['cumulative_snapshot_rows_count']} rows)")
     print(f"  Blank token rows:            {health['blank_tokens_count']}")
