@@ -20,6 +20,10 @@ restating every step. In particular:
 
 - Use `dashboard`/`guide`/`classify`/`pack`/`recommend-next` as the
   read-only entry points when they fit the task.
+- Before processing a named source, check the queue/mirror for an already
+  completed or archived run with the same normalized path, filename, or
+  source hash. If it is already processed, stop and report the matching
+  run instead of processing it twice.
 - If `guide`/`pack` reports an intentional pre-processing source-hash
   mismatch, use `refresh-source-hash <run-id>` before `start`.
 - Load the owning skill(s) for the selected source type and follow their
@@ -55,9 +59,11 @@ repository contract wins.
 ## Process this specific source: `<path or filename>`
 
 > Process `00_Inbox/<Project>/<file>` as the next source (Project
-> Knowledge or M1/M2, whichever the content indicates). Classify from
-> content, not filename, and follow the Routine Shortcut Contract. [any
-> focus/context notes]
+> Knowledge or M1/M2, whichever the content indicates). First check
+> whether the same source has already been completed or archived; if yes,
+> report the matching run and stop. Otherwise classify from content, not
+> filename, and follow the Routine Shortcut Contract. [any focus/context
+> notes]
 
 ## Process this Project Knowledge document for `<Project>`
 

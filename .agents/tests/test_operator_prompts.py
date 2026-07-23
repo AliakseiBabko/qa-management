@@ -18,8 +18,10 @@ PROMPTS = ROOT / ".agents" / "references" / "operator-prompts.md"
 class OperatorPromptsTests(unittest.TestCase):
     def test_shortcut_contract_centralizes_repeated_closure_steps(self) -> None:
         text = PROMPTS.read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
 
         self.assertIn("## Routine Shortcut Contract", text)
+        self.assertIn("already completed or archived run", normalized)
         self.assertIn("refresh-source-hash <run-id>", text)
         self.assertIn("completed_run_review", text)
         self.assertIn("agent-sessions.csv", text)
