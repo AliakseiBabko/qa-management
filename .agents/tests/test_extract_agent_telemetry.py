@@ -83,6 +83,132 @@ class ClaudeAdapterTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# ClaudeAdapter windowed (--since/--until) extraction
+# ---------------------------------------------------------------------------
+# The motivating case: one long Claude session spans many unrelated tasks,
+# and a task-outcome row needs THAT task's own token usage, not the whole
+# session's. Every JSONL line already carries its own timestamp and its own
+# (non-cumulative) usage block, so filtering by timestamp and summing the
+# matches is an exact slice, not an estimate - these tests prove that slice
+# is correct and that omitting the window reproduces today's behavior
+# exactly (the regression the task explicitly asked to guard against).
+
+class ClaudeAdapterWindowingTests(unittest.TestCase):
+    def setUp(self):
+        self.td = TemporaryDirectory()
+        self.home = Path(self.td.name)
+        self.projects_dir = self.home / ".claude" / "projects" / "fake-project-hash"
+        self.projects_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def _write_session(self, session_id: str, entries: list[dict]) -> None:
+        log = self.projects_dir / f"{session_id}.jsonl"
+        log.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+
+    def _turn(self, ts: str, input_tokens: int, output_tokens: int) -> dict:
+        return {
+            "type": "assistant",
+            "timestamp": ts,
+            "message": {"model": "claude-sonnet-5", "usage": {
+                "input_tokens": input_tokens, "output_tokens": output_tokens,
+                "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+            }},
+        }
+
+    def test_full_session_extraction_unchanged_when_no_window_passed(self):
+        # Regression guard: entries now carry timestamps (unlike the older
+        # fixtures above), but calling without since/until must still sum
+        # every turn, exactly like before this feature existed.
+        session_id = "fake-session-full"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:00:00.000Z", 100, 10),
+            self._turn("2026-07-23T09:10:00.000Z", 200, 20),
+            self._turn("2026-07-23T09:20:00.000Z", 300, 30),
+        ])
+        totals = ext.ClaudeAdapter().extract(session_id, home=self.home)
+        self.assertEqual(totals["actual_input_tokens"], 600)
+        self.assertEqual(totals["actual_output_tokens"], 60)
+        self.assertEqual(totals["session_started_at"], "2026-07-23T09:00:00.000Z")
+        self.assertEqual(totals["session_ended_at"], "2026-07-23T09:20:00.000Z")
+
+    def test_window_sums_only_entries_inside_the_range(self):
+        session_id = "fake-session-windowed"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:00:00.000Z", 100, 10),   # before window
+            self._turn("2026-07-23T09:10:00.000Z", 200, 20),   # inside window
+            self._turn("2026-07-23T09:15:00.000Z", 300, 30),   # inside window
+            self._turn("2026-07-23T09:30:00.000Z", 400, 40),   # after window
+        ])
+        totals = ext.ClaudeAdapter().extract(
+            session_id, home=self.home,
+            since="2026-07-23T09:05:00.000Z", until="2026-07-23T09:20:00.000Z",
+        )
+        self.assertEqual(totals["actual_input_tokens"], 500)
+        self.assertEqual(totals["actual_output_tokens"], 50)
+        self.assertEqual(totals["session_started_at"], "2026-07-23T09:10:00.000Z")
+        self.assertEqual(totals["session_ended_at"], "2026-07-23T09:15:00.000Z")
+
+    def test_window_bounds_are_inclusive(self):
+        session_id = "fake-session-inclusive"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:10:00.000Z", 111, 11),  # exactly at since
+            self._turn("2026-07-23T09:15:00.000Z", 222, 22),  # exactly at until
+        ])
+        totals = ext.ClaudeAdapter().extract(
+            session_id, home=self.home,
+            since="2026-07-23T09:10:00.000Z", until="2026-07-23T09:15:00.000Z",
+        )
+        self.assertEqual(totals["actual_input_tokens"], 333)
+        self.assertEqual(totals["actual_output_tokens"], 33)
+
+    def test_since_only_leaves_the_upper_bound_open(self):
+        session_id = "fake-session-since-only"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:00:00.000Z", 100, 10),
+            self._turn("2026-07-23T09:10:00.000Z", 200, 20),
+        ])
+        totals = ext.ClaudeAdapter().extract(session_id, home=self.home, since="2026-07-23T09:05:00.000Z")
+        self.assertEqual(totals["actual_input_tokens"], 200)
+
+    def test_until_only_leaves_the_lower_bound_open(self):
+        session_id = "fake-session-until-only"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:00:00.000Z", 100, 10),
+            self._turn("2026-07-23T09:10:00.000Z", 200, 20),
+        ])
+        totals = ext.ClaudeAdapter().extract(session_id, home=self.home, until="2026-07-23T09:05:00.000Z")
+        self.assertEqual(totals["actual_input_tokens"], 100)
+
+    def test_no_entries_in_window_raises_value_error_naming_the_window(self):
+        session_id = "fake-session-empty-window"
+        self._write_session(session_id, [
+            self._turn("2026-07-23T09:00:00.000Z", 100, 10),
+        ])
+        with self.assertRaises(ValueError) as ctx:
+            ext.ClaudeAdapter().extract(
+                session_id, home=self.home,
+                since="2026-07-23T10:00:00.000Z", until="2026-07-23T11:00:00.000Z",
+            )
+        self.assertIn("window", str(ctx.exception))
+
+    def test_entries_without_timestamp_are_excluded_when_windowing(self):
+        session_id = "fake-session-missing-ts"
+        self._write_session(session_id, [
+            {"type": "assistant", "message": {"model": "claude-sonnet-5", "usage": {
+                "input_tokens": 999, "output_tokens": 999,
+                "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}}},  # no timestamp
+            self._turn("2026-07-23T09:10:00.000Z", 100, 10),
+        ])
+        totals = ext.ClaudeAdapter().extract(
+            session_id, home=self.home,
+            since="2026-07-23T09:00:00.000Z", until="2026-07-23T09:20:00.000Z",
+        )
+        self.assertEqual(totals["actual_input_tokens"], 100)
+
+
+# ---------------------------------------------------------------------------
 # CodexAdapter
 # ---------------------------------------------------------------------------
 
@@ -307,6 +433,42 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         for runtime in ("claude", "codex", "cline", "antigravity"):
             self.assertIn(runtime, res.stdout)
+
+    def test_cli_help_lists_since_until_flags(self):
+        import subprocess as sp
+        res = sp.run([sys.executable, str(SCRIPTS / "extract_agent_telemetry.py"), "--help"],
+                    capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("--since", res.stdout)
+        self.assertIn("--until", res.stdout)
+
+    def test_window_rejected_for_non_claude_runtimes(self):
+        # A silently-ignored window would look like an exact per-task
+        # number while actually being the whole-session total - this must
+        # fail loud instead, for every runtime windowing isn't built for yet.
+        for runtime in ("codex", "cline", "antigravity"):
+            with self.assertRaises(ValueError) as ctx:
+                ext.extract(runtime, "some-id", since="2026-07-23T09:00:00Z")
+            self.assertIn("not yet implemented", str(ctx.exception))
+
+    def test_window_accepted_for_claude_runtime_aliases(self):
+        # Router-level plumbing only - ClaudeAdapterWindowingTests above
+        # covers the actual filtering behavior in depth.
+        with TemporaryDirectory() as td:
+            home = Path(td)
+            projects_dir = home / ".claude" / "projects" / "fake-project-hash"
+            projects_dir.mkdir(parents=True)
+            log = projects_dir / "fake-session-router.jsonl"
+            log.write_text(json.dumps({
+                "type": "assistant", "timestamp": "2026-07-23T09:10:00.000Z",
+                "message": {"model": "claude-sonnet-5", "usage": {
+                    "input_tokens": 10, "output_tokens": 5,
+                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}},
+            }) + "\n", encoding="utf-8")
+            with mock.patch.object(Path, "home", return_value=home):
+                totals = ext.extract("claude", "fake-session-router",
+                                     since="2026-07-23T09:00:00Z", until="2026-07-23T09:20:00Z")
+        self.assertEqual(totals["actual_input_tokens"], 10)
 
     def test_out_path_only_ever_written_under_tmp_in_this_repos_own_usage(self):
         # Not a hard technical restriction (the script writes wherever --out
