@@ -567,7 +567,9 @@ These are what actually runs day to day, once a project's folder already exists:
   edges still need `resolve-edge`, parsed straight out of `review`'s own
   evaluation; `commit_workspace_state.py` when closure is clean but the
   snapshot/invocation token isn't; `complete`; `resume --continue` for a
-  blocked run; `mark-historical` for a `failed` run), and only the guardrails
+  blocked run; `mark-historical` for a `failed` run; `mark-superseded` when
+  a pre-processing row's own `Reason` already flags it as superseded by a
+  newer, completed run for the same source), and only the guardrails
   relevant to that stage (never a generic checklist dump). A completed run
   with no integrity problem gets "no operational action needed"; one with
   a real snapshot/invocation problem gets repair/audit guidance, never a
@@ -584,8 +586,10 @@ These are what actually runs day to day, once a project's folder already exists:
   plus `document_graph.yaml` it lists unranked `candidate_routes`
   (source_type, variant, required scope, skills, entry documents, and the
   exact signal behind each one — never a single final choice) plus
-  command templates: `guide`, one `start ...` per candidate, and `ignore
-  ...` when the row's own duplicate-detection `Reason` suggests it. Low/no
+  command templates: `guide`, one `start ...` per candidate, `ignore
+  ...` when the row's own duplicate-detection `Reason` suggests it, and
+  `mark-superseded ...` when it instead flags the row as superseded by a
+  newer, already-completed run for the same rescanned source. Low/no
   signal means "manual classification required" and the full routed
   source-type list, not a guess. Never picks a route, never calls `start`,
   never writes anywhere, and never puts the preview text or full source
@@ -690,13 +694,25 @@ These are what actually runs day to day, once a project's folder already exists:
   or unverified memory — asserts prior processing; also corrects a
   mistaken `fail`; reachable only from a pre-processing state, never once
   `processing`/`blocked` has actually started — "this predates the queue"
-  stops being a truthful claim the moment work begins); and `ignore`
+  stops being a truthful claim the moment work begins); `ignore`
   (`--category non_intake_course_material|reference_material|
   duplicate_data_quality|other --reason "..."` with a concrete reason
   required — a category alone is not a reason, optional `--evidence` —
-  not an intake source at all, reachable only from pre-processing states).
-  Neither mutation moves or deletes the source file — a terminal-status
-  queue row's (path, hash) identity already keeps `scan` from
+  not an intake source at all, reachable only from pre-processing states);
+  and `mark-superseded <old-run-id> --by-run <new-run-id> --reason "..."
+  [--allow-path-change --path-change-evidence "..."]` for the specific case
+  `scan` itself already names — an intentionally-edited-then-rescanned
+  `00_Inbox` file whose earlier, never-started queue row now just sits
+  stale next to the newer run that actually got processed. Reuses `ignored`
+  rather than a new status; only reachable from a pre-processing state;
+  requires `--by-run` to be an existing, `completed` run, and requires the
+  old/new rows to share a recorded `Source`/`Current source` path unless
+  `--allow-path-change` carries concrete `--path-change-evidence` too (a
+  guard against a `--by-run` typo silently pairing unrelated runs).
+  `classify`/`guide`/`pack` all proactively suggest it (never auto-apply it)
+  once a pre-processing row's own `Reason` already flags this exact
+  situation. Neither mutation moves or deletes the source file — a
+  terminal-status queue row's (path, hash) identity already keeps `scan` from
   rediscovering it. Categorically non-intake, processed, generated,
   backup, and retired material lives under `90_Storage`, which is
   explicitly excluded from discovery and outside the only scanned root.
@@ -935,6 +951,23 @@ These are what actually runs day to day, once a project's folder already exists:
   blobs (`_source_text_manifest.json` keyed by `<run_id>:v1`). Primary mode `--from-run
   <run-id> --linked-session-run-id <session-row-id> --append-csv` runs as the final
   telemetry step after `complete`.
+- `closeout_telemetry.py` — **the preferred entry point for closing out a
+  completed queue-backed intake run's telemetry**: one command
+  (`--run-id <id> --runtime <r> --session-id <id> [--model-label ...] [--commit]
+  [--json]`) that runs `measure_operator_outputs.py --case completed_run_review`,
+  `record_agent_session.py --from-run`, and `record_task_outcome.py --from-run
+  --linked-session-run-id` in sequence, then all six validators
+  (`check_operator_csv.py` × 3, `summarize_agent_telemetry.py --json`,
+  `check_sensitive_data.py`, `git diff --check`), and reports every created row id.
+  Refuses to run at all unless `qa_manage.py review <run-id>` is already `completed`;
+  refuses to `--commit` if any validator failed (changes stay uncommitted with the
+  exact next command printed instead). For a runtime whose adapter can't derive a
+  task-scoped time window yet (only Claude/`claude-code` can today - see
+  `record_agent_session.py`), records a whole-session agent-session row instead,
+  with an explicit warning that it isn't task-scoped - never a silent
+  mislabel. `--commit` stages only the three telemetry CSVs, never business
+  documents, the queue, or the mirror. Manual step-by-step invocation of the three
+  scripts above remains available for anything this wrapper doesn't cover.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals
   by runtime (deduplicating cumulative session snapshots by default) and derived

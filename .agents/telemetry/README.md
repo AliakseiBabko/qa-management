@@ -9,9 +9,14 @@ runs (see AGENTS.md's intake-workflow bullet). Which row is mandatory
 depends on whether the pass had a queue `run_id`:
 
 - **Queue-backed intake run** (went through `start`/.../`complete`): record
-  one `operator-runs.csv` row after `complete` -
-  `measure_operator_outputs.py --case completed_run_review --run-id
-  <run-id> --append-csv`.
+  the `operator-runs.csv` `completed_run_review` row, an `agent-sessions.csv`
+  row, and a `task-outcomes.csv` row, all cross-linked, after `complete`.
+  **Preferred: one command**, `closeout_telemetry.py --run-id <run-id>
+  --runtime <runtime> --session-id <session-id> [--model-label <model>]
+  [--commit] [--json]` - runs the three underlying scripts in sequence, all
+  six validators, and reports every created row id (see "Execution Sequence
+  for Queue-Backed Intake Runs" below for the manual step-by-step it
+  replaces, still available for anything the wrapper doesn't cover).
 - **No-queue direct-note or conversational rollup pass** (an M2 answer
   pass, a repo-maintenance fix, a direct owner-note enrichment - anything
   that ends with its own `commit_workspace_state.py` snapshot but never
@@ -42,7 +47,7 @@ They are separate on purpose:
 2. `task-outcomes.csv` records objective derived closure facts (scope updates, cascade edges resolved, source text blob sizes) extracted automatically from machine-readable state (`qa_manage.py review --json`, `_source_text_manifest.json` keyed by `<run_id>:v1`), eliminating manual bookkeeping burden.
 
 ### Execution Sequence for Queue-Backed Intake Runs
-For every queue-backed intake run, `record_task_outcome.py` is mandatory and runs as the final telemetry step in this exact sequence:
+For every queue-backed intake run, telemetry closeout (`completed_run_review` + an agent-session row + `record_task_outcome.py`) is mandatory and runs as the final step, after `complete`, in this exact sequence:
 ```powershell
 # 1. Archive source
 python .agents/scripts/qa_manage.py archive-source <run-id>
@@ -53,7 +58,27 @@ python .agents/scripts/commit_workspace_state.py -m "..."
 # 3. Complete intake run
 python .agents/scripts/qa_manage.py complete <run-id>
 
-# 4. Record task outcome closure telemetry
+# 4. Telemetry closeout - preferred: one command
+python .agents/scripts/closeout_telemetry.py --run-id <run-id> --runtime <runtime> --session-id <session-id> [--commit]
+```
+`closeout_telemetry.py` runs `measure_operator_outputs.py --case
+completed_run_review`, `record_agent_session.py --from-run`, and
+`record_task_outcome.py --from-run --linked-session-run-id` in that order,
+then all six validators (`check_operator_csv.py` x3,
+`summarize_agent_telemetry.py --json`, `check_sensitive_data.py`,
+`git diff --check`), and prints every created row id plus the exact
+`git add`/`git commit` command if `--commit` wasn't passed. It refuses to
+run at all unless `qa_manage.py review <run-id>` already reports
+`completed`, and refuses `--commit` if any validator failed. For a runtime
+whose adapter can't derive a task-scoped time window yet (only
+Claude/`claude-code` can today - see "Recording an agent session" below),
+it records a whole-session `agent-sessions.csv` row instead, with an
+explicit warning that it is not task-scoped.
+
+The manual step-4 equivalent, for anything the wrapper doesn't cover:
+```powershell
+python .agents/scripts/measure_operator_outputs.py --case completed_run_review --run-id <run-id> --append-csv
+python .agents/scripts/record_agent_session.py --runtime <runtime> --session-id <session-id> --from-run <run-id> --objective "..." --append-csv
 python .agents/scripts/record_task_outcome.py --from-run <run-id> --linked-session-run-id <session-row-id> --append-csv
 ```
 ## Raw Telemetry vs Authoritative Common-Ground Analytics

@@ -124,6 +124,21 @@ Commands (all support --json for machine-readable output):
                                   evidence_log row, a _skill_invocations
                                   date, a document revision), never a
                                   vague reason or unverified memory
+    mark-superseded <run-id> --by-run <new-run-id> --reason "..."
+          [--allow-path-change --path-change-evidence "..."]
+                                  terminal: a stale pre-processing
+                                  duplicate of a newer, completed run for
+                                  the same rescanned inbox source (scan's
+                                  own "content changed - supersedes
+                                  <run-id>" note on this row); reuses
+                                  `ignored` rather than a new status. Only
+                                  reachable from discovered/needs_scope/
+                                  ready; --by-run must be `completed`; old
+                                  and new rows must share a recorded
+                                  Source/Current source path unless
+                                  --allow-path-change carries concrete
+                                  --path-change-evidence too. Never moves
+                                  or deletes the source file
     dashboard [--limit N] [--include-completed] [--include-ignored]
           [--project P] [--person X]
                                   read-only operator summary: actionable
@@ -462,6 +477,57 @@ def discovery_action(rel: str, digest: str, by_pair: set[tuple[str, str]],
     if digest in by_hash:
         return "duplicate", by_hash[digest]
     return "new", ""
+
+
+SUPERSEDES_REASON_MARKER = "content changed - supersedes "
+
+
+def parse_supersedes_run_id(reason: str) -> str:
+    """Extract the referenced run id from scan's own "content changed -
+    supersedes <run-id>" Reason note, or "" if the Reason doesn't carry that
+    marker. A run id never contains whitespace, so anything after the first
+    whitespace character is defensively dropped rather than trusted, in case
+    a later pass ever appends more text to the same Reason cell."""
+    idx = reason.find(SUPERSEDES_REASON_MARKER)
+    if idx == -1:
+        return ""
+    remainder = reason[idx + len(SUPERSEDES_REASON_MARKER):].strip()
+    return remainder.split()[0] if remainder else ""
+
+
+def find_superseding_run(rows: list[dict], row: dict) -> dict | None:
+    """If `row`'s own Reason records that a later `scan` found the same
+    inbox path with changed content (the "content changed - supersedes
+    <run-id>" note `cmd_scan` writes), and the referenced run both exists
+    and is `completed`, return that newer row - the concrete signal that
+    `row` is a stale duplicate an operator should `mark-superseded`, not
+    process. None if the Reason doesn't carry the marker, the referenced
+    run can't be found among `rows`, or it isn't completed yet (an
+    in-progress newer run hasn't actually confirmed anything yet - see
+    mark-superseded's own required-completed check)."""
+    candidate_id = parse_supersedes_run_id(str(row.get("Reason", "")))
+    if not candidate_id:
+        return None
+    for candidate in rows:
+        if candidate.get("Run ID") == candidate_id:
+            return candidate if candidate.get("Status") == "completed" else None
+    return None
+
+
+def normalized_source_paths(row: dict) -> set[str]:
+    """Every non-blank Source/Current source path this row has ever
+    recorded, slash-normalized - the same (path, hash) identity fields
+    `queue_discovery_indexes` builds its dedup index from."""
+    paths = {str(row.get("Source", "")).strip(), str(row.get("Current source", "")).strip()}
+    return {p.replace("\\", "/") for p in paths if p}
+
+
+def paths_overlap(a: dict, b: dict) -> bool:
+    """Whether two queue rows share at least one recorded Source/Current
+    source path - mark-superseded's guard against silently pairing an old
+    row with an unrelated newer run that just happens to share a --by-run
+    typo's run id shape."""
+    return bool(normalized_source_paths(a) & normalized_source_paths(b))
 
 
 def queue_discovery_indexes(
@@ -1122,10 +1188,15 @@ def guide_scope_cli_args(project: str, person: str) -> str:
 
 
 def guide_stage_details(row: dict, graph: dict, route: dict,
-                        eval_res: EvaluationResult, ctx: "ReviewContext") -> tuple[list[str], list[str], dict]:
+                        eval_res: EvaluationResult, ctx: "ReviewContext",
+                        all_queue_rows: list[dict] = ()) -> tuple[list[str], list[str], dict]:
     """(checklist, commands, extra_data) for one run's current
     status/stage - the deterministic "what do I do next" logic guide
-    exists for. Pure given (row, graph, route, eval_res, ctx); no I/O."""
+    exists for. Pure given (row, graph, route, eval_res, ctx, all_queue_rows);
+    no I/O. `all_queue_rows` (the full queue, not ctx.all_rows - which is
+    this run's own _closure_outcomes rows) is only consulted for the
+    pre-processing superseded-run check below; omit it (defaults to
+    nothing found) for callers that don't have the full queue handy."""
     status = row.get("Status", "")
     stage = row.get("Stage", "")
     run_id = row.get("Run ID", "")
@@ -1281,6 +1352,22 @@ def guide_stage_details(row: dict, graph: dict, route: dict,
 
     else:
         checklist = [f"Unrecognized status {status!r}."]
+
+    if status in PRE_PROCESSING_STATUSES:
+        superseding = find_superseding_run(all_queue_rows, row)
+        if superseding:
+            # Prepended (not appended) so it's the first thing an operator
+            # sees - inserted here, after the status/stage chain above has
+            # already built its own checklist/commands, since several of
+            # those branches REPLACE (not extend) the list rather than
+            # build onto it.
+            checklist.insert(0,
+                f"This row's own Reason already flags it as superseded by a newer, completed run "
+                f"({superseding['Run ID']}) for the same source - almost certainly a stale duplicate "
+                "left over from an intentional inbox edit + rescan, not something to start processing."
+            )
+            commands.insert(0, f'mark-superseded {run_id} --by-run {superseding["Run ID"]} --reason "..."')
+            extra["superseded_by"] = superseding["Run ID"]
 
     return checklist, commands, extra
 
@@ -1631,7 +1718,8 @@ def lane_for_row_source_type(graph: dict, source_type: str, variant: str) -> str
     return _lane_from_scope_requirement(explicit_lane, needed_scopes(graph, route))
 
 
-def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: dict | None) -> list[str]:
+def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: dict | None,
+                      superseded_suggestion: dict | None = None) -> list[str]:
     commands = [f'guide {run_id}']
     for c in candidates:
         variant_flag = f' --variant {c["variant"]}' if c["variant"] else ""
@@ -1640,10 +1728,22 @@ def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: di
         commands.append(f'start {run_id} --source-type {c["source_type"]}{variant_flag}{scope_flag}{scope_note}')
     if ignore_suggestion:
         commands.append(f'ignore {run_id} --category {ignore_suggestion["category"]} --reason "..."')
+    if superseded_suggestion:
+        commands.append(f'mark-superseded {run_id} --by-run {superseded_suggestion["by_run"]} --reason "..."')
     if not candidates:
         commands.append(f'start {run_id} --source-type <type> [--variant <variant>] --scope "Project|Person"'
                         '  (manual classification required - no strong deterministic signal fired)')
     return commands
+
+
+def superseded_suggestion_for(rows: list[dict], row: dict) -> dict | None:
+    """The classify-style suggestion block (mirrors ignore_suggestion) when
+    a pre-processing row's own Reason already flags it as superseded by a
+    newer, completed run for the same source - see find_superseding_run."""
+    superseding = find_superseding_run(rows, row)
+    if not superseding:
+        return None
+    return {"by_run": superseding["Run ID"], "reason_hint": str(row.get("Reason", ""))}
 
 
 # ---------- commands ----------
@@ -2117,6 +2217,89 @@ def cmd_mark_historical(args) -> CommandResult:
         ok=True,
         data={"run_id": row["Run ID"], "status": "historical", "evidence": evidence},
         human_lines=[row_brief(row)],
+        exit_code=0
+    )
+
+
+def cmd_mark_superseded(args) -> CommandResult:
+    """Terminal: an inbox source was intentionally edited and rescanned,
+    producing scan's own "content changed - supersedes <run-id>" note on
+    this row while a newer run for the same file actually got processed.
+    Reuses the existing `ignored` terminal state (see TRANSITIONS) rather
+    than adding a new status - the state machine can already represent
+    this cleanly; only the standardized Reason text and the extra
+    cross-run validation below are new.
+
+    Only reachable from a pre-processing state (discovered/needs_scope/
+    ready) - a run that has actually started is not "just a stale
+    duplicate" by definition, the same boundary `ignore`/`mark-historical`
+    already enforce. Requires --by-run to name an existing, `completed`
+    run (an in-progress newer run hasn't actually confirmed anything yet)
+    and, unless --allow-path-change is given with --path-change-evidence,
+    requires the old and new rows to share at least one recorded Source/
+    Current source path - otherwise a --by-run typo could silently pair
+    an old row with a completely unrelated newer run. Never moves or
+    deletes the source file - a queue row's (path, hash) identity already
+    keeps `scan` from rediscovering it once terminal."""
+    services = get_services_cached()
+    sheet = find_queue(services)
+    if not sheet:
+        raise SystemExit("No _intake_queue sheet yet - run scan first.")
+    rows = read_queue(services, sheet)
+    old_row = get_run(rows, args.run_id)
+    new_row = get_run(rows, args.by_run)
+
+    if args.run_id == args.by_run:
+        raise SystemExit("mark-superseded: --by-run cannot be the same run as the old run.")
+
+    if old_row["Status"] not in PRE_PROCESSING_STATUSES:
+        raise SystemExit(
+            f"mark-superseded requires a pre-processing old run (one of "
+            f"{sorted(PRE_PROCESSING_STATUSES)}), is {old_row['Status']!r}. A run that has actually "
+            "started is not a stale duplicate by definition - if it needs to stop mid-processing, "
+            "use `fail`/`block` instead."
+        )
+    if new_row["Status"] != "completed":
+        raise SystemExit(
+            f"mark-superseded requires --by-run {args.by_run!r} to be completed (is "
+            f"{new_row['Status']!r}) - an in-progress run hasn't yet confirmed it actually "
+            "superseded anything."
+        )
+
+    reason = (args.reason or "").strip()
+    if not reason:
+        raise SystemExit("mark-superseded requires --reason with a concrete reason - not blank.")
+
+    if not paths_overlap(old_row, new_row):
+        if not args.allow_path_change:
+            raise SystemExit(
+                "mark-superseded: the old run's Source/Current source "
+                f"({sorted(normalized_source_paths(old_row))}) does not overlap the new run's "
+                f"({sorted(normalized_source_paths(new_row))}) - pass --allow-path-change with "
+                "--path-change-evidence if the file was legitimately renamed/moved as part of the "
+                "same edit, or double-check --by-run for a typo."
+            )
+        path_change_evidence = (args.path_change_evidence or "").strip()
+        if not path_change_evidence:
+            raise SystemExit("mark-superseded --allow-path-change requires --path-change-evidence "
+                             "naming something concrete about why the path legitimately changed.")
+
+    # A single read already gave us both old_row and new_row from one
+    # consistent snapshot (needed for the cross-run validation above) -
+    # mutate and write from that same `rows` list directly rather than
+    # going through `_update_run` (which would re-read the whole queue a
+    # second time just to fetch the one row it mutates; every extra Sheets
+    # API call is worth avoiding here, not just style).
+    validate_transition(old_row["Status"], "ignored")
+    old_row["Status"] = "ignored"
+    old_row["Reason"] = f"superseded by newer run {args.by_run}; {reason}"
+    old_row["Last mutation"] = now()
+    write_queue(services, sheet, rows)
+
+    return CommandResult(
+        ok=True,
+        data={"run_id": old_row["Run ID"], "status": "ignored", "superseded_by": args.by_run, "reason": reason},
+        human_lines=[row_brief(old_row)],
         exit_code=0
     )
 
@@ -2824,7 +3007,7 @@ def cmd_guide(args) -> CommandResult:
         "route_resolved": bool(route),
     }
 
-    checklist, commands, extra = guide_stage_details(row, graph, route, eval_res, ctx)
+    checklist, commands, extra = guide_stage_details(row, graph, route, eval_res, ctx, all_queue_rows=rows)
     guardrails = guide_guardrails(row, interpretation)
 
     hash_mismatch = detect_source_hash_mismatch(row)
@@ -3024,8 +3207,9 @@ def cmd_classify(args) -> CommandResult:
     ignore_suggestion = None
     if "duplicate content of" in reason_field:
         ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+    superseded_suggestion = superseded_suggestion_for(rows, row)
 
-    commands = classify_commands(args.run_id, candidates, ignore_suggestion)
+    commands = classify_commands(args.run_id, candidates, ignore_suggestion, superseded_suggestion)
 
     guardrails = [
         "This is a signals-only preview, not a classification - the final source_type/variant/scope "
@@ -3052,6 +3236,7 @@ def cmd_classify(args) -> CommandResult:
         "candidate_routes": candidates,
         "routed_source_types": routed_source_types,
         "ignore_suggestion": ignore_suggestion,
+        "superseded_suggestion": superseded_suggestion,
         "commands": commands,
         "guardrails": guardrails,
     }
@@ -3392,7 +3577,7 @@ def cmd_pack(args) -> CommandResult:
         "route_resolved": bool(route),
     }
 
-    checklist, guide_commands, guide_extra = guide_stage_details(row, graph, route, eval_res, ctx)
+    checklist, guide_commands, guide_extra = guide_stage_details(row, graph, route, eval_res, ctx, all_queue_rows=rows)
     guardrails = guide_guardrails(row, interpretation)
     dashboard_category = dashboard_category_for_row(row)
 
@@ -3404,13 +3589,15 @@ def cmd_pack(args) -> CommandResult:
         ignore_suggestion = None
         if "duplicate content of" in reason_field:
             ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+        superseded_suggestion = superseded_suggestion_for(rows, row)
         classify_block = {
             "signals": signals,
             "confidence": "signals_detected" if candidates else "low",
             "candidate_routes": candidates,
             "routed_source_types": sorted((graph.get("sources") or {}).keys()),
             "ignore_suggestion": ignore_suggestion,
-            "commands": classify_commands(args.run_id, candidates, ignore_suggestion),
+            "superseded_suggestion": superseded_suggestion,
+            "commands": classify_commands(args.run_id, candidates, ignore_suggestion, superseded_suggestion),
         }
 
     commands = classify_block["commands"] if classify_block else guide_commands
@@ -3624,17 +3811,23 @@ def cmd_triage_one(args) -> CommandResult:
     ignore_suggestion = None
     if "duplicate content of" in reason_field:
         ignore_suggestion = {"category": "duplicate_data_quality", "reason_hint": reason_field}
+    superseded_suggestion = superseded_suggestion_for(rows, row)
     classify_block = {
         "signals": signals,
         "confidence": "signals_detected" if candidates else "low",
         "candidate_routes": candidates,
         "routed_source_types": sorted((graph.get("sources") or {}).keys()),
         "ignore_suggestion": ignore_suggestion,
+        "superseded_suggestion": superseded_suggestion,
     }
 
     status = row.get("Status", "")
     allowed = allowed_terminal_actions_for_status(status)
     terminal_commands = triage_terminal_action_commands(args.run_id, allowed)
+    if superseded_suggestion and "ignore" in allowed:
+        terminal_commands.insert(0, f'mark-superseded {args.run_id} '
+                                    f'--by-run {superseded_suggestion["by_run"]} --reason "..."  '
+                                    f'(row Reason already flags: {superseded_suggestion["reason_hint"]})')
     if ignore_suggestion and "ignore" in allowed:
         terminal_commands.insert(0, f'ignore {args.run_id} --category {ignore_suggestion["category"]} '
                                     f'--reason "..."  (row Reason already flags: '
@@ -3919,6 +4112,19 @@ def main() -> int:
                    help="where the pre-queue processing is recorded "
                         "(_skill_invocations date, evidence_log row, ...)")
 
+    p = sub.add_parser("mark-superseded",
+                       help="terminal: a stale pre-processing duplicate of a newer, completed run "
+                            "for the same rescanned inbox source",
+                       parents=[parent])
+    p.add_argument("run_id", help="the old, never-started run to close out")
+    p.add_argument("--by-run", required=True, help="the newer, completed run that supersedes it")
+    p.add_argument("--reason", required=True, help="concrete reason - required, not just repeating --by-run")
+    p.add_argument("--allow-path-change", action="store_true",
+                   help="allow --by-run to reference a run with no overlapping Source/Current "
+                        "source path (requires --path-change-evidence too)")
+    p.add_argument("--path-change-evidence", default="",
+                   help="required with --allow-path-change: concrete evidence the path change was intentional")
+
     p = sub.add_parser("archive-source", help="move a closure-stage source from inbox to processed archive", parents=[parent])
     p.add_argument("run_id")
 
@@ -4008,7 +4214,8 @@ def main() -> int:
         "record-apply": cmd_record_apply, "resolve-edge": cmd_resolve_edge,
         "add-scope": cmd_add_scope,
         "block": cmd_block, "fail": cmd_fail, "ignore": cmd_ignore,
-        "mark-historical": cmd_mark_historical, "archive-source": cmd_archive_source,
+        "mark-historical": cmd_mark_historical, "mark-superseded": cmd_mark_superseded,
+        "archive-source": cmd_archive_source,
         "refresh-source-hash": cmd_refresh_source_hash,
         "resume": cmd_resume, "complete": cmd_complete, "review": cmd_review,
         "dashboard": cmd_dashboard, "guide": cmd_guide, "classify": cmd_classify,

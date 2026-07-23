@@ -245,20 +245,31 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      [--project P] [--person X]` (add `--json`). Read-only overview built
      from the same dashboard/classify helpers: every backlog candidate
      with its recommended command and the exact terminal-action commands
-     (`ignore`/`mark-historical`) `TRANSITIONS` actually allows from its
-     status - never a suggestion to auto-apply one, and never an inference
-     from filename/extension alone. Drill into one with `qa_manage.py
-     triage-one <run-id>` for source access/age, `classify`-style signals
-     and candidate routes, a capped preview, and the same allowed-action
+     (`ignore`/`mark-historical`/`mark-superseded`) `TRANSITIONS` actually
+     allows from its status - never a suggestion to auto-apply one, and
+     never an inference from filename/extension alone. Drill into one with
+     `qa_manage.py triage-one <run-id>` for source access/age, `classify`-style
+     signals and candidate routes, a capped preview, and the same allowed-action
      commands, all for a single run. Both are strictly read-only - the
      only way to actually change a run's state is the explicit `ignore`
      (`--category C --reason "..." [--evidence "..."]`, required reason,
-     only reachable from `discovered`/`needs_scope`/`ready`) or
-     `mark-historical` (`--evidence "..."`, required concrete evidence -
+     only reachable from `discovered`/`needs_scope`/`ready`), `mark-historical`
+     (`--evidence "..."`, required concrete evidence -
      not a vague reason or memory - only reachable from a pre-processing
      state or as a correction of a mistaken `fail`; invalid once
-     `processing`/`blocked` has actually started) command below, one run
-     at a time. Neither moves or deletes the source file - a
+     `processing`/`blocked` has actually started), or `mark-superseded
+     <old-run-id> --by-run <new-run-id> --reason "..."` (for the specific
+     case where a `00_Inbox` source was intentionally edited and rescanned:
+     the old, never-started row for the same source now just sits stale
+     next to the newer run that actually got processed - reuses `ignored`
+     rather than a new status; `--by-run` must be an existing `completed`
+     run; old/new rows must share a recorded `Source`/`Current source` path
+     unless `--allow-path-change` carries `--path-change-evidence` too)
+     command below, one run at a time. `classify`/`guide`/`pack` all
+     proactively surface `mark-superseded` (never auto-apply it) once a
+     pre-processing row's own `Reason` already flags this situation - the
+     same `content changed - supersedes <run-id>` note `scan` itself writes.
+     None of these mutations moves or deletes the source file - a
      terminal-status queue row already keeps `scan` from rediscovering it.
    - Processing a new source (picked via `dashboard`/`guide`/`classify`/
      `pack`, or found directly)? —
@@ -294,10 +305,23 @@ Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
      `complete` verifies the invocation evidence, per-scope closure, and requires verification
      of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
      runs, it also verifies that the exact snapshot SHA contains the exported text blob.
-     After `complete`, record one `.agents\telemetry\operator-runs.csv` telemetry row:
-     `.agents\scripts\measure_operator_outputs.py --case completed_run_review --run-id
-     <run-id> --append-csv`. This is the mandatory closing step for every queue-backed
-     intake run (it has a real `run_id` to attach the row to).
+     After `complete`, telemetry closeout is mandatory for every queue-backed intake run
+     (it has a real `run_id` to attach rows to): the operator-runs.csv `completed_run_review`
+     row, an agent-sessions.csv row, and a task-outcomes.csv row, cross-linked. **Preferred:**
+     one command, `.agents\scripts\closeout_telemetry.py --run-id <run-id> --runtime <runtime>
+     --session-id <session-id> [--model-label <model>] [--commit] [--json]` - runs
+     `measure_operator_outputs.py --case completed_run_review`, `record_agent_session.py
+     --from-run`, and `record_task_outcome.py --from-run --linked-session-run-id` in sequence,
+     then all six validators (`check_operator_csv.py` x3, `summarize_agent_telemetry.py --json`,
+     `check_sensitive_data.py`, `git diff --check`), and reports every created row id. Refuses
+     to run at all unless `qa_manage.py review <run-id>` already reports `completed`; refuses
+     `--commit` if any validator failed (leaves the change uncommitted and prints the exact
+     next command instead); `--commit` stages only the three telemetry CSVs, never Drive, the
+     queue, the mirror, or a business document. For a runtime whose adapter can't derive a
+     task-scoped time window yet (only Claude/`claude-code` can today), it records a
+     whole-session agent-session row instead, with an explicit warning that it is not
+     task-scoped - never a silent mislabel. Manual step-by-step invocation of the three
+     scripts below remains available for anything the wrapper doesn't cover.
      **No-queue direct-note/conversational rollup passes are different** - an M2 answer
      pass, a repo-maintenance fix, a direct owner-note enrichment, anything that ends with
      its own `commit_workspace_state.py` snapshot but never went through `start`/`complete`

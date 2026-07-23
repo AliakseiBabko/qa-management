@@ -26,8 +26,16 @@ restating every step. In particular:
   workflow, quality gate, and lane-boundary rules.
 - Close queue-backed intake runs through the explicit workflow:
   `record-analysis`, per-scope `record-apply`, `resolve-edge`,
-  `archive-source`, mirror snapshot, `complete`, and the mandatory
-  `completed_run_review` telemetry row.
+  `archive-source`, mirror snapshot, `complete`, then telemetry closeout -
+  prefer `closeout_telemetry.py --run-id <run-id> --runtime <runtime>
+  --session-id <session-id> [--commit]`, the one command for the
+  mandatory `completed_run_review` + agent-session + task-outcome rows,
+  over doing the three by hand.
+- If a pre-processing row's own `Reason` flags it as superseded by a
+  newer, completed run for the same rescanned source (`scan`'s own
+  "content changed - supersedes <run-id>" note), close it with
+  `mark-superseded <old-run-id> --by-run <new-run-id> --reason "..."`
+  instead of starting it - never silently ignore or hand-edit the row.
 - For no-queue passes, record the mandatory `agent-sessions.csv` row
   instead of pretending a `completed_run_review` row exists.
 - Inspect the mirror changed-files list for unrelated Drive drift before
