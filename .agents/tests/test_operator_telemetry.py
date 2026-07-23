@@ -531,6 +531,76 @@ class TestSummarizeAgentTelemetry(unittest.TestCase):
         self.assertIn("N/A", cg["billable_estimate_formatted"])
         self.assertTrue(any("unknown model pricing" in w for w in envelope["warnings"]))
 
+    def test_provider_reporting_mode_present_for_known_runtimes(self):
+        # Regression guard: PROVIDER_REPORTING_MODE must be read directly
+        # from each extract_agent_telemetry.py adapter's real behavior, not
+        # guessed - see that dict's own comments. This just checks the
+        # metadata surfaces in the envelope, not the specific values (those
+        # would need re-verifying against the adapters if they ever change).
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-1", "objective": "obj", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "total_tokens": "150",
+            },
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            envelope = summ.summarize_telemetry()
+
+        reporting = envelope["data"]["provider_reporting_mode"]["by_runtime"]
+        self.assertIn("claude", reporting)
+        self.assertEqual(reporting["claude"]["reasoning"], "not_reported")
+        self.assertEqual(reporting["claude"]["cache_creation"], "separately_reported")
+
+    def test_task_outcome_ratios_computed_when_runtime_appears_in_both_csvs(self):
+        import summarize_agent_telemetry as summ
+        session_rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-1", "objective": "obj", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "total_tokens": "150", "estimated_cost_usd": "2.000000", "elapsed_min": "20.00",
+            },
+        ]
+        outcome_rows = [
+            {k: "" for k in common.TASK_OUTCOME_CSV_HEADER} | {
+                "task_outcome_id": "outcome-1", "runtime": "claude",
+                "source_estimated_tokens": "1000",
+                "record_apply_updated_count": "4",
+                "closure_edges_updated_count": "2",
+            },
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, session_rows)), \
+             mock.patch.object(common, "TASK_OUTCOME_CSV_PATH", mock.MagicMock(exists=lambda: True)), \
+             mock.patch.object(common, "read_task_outcome_rows", return_value=(common.TASK_OUTCOME_CSV_HEADER, outcome_rows)):
+            envelope = summ.summarize_telemetry()
+
+        ratios = envelope["data"]["task_outcome_ratios"]["by_runtime"]["claude"]
+        self.assertEqual(ratios["cost_per_task_usd"], 2.0)
+        self.assertEqual(ratios["wall_time_min_per_task"], 20.0)
+        self.assertEqual(ratios["docs_updated_per_task"], 4.0)
+        self.assertEqual(ratios["closure_edges_resolved_per_task"], 2.0)
+        self.assertEqual(ratios["cost_per_source_token_usd"], 0.002)
+        self.assertEqual(ratios["output_tokens_per_source_token"], 0.05)
+
+    def test_task_outcome_ratios_absent_when_runtime_only_in_one_csv(self):
+        import summarize_agent_telemetry as summ
+        session_rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-1", "objective": "obj", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "total_tokens": "150",
+            },
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, session_rows)), \
+             mock.patch.object(common, "TASK_OUTCOME_CSV_PATH", mock.MagicMock(exists=lambda: False)):
+            envelope = summ.summarize_telemetry()
+
+        self.assertEqual(envelope["data"]["task_outcome_ratios"]["by_runtime"], {})
+
 
 if __name__ == "__main__":
     unittest.main()
