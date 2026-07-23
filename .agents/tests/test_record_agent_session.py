@@ -84,6 +84,15 @@ class AgentSessionCsvHeaderTests(unittest.TestCase):
         row = _base_session_row(extraction_method="manual", confidence="manual")
         self.assertEqual(common.validate_agent_session_row(row), [])
 
+    def test_validate_accepts_legacy_claude_code_runtime(self):
+        row = _base_session_row(runtime="claude-code")
+        self.assertEqual(common.validate_agent_session_row(row), [])
+
+    def test_validate_rejects_unknown_runtime(self):
+        row = _base_session_row(runtime="some-agent")
+        errors = common.validate_agent_session_row(row)
+        self.assertTrue(any("runtime" in e for e in errors))
+
     def test_validate_rejects_non_ascii_objective(self):
         row = _base_session_row(objective="проект PKF")
         errors = common.validate_agent_session_row(row)
@@ -268,6 +277,39 @@ class BuildRowExtractionTests(unittest.TestCase):
         self.assertEqual(row["extraction_method"], "manual")
         self.assertEqual(row["confidence"], "manual")
         self.assertEqual(row["total_tokens"], "15")
+
+    def test_manual_path_requires_at_least_one_actual_token_value(self):
+        with self.assertRaises(ValueError) as ctx:
+            record.build_row(Args(manual=True, confidence="manual"))
+        self.assertIn("--manual requires at least one --actual-*-tokens", str(ctx.exception))
+
+    def test_claude_code_alias_is_persisted_as_claude(self):
+        fake_totals = {
+            "actual_input_tokens": 100, "actual_output_tokens": 20,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals):
+            row, _ = record.build_row(Args(runtime="claude-code"))
+        self.assertEqual(row["runtime"], "claude")
+        self.assertTrue(row["session_run_id"].startswith("session-claude-"))
+
+    def test_claudecode_no_hyphen_alias_is_also_persisted_as_claude(self):
+        # Regression: extract_agent_telemetry.ADAPTERS and this script's own
+        # --runtime argparse choices both accept the no-hyphen "claudecode"
+        # spelling, but canonical_runtime()'s alias map only listed
+        # "claude-code" - a row built with --runtime claudecode would persist
+        # runtime="claudecode" unnormalized and then fail
+        # validate_agent_session_row's runtime check on write.
+        fake_totals = {
+            "actual_input_tokens": 100, "actual_output_tokens": 20,
+            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+            "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+        }
+        with mock.patch.object(ext, "extract", return_value=fake_totals):
+            row, _ = record.build_row(Args(runtime="claudecode"))
+        self.assertEqual(row["runtime"], "claude")
+        self.assertEqual(common.validate_agent_session_row(row), [])
 
     def test_cost_computed_from_pricing_table_when_model_known(self):
         fake_totals = {

@@ -51,6 +51,20 @@ Confidence defaults (override with --confidence)
   antigravity_db (heuristic DB fallback)                 -> medium
   manual entry                                            -> manual
 
+Runtime values in agent-sessions.csv
+--------------------------------------
+Accepted CLI aliases are normalized before writing. For example,
+`--runtime claude-code` uses the Claude adapter but persists `runtime=claude`
+and defaults the row id to `session-claude-...`, keeping the CSV grouped by
+canonical runtime. Historical rows written before this rule may still contain
+`claude-code` and remain valid for reading/validation.
+
+Manual rows
+--------------
+`--manual` must include at least one `--actual-*-tokens` value. A manual row
+with no token counts does not answer the session-telemetry question and is
+therefore refused before writing.
+
 Invalid --linked-operator-run-ids
 ------------------------------------
 A listed id that isn't actually in operator-runs.csv is a WARNING, not a
@@ -106,6 +120,18 @@ ACTUAL_TOKEN_FIELDS = (
     "actual_input_tokens", "actual_cache_creation_tokens", "actual_cache_read_tokens",
     "actual_output_tokens", "actual_reasoning_tokens",
 )
+
+RUNTIME_ALIASES = {
+    "claude-code": "claude",
+    "claudecode": "claude",
+}
+
+
+def canonical_runtime(runtime: str) -> str:
+    """Normalize accepted CLI aliases to the single persisted runtime key
+    used by agent-sessions.csv."""
+    key = runtime.lower().replace(" ", "-")
+    return RUNTIME_ALIASES.get(key, key)
 
 
 def _default_session_run_id(runtime: str) -> str:
@@ -166,6 +192,11 @@ def build_row(args) -> tuple[dict, list[str]]:
     telemetry: dict = {}
 
     if args.manual:
+        if not any(getattr(args, field, None) is not None for field in ACTUAL_TOKEN_FIELDS):
+            raise ValueError(
+                "--manual requires at least one --actual-*-tokens value; "
+                "otherwise agent-sessions.csv would record a session with no token data."
+            )
         for field in ACTUAL_TOKEN_FIELDS:
             val = getattr(args, field, None)
             if val is not None:
@@ -191,9 +222,10 @@ def build_row(args) -> tuple[dict, list[str]]:
                 telemetry[field] = val
 
     row = {k: "" for k in AGENT_SESSION_CSV_HEADER}
-    row["session_run_id"] = args.session_run_id or _default_session_run_id(args.runtime)
+    row_runtime = canonical_runtime(args.runtime)
+    row["session_run_id"] = args.session_run_id or _default_session_run_id(row_runtime)
     row["date"] = args.date or date.today().isoformat()
-    row["runtime"] = args.runtime
+    row["runtime"] = row_runtime
     row["model_label"] = args.model_label or telemetry.get("model_label", "")
     row["session_id"] = args.session_id
     row["linked_operator_run_ids"] = ",".join(args.linked_operator_run_ids or [])
@@ -267,7 +299,7 @@ def main() -> int:
 
     try:
         row, warnings = build_row(args)
-    except RuntimeError as e:
+    except (RuntimeError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 

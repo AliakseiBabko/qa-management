@@ -101,6 +101,14 @@ VALID_RUNTIME = {"Codex", "Claude Code", "Antigravity", "manual_script"}
 VALID_YES_NO = {"yes", "no"}
 VALID_STATUS = {"ok", "error"}
 
+# Session rows use extractor/runtime keys, not the display labels used by
+# operator-runs.csv. `record_agent_session.py` normalizes accepted aliases
+# before writing, so the persisted CSV stays consistent.
+AGENT_SESSION_VALID_RUNTIME = {"claude", "codex", "cline", "antigravity", "manual"}
+# Kept valid for historical rows already appended before runtime alias
+# normalization existed. New rows should be written with canonical values.
+AGENT_SESSION_LEGACY_RUNTIME = {"claude-code"}
+
 # One row per recorded agent-runtime session (see the module docstring's
 # "Two separate CSVs" section for why this is not just another
 # operator-runs.csv column).
@@ -507,6 +515,13 @@ def validate_agent_session_row(row: dict, watch=None) -> list[str]:
     if confidence and confidence not in VALID_CONFIDENCE:
         errors.append(
             f"field 'confidence' has invalid value {confidence!r} (allowed: {sorted(VALID_CONFIDENCE)})"
+        )
+    runtime = row.get("runtime")
+    allowed_runtimes = AGENT_SESSION_VALID_RUNTIME | AGENT_SESSION_LEGACY_RUNTIME
+    if runtime and runtime not in allowed_runtimes:
+        errors.append(
+            f"field 'runtime' has invalid value {runtime!r} "
+            f"(allowed: {sorted(allowed_runtimes)})"
         )
     for field in ("objective", "notes"):
         errors.extend(_check_free_text_field(field, str(row.get(field, "")), watch))
