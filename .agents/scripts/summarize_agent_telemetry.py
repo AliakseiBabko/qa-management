@@ -7,14 +7,15 @@ Reads .agents/telemetry/agent-sessions.csv and computes:
      - context_pressure_tokens = actual_input_tokens + actual_cache_read_tokens
                                  (reflects total context window accumulation)
      - billable_estimate_usd   = existing estimated_cost_usd or provider pricing when model_label is known
-  2. Provider-Native Raw Totals (preserved raw evidence, labeled provider-native):
+  2. Provider-Native Totals (preserved raw evidence, labeled provider-native):
+     - provider_native_latest_snapshot_totals (default) or provider_native_all_snapshot_totals (--include-snapshots)
      - input, cache creation, cache read, output, reasoning, total tokens
   3. Telemetry Health & Quality checks:
      - cumulative snapshot detection (duplicate session_id rows)
      - rows with blank token totals
      - rows using legacy runtime aliases (claude-code)
      - rows missing model_label, timestamps, or cost metadata
-     - confidence breakdown (high, medium, low, manual)
+     - row_confidence_breakdown (raw CSV rows) vs session_confidence_breakdown (aggregated session units)
 
 Usage:
   python .agents/scripts/summarize_agent_telemetry.py
@@ -57,6 +58,13 @@ KNOWN_PRICING: dict[str, dict[str, float]] = {
     "gpt-4o": {"input": 2.50, "cache_read": 1.25, "output": 10.00},
 }
 
+DEFAULT_MODEL_LABELS_BY_RUNTIME = {
+    "antigravity": "gemini-3.6-flash-medium",
+    "claude": "claude-sonnet-5-medium",
+    "claude-code": "claude-sonnet-5-medium",
+    "codex": "codex-5.5-medium",
+}
+
 
 def _safe_int(val: str | None) -> int:
     if not val:
@@ -82,6 +90,10 @@ def calculate_billing_estimate(row: dict) -> float | None:
         return existing_cost
 
     model_label = row.get("model_label", "").strip()
+    if not model_label:
+        rt = row.get("runtime", "").lower().strip()
+        model_label = DEFAULT_MODEL_LABELS_BY_RUNTIME.get(rt, "")
+
     if not model_label or model_label not in KNOWN_PRICING:
         return None
 
@@ -139,7 +151,8 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
 
     runtimes_cg: dict[str, dict] = {}
     runtimes_raw: dict[str, dict] = {}
-    overall_confidence: dict[str, int] = {}
+    row_confidence_breakdown: dict[str, int] = {}
+    session_unit_confidence_breakdown: dict[str, int] = {}
 
     missing_model_count = 0
     missing_cost_count = 0
@@ -147,13 +160,14 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
     blank_tokens_count = 0
     legacy_runtime_count = 0
 
+    # Inspect all CSV rows for health metadata
     for r in all_rows:
         rt = r.get("runtime", "unknown")
         if rt in AGENT_SESSION_LEGACY_RUNTIME:
             legacy_runtime_count += 1
 
         conf = r.get("confidence", "unknown")
-        overall_confidence[conf] = overall_confidence.get(conf, 0) + 1
+        row_confidence_breakdown[conf] = row_confidence_breakdown.get(conf, 0) + 1
 
         model_lbl = r.get("model_label", "").strip()
         if not model_lbl:
@@ -172,7 +186,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         if tot_tok == 0 and (in_tok + out_tok) == 0:
             blank_tokens_count += 1
 
-    # Aggregations for common_ground and provider_native_raw_totals
+    # Aggregations for common_ground and provider_native totals (session unit level)
     overall_work_done = 0
     overall_context_pressure = 0
     overall_billable_cost = 0.0
@@ -181,6 +195,8 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
     for r in target_rows:
         rt = r.get("runtime", "unknown")
         conf = r.get("confidence", "unknown")
+
+        session_unit_confidence_breakdown[conf] = session_unit_confidence_breakdown.get(conf, 0) + 1
 
         in_tok = _safe_int(r.get("actual_input_tokens"))
         cw_tok = _safe_int(r.get("actual_cache_creation_tokens"))
@@ -223,7 +239,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         else:
             overall_has_unknown_cost = True
 
-        # Raw totals by runtime
+        # Raw totals by runtime (for target snapshot set)
         if rt not in runtimes_raw:
             runtimes_raw[rt] = {
                 "raw_input_tokens": 0,
@@ -254,8 +270,10 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             cg["billable_estimate_formatted"] = "N/A (model/pricing unknown)"
             health_warnings.append(f"Runtime '{rt}' includes sessions with unknown model pricing.")
         elif cg["has_unknown_cost"]:
+            cg["billable_estimate_usd"] = round(cg["billable_estimate_usd"], 6)
             cg["billable_estimate_formatted"] = f"${cg['billable_estimate_usd']:.2f}+ (partial)"
         else:
+            cg["billable_estimate_usd"] = round(cg["billable_estimate_usd"], 6)
             cg["billable_estimate_formatted"] = f"${cg['billable_estimate_usd']:.2f}"
 
     if overall_has_unknown_cost and overall_billable_cost == 0.0:
@@ -268,6 +286,8 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         overall_billable_val = round(overall_billable_cost, 6)
         overall_billable_fmt = f"${overall_billable_cost:.2f}"
 
+    raw_totals_key = "provider_native_all_snapshot_totals" if include_snapshots else "provider_native_latest_snapshot_totals"
+
     data_payload = {
         "aggregation_mode": "include_snapshots" if include_snapshots else "deduplicated_latest",
         "common_ground": {
@@ -278,11 +298,11 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
                 "context_pressure_tokens": overall_context_pressure,
                 "billable_estimate_usd": overall_billable_val,
                 "billable_estimate_formatted": overall_billable_fmt,
-                "confidence_breakdown": overall_confidence,
+                "confidence_breakdown": session_unit_confidence_breakdown,
             },
             "by_runtime": runtimes_cg,
         },
-        "provider_native_raw_totals": {
+        raw_totals_key: {
             "by_runtime": runtimes_raw,
         },
         "health": {
@@ -293,7 +313,8 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             "missing_model_label_count": missing_model_count,
             "missing_timestamps_count": missing_timestamps_count,
             "missing_cost_count": missing_cost_count,
-            "confidence_breakdown": overall_confidence,
+            "session_confidence_breakdown": session_unit_confidence_breakdown,
+            "row_confidence_breakdown": row_confidence_breakdown,
         },
     }
 
@@ -301,7 +322,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         data_payload["runtime_details"] = target_rows
 
     envelope = {
-        "schema_version": "1.0",
+        "schema_version": 1,
         "ok": True,
         "command": "summarize_agent_telemetry.py",
         "data": data_payload,
@@ -315,7 +336,8 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
     data = envelope["data"]
     cg_overall = data["common_ground"]["overall"]
     cg_runtimes = data["common_ground"]["by_runtime"]
-    raw_runtimes = data["provider_native_raw_totals"]["by_runtime"]
+    raw_totals_key = "provider_native_all_snapshot_totals" if "provider_native_all_snapshot_totals" in data else "provider_native_latest_snapshot_totals"
+    raw_runtimes = data[raw_totals_key]["by_runtime"]
     health = data["health"]
 
     print("=" * 78)
@@ -347,7 +369,8 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
     print("  * Context Pressure = Fresh Input + Cache Reads (measures multi-turn context accumulation).")
     print("")
 
-    print("2. PROVIDER-NATIVE RAW TOTALS (PRESERVED RAW EVIDENCE - NOT RECOMMENDED FOR DIRECT COMPARISON)")
+    header_mode_label = "ALL SNAPSHOT ROWS" if data['aggregation_mode'] == 'include_snapshots' else "LATEST SNAPSHOT PER SESSION"
+    print(f"2. PROVIDER-NATIVE TOTALS (PRESERVED EVIDENCE — {header_mode_label})")
     print("-" * 78)
     for rt, raw in raw_runtimes.items():
         cg = cg_runtimes.get(rt, {})
@@ -369,8 +392,11 @@ def print_text_report(envelope: dict, verbose: bool = False) -> None:
     print(f"  Missing model labels:        {health['missing_model_label_count']}")
     print(f"  Missing timestamps:          {health['missing_timestamps_count']}")
     print(f"  Missing costs:               {health['missing_cost_count']}")
-    print("  Confidence Breakdown:")
-    for conf, cnt in sorted(health["confidence_breakdown"].items()):
+    print("  Session Confidence Breakdown (Aggregated Session Units):")
+    for conf, cnt in sorted(health["session_confidence_breakdown"].items()):
+        print(f"    - {conf}: {cnt}")
+    print("  Row Confidence Breakdown (Raw CSV Rows):")
+    for conf, cnt in sorted(health["row_confidence_breakdown"].items()):
         print(f"    - {conf}: {cnt}")
 
     if envelope["warnings"]:

@@ -460,12 +460,51 @@ class TestSummarizeAgentTelemetry(unittest.TestCase):
         with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
             envelope = summ.summarize_telemetry()
 
-        self.assertEqual(envelope["schema_version"], "1.0")
+        self.assertEqual(envelope["schema_version"], 1)  # Strict integer 1
         self.assertTrue(envelope["ok"])
         self.assertEqual(envelope["command"], "summarize_agent_telemetry.py")
         self.assertIn("common_ground", envelope["data"])
-        self.assertIn("provider_native_raw_totals", envelope["data"])
+        self.assertIn("provider_native_latest_snapshot_totals", envelope["data"])
         self.assertIn("health", envelope["data"])
+
+    def test_confidence_breakdown_and_raw_totals_naming(self):
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1_v1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-1", "objective": "v1", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "total_tokens": "150",
+            },
+            {
+                "session_run_id": "s1_v2", "date": "2026-01-02", "runtime": "claude",
+                "session_id": "sid-1", "objective": "v2", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "200", "actual_output_tokens": "100",
+                "total_tokens": "300",
+            },
+            {
+                "session_run_id": "s2", "date": "2026-01-01", "runtime": "antigravity",
+                "session_id": "sid-2", "objective": "ag", "extraction_method": "antigravity_db",
+                "confidence": "medium", "actual_input_tokens": "500", "actual_output_tokens": "50",
+                "total_tokens": "550",
+            },
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            dedup_env = summ.summarize_telemetry(include_snapshots=False)
+            snap_env = summ.summarize_telemetry(include_snapshots=True)
+
+        # Default mode uses provider_native_latest_snapshot_totals
+        self.assertIn("provider_native_latest_snapshot_totals", dedup_env["data"])
+        self.assertIn("provider_native_all_snapshot_totals", snap_env["data"])
+
+        # Confidence breakdown for overall common ground describes aggregated session units (2 session units)
+        cg_conf = dedup_env["data"]["common_ground"]["overall"]["confidence_breakdown"]
+        self.assertEqual(cg_conf, {"high": 1, "medium": 1})
+
+        # Health section reports both session unit and raw row breakdowns
+        health = dedup_env["data"]["health"]
+        self.assertEqual(health["session_confidence_breakdown"], {"high": 1, "medium": 1})
+        self.assertEqual(health["row_confidence_breakdown"], {"high": 2, "medium": 1})
 
     def test_unknown_pricing_produces_null_cost_and_warning(self):
         import summarize_agent_telemetry as summ
