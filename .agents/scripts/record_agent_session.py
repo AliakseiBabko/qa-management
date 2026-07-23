@@ -41,6 +41,23 @@ Usage
       --runtime claude --session-id <session-id> --objective "..." \\
       --check-registry --append-csv
 
+  # Task-scoped (windowed) row: derive the task's own [since, until] from
+  # the queue run's Started/Completed timestamps and sum only that slice
+  # of the session's usage - claude only today (see extract_agent_
+  # telemetry.py's own windowing rollout notes). Produces an exact
+  # per-task row instead of a whole-session total, for linking into
+  # task-outcomes.csv's linked_session_run_id.
+  python .agents/scripts/record_agent_session.py \\
+      --runtime claude --session-id <session-id> --from-run <run-id> \\
+      --objective "..." --append-csv
+
+  # Explicit --since/--until always win over --from-run's derived window,
+  # per field (e.g. supply --until yourself if Completed isn't set yet).
+  python .agents/scripts/record_agent_session.py \\
+      --runtime claude --session-id <session-id> \\
+      --since 2026-07-23T09:00:00Z --until 2026-07-23T09:20:00Z \\
+      --objective "..." --append-csv
+
   # Dry run - extract/compute and print, write nothing
   python .agents/scripts/record_agent_session.py \\
       --runtime claude --session-id <session-id> --objective "..." --dry-run
@@ -85,13 +102,33 @@ script otherwise has no Google API dependency, and a missing/expired
 credential shouldn't block recording routine telemetry. If the registry
 can't be loaded even with the flag set, that degrades to a warning
 (structural checks alone still apply) rather than a hard failure.
+
+--from-run: deriving a task's time window from the queue
+------------------------------------------------------------
+--from-run <run-id> reads that queue run's Started/Completed cells
+(qa_manage.py's _intake_queue sheet - naive local time, "%Y-%m-%d %H:%M",
+minute precision, no finer) and converts each to a UTC ISO8601 string,
+then passes them as --since/--until to extract_agent_telemetry.py's
+Claude adapter instead of extracting the whole session. This is what
+makes a task-outcomes.csv row's linked_session_run_id point at that
+task's own usage rather than the entire multi-task session's total.
+Best-effort and degrades gracefully, never blocking the recording:
+  - if the queue is unreachable or the run isn't found, both bounds stay
+    open (falls back to a whole-session extraction) and a warning prints;
+  - if only Completed is blank (run still in progress), only `until`
+    stays open;
+  - an explicit --since/--until always overrides the derived value for
+    that same bound, checked independently per field.
+This only works for --runtime claude today - passing --from-run for any
+other runtime raises the same "not yet implemented" error --since/--until
+would (see extract_agent_telemetry.py's rollout notes).
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -141,9 +178,76 @@ def canonical_runtime(runtime: str) -> str:
     return RUNTIME_ALIASES.get(key, key)
 
 
-def _default_session_run_id(runtime: str) -> str:
+def _default_session_run_id(runtime: str, windowed: bool = False) -> str:
     import uuid
-    return f"session-{runtime}-{date.today().isoformat()}-{uuid.uuid4().hex[:8]}"
+    marker = "-task" if windowed else ""
+    return f"session-{runtime}{marker}-{date.today().isoformat()}-{uuid.uuid4().hex[:8]}"
+
+
+def _queue_ts_to_iso_utc(ts: str | None) -> str | None:
+    """Convert a qa_manage.py `_intake_queue` timestamp ("%Y-%m-%d %H:%M",
+    naive local wall-clock time, minute precision - see qa_manage.py's
+    now()/parse_ts()) to the UTC ISO8601 string extract_agent_telemetry.py's
+    --since/--until expect. Returns None if `ts` is blank or unparseable -
+    callers treat that as "this bound is unknown," not an error. Minute
+    precision only, because the source data has none finer - seconds are
+    always :00, not a fabricated claim of higher precision."""
+    if not ts or not ts.strip():
+        return None
+    try:
+        naive_local = datetime.strptime(ts.strip(), "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+    # A naive datetime's .astimezone() is documented to assume it already
+    # represents local wall-clock time and attach the system's local tzinfo
+    # - exactly the assumption qa_manage.py's now()/parse_ts() make.
+    aware_local = naive_local.astimezone()
+    aware_utc = aware_local.astimezone(timezone.utc)
+    return aware_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def derive_task_window_from_run(run_id: str) -> tuple[str | None, str | None, list[str]]:
+    """Best-effort derivation of one task's own [since, until] window from
+    its queue run's Started/Completed timestamps. Returns (since, until,
+    warnings) - never raises. Any failure (Drive/queue unreachable, run not
+    found, a timestamp blank or unparseable) degrades to leaving that bound
+    (or both) as None plus an explanatory warning, so --from-run falls back
+    toward a whole-session extraction rather than blocking the recording."""
+    try:
+        from pipeline_common import get_services
+        from qa_manage import find_queue, read_queue
+
+        services = get_services()
+        sheet = find_queue(services)
+        if not sheet:
+            return None, None, [
+                f"Could not derive a task window for run {run_id!r}: intake queue sheet not found."
+            ]
+        rows = read_queue(services, sheet)
+        row = next((r for r in rows if r.get("Run ID") == run_id), None)
+        if row is None:
+            return None, None, [
+                f"Could not derive a task window for run {run_id!r}: no matching queue row found."
+            ]
+
+        since = _queue_ts_to_iso_utc(row.get("Started", ""))
+        until = _queue_ts_to_iso_utc(row.get("Completed", ""))
+        warnings: list[str] = []
+        if since is None:
+            warnings.append(
+                f"Run {run_id!r} has no parseable Started timestamp - task window has no lower bound."
+            )
+        if until is None:
+            warnings.append(
+                f"Run {run_id!r} has no parseable Completed timestamp (run may still be in progress) "
+                "- task window has no upper bound."
+            )
+        return since, until, warnings
+    except Exception as e:  # noqa: BLE001 - deliberately broad, see docstring
+        return None, None, [
+            f"Could not derive a task window for run {run_id!r} ({e}) - falling back toward a "
+            "whole-session extraction."
+        ]
 
 
 def _compute_elapsed_min(started_at: str, ended_at: str) -> str:
@@ -197,6 +301,8 @@ def build_row(args) -> tuple[dict, list[str]]:
     failures (extraction failure with no manual fallback, etc.)."""
     warnings: list[str] = []
     telemetry: dict = {}
+    since: str | None = None
+    until: str | None = None
 
     if args.manual:
         if not any(getattr(args, field, None) is not None for field in ACTUAL_TOKEN_FIELDS):
@@ -210,8 +316,15 @@ def build_row(args) -> tuple[dict, list[str]]:
                 telemetry[field] = val
         extraction_method = "manual"
     else:
+        since, until = args.since, args.until
+        if args.from_run and (since is None or until is None):
+            derived_since, derived_until, window_warnings = derive_task_window_from_run(args.from_run)
+            warnings.extend(window_warnings)
+            since = since if since is not None else derived_since
+            until = until if until is not None else derived_until
+
         try:
-            telemetry = extractor.extract(args.runtime, args.session_id)
+            telemetry = extractor.extract(args.runtime, args.session_id, since=since, until=until)
         except (FileNotFoundError, ValueError, RuntimeError) as e:
             raise RuntimeError(
                 f"Automatic extraction failed for runtime={args.runtime!r} "
@@ -230,7 +343,9 @@ def build_row(args) -> tuple[dict, list[str]]:
 
     row = {k: "" for k in AGENT_SESSION_CSV_HEADER}
     row_runtime = canonical_runtime(args.runtime)
-    row["session_run_id"] = args.session_run_id or _default_session_run_id(row_runtime)
+    row["session_run_id"] = args.session_run_id or _default_session_run_id(
+        row_runtime, windowed=(since is not None or until is not None)
+    )
     row["date"] = args.date or date.today().isoformat()
     row["runtime"] = row_runtime
     model_lbl = args.model_label or telemetry.get("model_label", "")
@@ -281,6 +396,15 @@ def main() -> int:
     parser.add_argument("--elapsed-min", default=None)
     parser.add_argument("--manual", action="store_true",
                         help="Skip automatic extraction; build the row entirely from --actual-* flags.")
+    parser.add_argument("--since", default=None,
+                        help="ISO8601 timestamp (inclusive). Window the extraction to usage at or "
+                             "after this time. Claude only today. Overrides --from-run's derived value.")
+    parser.add_argument("--until", default=None,
+                        help="ISO8601 timestamp (inclusive). Window the extraction to usage at or "
+                             "before this time. Claude only today. Overrides --from-run's derived value.")
+    parser.add_argument("--from-run", default=None,
+                        help="Derive --since/--until from this queue run_id's Started/Completed "
+                             "timestamps (best-effort - see module docstring). Ignored for --manual rows.")
     for field in ACTUAL_TOKEN_FIELDS:
         parser.add_argument("--" + field.replace("_", "-"), dest=field, type=int, default=None)
     parser.add_argument("--estimated-cost-usd", dest="estimated_cost_usd", default=None,
