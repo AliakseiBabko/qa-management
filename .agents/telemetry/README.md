@@ -192,6 +192,14 @@ supported path, not a fallback of last resort. `actual_*` token fields
 stay blank only when extraction was never run or no reliable telemetry
 source exists for that session - never invented.
 
+Manual `record_agent_session.py --manual` rows must include at least one
+`--actual-*-tokens` value; otherwise the script refuses to append a row
+with no token data. CLI runtime aliases are normalized before writing:
+for example `--runtime claude-code` reads through the Claude adapter but
+persists `runtime=claude`. Historical rows written before this
+normalization may still contain `claude-code` and remain valid for
+validation.
+
 ## Recording an agent session
 
 ```sh
