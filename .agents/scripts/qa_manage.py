@@ -289,7 +289,9 @@ SCAN_EXCLUDE: list[str] = [
     "90_Archive",
     "80_Exports",
 ]
-SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx"}
+SCAN_EXTS = {".txt", ".md", ".docx", ".doc", ".pdf", ".csv", ".xlsx", ".gsheet", ".gdoc"}
+GOOGLE_NATIVE_EXTS = {".gdoc", ".gsheet", ".gslides", ".gform", ".gdrew"}
+GOOGLE_NATIVE_MIME_PREFIX = "application/vnd.google-apps."
 
 QUEUE_SHEET = "_intake_queue"
 HEADER = ["Run ID", "Source", "Source hash", "Current source", "Source disposition",
@@ -1646,6 +1648,69 @@ def classify_commands(run_id: str, candidates: list[dict], ignore_suggestion: di
 
 # ---------- commands ----------
 
+def compute_source_file_hash(path: Path, relative_path: str, services: dict = None) -> str:
+    """Compute 16-char SHA-256 hash for a source file.
+    For regular files, reads and hashes file bytes.
+    For Google-native placeholders (.gdoc, .gsheet, etc.) or unreadable reparse points:
+    fetches Drive metadata (id + headRevisionId, or id + modifiedTime) if services is available.
+    If API metadata is unavailable, computes hash from file stat properties (mtime_ns + size + ino)
+    so content/metadata changes alter the hash, and filename-only hashing is avoided.
+    """
+    ext = path.suffix.lower()
+    is_google_native = ext in GOOGLE_NATIVE_EXTS
+
+    if not is_google_native:
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+        except OSError:
+            pass
+
+    if services and "drive" in services:
+        try:
+            from m2_workspace_layout import find_folder_path, list_children
+            from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID
+
+            parts = [p for p in relative_path.replace("\\", "/").strip("/").split("/") if p]
+            if len(parts) > 1:
+                parent = find_folder_path(services["drive"], ROOT_FOLDER_ID, parts[:-1])
+                if parent:
+                    target_name = parts[-1]
+                    stem_name = target_name.removesuffix(ext)
+                    children = list_children(services["drive"], str(parent["id"]))
+                    matches = [
+                        item for item in children
+                        if item.get("name") == target_name or (
+                            item.get("name") == stem_name
+                            and item.get("mimeType", "").startswith(GOOGLE_NATIVE_MIME_PREFIX)
+                        )
+                    ]
+                    if len(matches) == 1:
+                        item_id = matches[0].get("id", "")
+                        meta = services["drive"].files().get(
+                            fileId=item_id,
+                            fields="id, headRevisionId, modifiedTime"
+                        ).execute()
+                        rev_id = meta.get("headRevisionId")
+                        mod_time = meta.get("modifiedTime")
+                        if rev_id:
+                            payload = f"{item_id}:{rev_id}"
+                        elif mod_time:
+                            payload = f"{item_id}:{mod_time}"
+                        else:
+                            payload = item_id
+                        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            pass
+
+    try:
+        st = path.stat()
+        payload = f"{st.st_mtime_ns}:{st.st_size}:{getattr(st, 'st_ino', 0)}"
+    except Exception:
+        payload = f"{relative_path}:{path.name}"
+
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
 def cmd_scan(args) -> CommandResult:
     services = get_services_cached()
     sheet = get_or_create_queue(services)
@@ -1663,7 +1728,7 @@ def cmd_scan(args) -> CommandResult:
             rel = path.relative_to(DATA_ROOT).as_posix()
             if is_excluded(rel):
                 continue
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+            digest = compute_source_file_hash(path, rel, services)
             action, related = discovery_action(rel, digest, by_pair, by_path, by_hash)
             if action == "skip":
                 continue
@@ -2067,7 +2132,26 @@ def find_drive_item_by_path(drive, relative_path: str) -> dict:
     parent = find_folder_path(drive, ROOT_FOLDER_ID, parts[:-1])
     if not parent:
         raise SystemExit(f"Source parent not found in Drive: {'/'.join(parts[:-1])}")
-    matches = [item for item in list_children(drive, str(parent["id"])) if item.get("name") == parts[-1]]
+    target_name = parts[-1]
+    ext = Path(target_name).suffix.lower()
+    children = list_children(drive, str(parent["id"]))
+
+    matches = []
+    for item in children:
+        item_name = item.get("name", "")
+        item_mime = item.get("mimeType", "")
+        if item_name == target_name:
+            matches.append(item)
+        elif ext in GOOGLE_NATIVE_EXTS and item_mime.startswith(GOOGLE_NATIVE_MIME_PREFIX):
+            stem_name = target_name.removesuffix(ext)
+            if item_name == stem_name:
+                matches.append(item)
+
+    if len(matches) > 1:
+        match_names = [f"'{m.get('name')}' ({m.get('mimeType')})" for m in matches]
+        raise SystemExit(
+            f"Multiple Drive items match {normalized!r} in folder '{parent.get('name')}': {', '.join(match_names)}"
+        )
     if len(matches) != 1:
         raise SystemExit(
             f"Expected exactly one Drive item at {normalized!r}, found {len(matches)}"
@@ -2103,10 +2187,18 @@ def cmd_archive_source(args) -> CommandResult:
     drive = services["drive"]
     target_parent = ensure_folder_path(drive, ROOT_FOLDER_ID, destination[:-1])
 
-    existing = [
-        item for item in list_children(drive, str(target_parent["id"]))
-        if item.get("name") == destination[-1]
-    ]
+    dest_name = destination[-1]
+    dest_ext = Path(dest_name).suffix.lower()
+    existing = []
+    for item in list_children(drive, str(target_parent["id"])):
+        item_name = item.get("name", "")
+        item_mime = item.get("mimeType", "")
+        if item_name == dest_name:
+            existing.append(item)
+        elif dest_ext in GOOGLE_NATIVE_EXTS and item_mime.startswith(GOOGLE_NATIVE_MIME_PREFIX):
+            if item_name == dest_name.removesuffix(dest_ext):
+                existing.append(item)
+
     if len(existing) > 1:
         raise SystemExit(f"Multiple archived source items exist for run {args.run_id}")
     if existing:

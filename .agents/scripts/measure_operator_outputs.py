@@ -229,8 +229,14 @@ def main() -> int:
 
     case = CASES[args.case]
 
+    target = args.target
+    telemetry_run_id = args.run_id
+    if not target and args.run_id and case.get("requires_target") == "run_id":
+        target = args.run_id
+        telemetry_run_id = None
+
     if args.dry_run:
-        redacted_argv, _ = build_argv(args.case, case, args.target or (f"<{case.get('requires_target')}>" if case.get("requires_target") else None))
+        redacted_argv, _ = build_argv(args.case, case, target or (f"<{case.get('requires_target')}>" if case.get("requires_target") else None))
         print(f"[dry-run] case={args.case}")
         print(f"[dry-run] command_name={case['command_name']}")
         print(f"[dry-run] would run: {' '.join(redacted_argv)}")
@@ -239,8 +245,8 @@ def main() -> int:
         print("[dry-run] no subprocess executed, nothing written.")
         return 0
 
-    run_id = args.run_id or f"{args.case}-{date.today().isoformat()}-{uuid.uuid4().hex[:8]}"
-    row = run_case(args.case, args.target, args.keep_raw)
+    run_id = telemetry_run_id or f"{args.case}-{date.today().isoformat()}-{uuid.uuid4().hex[:8]}"
+    row = run_case(args.case, target, args.keep_raw)
 
     for field in ("command_args_redacted", "notes", "notes_file"):
         val = row.get(field, "")
