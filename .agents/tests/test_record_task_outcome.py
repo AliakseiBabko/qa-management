@@ -224,11 +224,198 @@ class TestResolveSourceBlobManifestField(unittest.TestCase):
         self.assertEqual(tokens, str(len(blob_text) // 4))
 
 
+def _closure_row(outcome: str, source_node: str = "pk_knowledge_base",
+                  target_node: str = "pk_performance_test_plan", **overrides) -> dict:
+    """A closure_outcomes.fetch_outcomes()-shaped row - keyed by
+    closure_outcomes.HEADER (real Sheet header: "Outcome" with a capital O,
+    among others), not a lowercase "outcome" key."""
+    row = {
+        "Run ID": "20260723-test-run-123",
+        "Timestamp": "2026-07-23T10:00:00Z",
+        "Project": "PKF",
+        "Person": "",
+        "Route variant": "",
+        "Source node": source_node,
+        "Target node": target_node,
+        "Edge kind": "judgment",
+        "Outcome": outcome,
+        "Reason": "",
+        "Actor": "agent",
+    }
+    row.update(overrides)
+    return row
+
+
+class TestTallyClosureOutcomes(unittest.TestCase):
+    """Regression tests for the closure-outcome-tally bug: the original
+    code imported a nonexistent closure_outcomes.read_closure_outcomes
+    (real function is fetch_outcomes) and read a lowercase "outcome" key
+    (real field is "Outcome") - both silently caught/mismatched, always
+    yielding all-zero counts regardless of real closure-outcome data."""
+
+    def test_tallies_real_shaped_rows_by_capital_outcome_field(self):
+        outcomes = [
+            _closure_row("updated"),
+            _closure_row("updated", target_node="pk_test_plan"),
+            _closure_row("no_change", target_node="pk_test_strategy"),
+            _closure_row("gated", source_node="pk_summary", target_node="pk_knowledge_base"),
+            _closure_row("regenerated", source_node="project_metrics", target_node="evidence_log"),
+        ]
+        count, updated, no_change, gated = record_tool._tally_closure_outcomes(outcomes)
+        self.assertEqual(count, 5)
+        self.assertEqual(updated, 2)
+        self.assertEqual(no_change, 1)
+        self.assertEqual(gated, 2)  # "gated" and "regenerated" both count as gated
+
+    def test_empty_outcomes_is_a_real_zero_not_an_error(self):
+        count, updated, no_change, gated = record_tool._tally_closure_outcomes([])
+        self.assertEqual((count, updated, no_change, gated), (0, 0, 0, 0))
+
+    def test_lowercase_outcome_key_is_not_matched(self):
+        # A row shaped with the WRONG (lowercase) key must not silently
+        # count as "updated" - this is the exact mismatch the original bug
+        # would have produced if read_closure_outcomes had merely been
+        # renamed to fetch_outcomes without also fixing the field-name case.
+        bad_row = {"Outcome": "", "outcome": "updated"}
+        count, updated, no_change, gated = record_tool._tally_closure_outcomes([bad_row])
+        self.assertEqual((count, updated, no_change, gated), (1, 0, 0, 0))
+
+
+class TestDeriveClosureCounts(unittest.TestCase):
+    """Regression tests proving --from-run derives real closure counts from
+    real-shaped _closure_outcomes data, and that a derivation failure is
+    surfaced (non-"ok" status) instead of silently returning a
+    indistinguishable-from-real zero, per the original bug."""
+
+    def test_success_path_derives_counts_from_real_shaped_data(self):
+        outcomes = [
+            _closure_row("updated"),
+            _closure_row("no_change", target_node="pk_test_plan"),
+            _closure_row("no_change", target_node="pk_test_strategy"),
+            _closure_row("updated", source_node="pk_summary", target_node="pk_knowledge_base"),
+        ]
+        with mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", return_value=outcomes) as fetch_mock:
+            count, updated, no_change, gated, status = record_tool._derive_closure_counts(
+                "20260723-test-run-123"
+            )
+        self.assertEqual((count, updated, no_change, gated, status), (4, 2, 2, 0, "ok"))
+        # all_scopes=True: this is a reporting tally across the whole run,
+        # not the strict per-scope closure check.
+        fetch_mock.assert_called_once_with({"fake": "services"}, "20260723-test-run-123", all_scopes=True)
+
+    def test_empty_result_is_ok_status_not_an_error(self):
+        with mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", return_value=[]):
+            count, updated, no_change, gated, status = record_tool._derive_closure_counts(
+                "20260723-test-run-123"
+            )
+        self.assertEqual((count, updated, no_change, gated, status), (0, 0, 0, 0, "ok"))
+
+    def test_fetch_outcomes_exception_returns_error_status_not_silent_zero(self):
+        with mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", side_effect=AttributeError("boom")), \
+             mock.patch("sys.stderr") as mock_stderr:
+            count, updated, no_change, gated, status = record_tool._derive_closure_counts(
+                "20260723-test-run-123"
+            )
+        self.assertEqual((count, updated, no_change, gated, status), (0, 0, 0, 0, "error"))
+        stderr_text = "".join(c.args[0] for c in mock_stderr.write.call_args_list)
+        self.assertIn("ERROR", stderr_text)
+
+    def test_services_unavailable_returns_unavailable_status(self):
+        with mock.patch("qa_manage.get_services_cached", side_effect=RuntimeError("no credentials")), \
+             mock.patch("sys.stderr") as mock_stderr:
+            count, updated, no_change, gated, status = record_tool._derive_closure_counts(
+                "20260723-test-run-123"
+            )
+        self.assertEqual((count, updated, no_change, gated, status), (0, 0, 0, 0, "unavailable"))
+        stderr_text = "".join(c.args[0] for c in mock_stderr.write.call_args_list)
+        self.assertIn("Warning", stderr_text)
+
+
+class TestExtractFromRunClosureIntegration(unittest.TestCase):
+    """End-to-end (within extract_from_run) regression test: --from-run
+    must derive closure_edges_* counts from real-shaped closure-outcome
+    data, not silently default to zero."""
+
+    def test_extract_from_run_reports_real_closure_counts(self):
+        entries = {"PKF|": {"pk_knowledge_base": ["updated", "reason"]}}
+        outcomes = [
+            _closure_row("updated"),
+            _closure_row("updated", target_node="pk_test_plan"),
+            _closure_row("no_change", target_node="pk_test_strategy"),
+        ]
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("no", "", "")), \
+             mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", return_value=outcomes):
+            extracted = record_tool.extract_from_run("20260723-test-run-123")
+        self.assertEqual(extracted["closure_edges_count"], 3)
+        self.assertEqual(extracted["closure_edges_updated_count"], 2)
+        self.assertEqual(extracted["closure_edges_no_change_count"], 1)
+        self.assertEqual(extracted["closure_edges_gated_count"], 0)
+        self.assertEqual(extracted["closure_derivation_status"], "ok")
+
+    def test_extract_from_run_surfaces_derivation_failure_status(self):
+        entries = {"PKF|": {"pk_knowledge_base": ["updated", "reason"]}}
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("no", "", "")), \
+             mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", side_effect=AttributeError("boom")):
+            extracted = record_tool.extract_from_run("20260723-test-run-123")
+        self.assertEqual(extracted["closure_edges_count"], 0)
+        self.assertEqual(extracted["closure_derivation_status"], "error")
+
+
+class TestMainClosureStatusEscalation(unittest.TestCase):
+    """A --from-run call whose closure-outcome derivation fails must not
+    silently write status=ok with zero closure counts - it must escalate,
+    unless the caller supplies explicit --closure-edges-* ground truth."""
+
+    def _run_main_and_capture_row(self, argv_extra: list[str]) -> dict:
+        buf = []
+        with mock.patch("sys.argv", ["record_task_outcome.py", "--from-run", "20260723-test-run-123",
+                                      "--dry-run"] + argv_extra), \
+             mock.patch("builtins.print", side_effect=lambda *a, **k: buf.append(a[0] if a else "")):
+            rc = record_tool.main()
+        self.assertEqual(rc, 0)
+        # First print() call is the JSON row (the dry-run path prints the
+        # row, then "[dry-run] nothing written.").
+        return json.loads(buf[0])
+
+    def test_status_escalates_to_error_when_derivation_fails_without_override(self):
+        entries = {"PKF|": {"pk_knowledge_base": ["updated", "reason"]}}
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("no", "", "")), \
+             mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", side_effect=AttributeError("boom")):
+            row = self._run_main_and_capture_row([])
+        self.assertEqual(row["status"], "error")
+        self.assertEqual(row["closure_edges_count"], "0")
+
+    def test_explicit_override_is_trusted_and_status_not_escalated(self):
+        entries = {"PKF|": {"pk_knowledge_base": ["updated", "reason"]}}
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("no", "", "")), \
+             mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", side_effect=AttributeError("boom")):
+            row = self._run_main_and_capture_row([
+                "--closure-edges-count", "4", "--closure-edges-updated-count", "2",
+                "--closure-edges-no-change-count", "2", "--closure-edges-gated-count", "0",
+            ])
+        self.assertEqual(row["status"], "ok")
+        self.assertEqual(row["closure_edges_count"], "4")
+        self.assertEqual(row["closure_edges_updated_count"], "2")
+
+
 class TestRecordTaskOutcomeCLI(unittest.TestCase):
     def test_dry_run_output(self):
         entries = {"ProjectA|": {"doc1": ["updated", "reason"]}}
         with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
              mock.patch("record_task_outcome._resolve_source_blob", return_value=("yes", "1000", "250")), \
+             mock.patch("qa_manage.get_services_cached", return_value={"fake": "services"}), \
+             mock.patch("closure_outcomes.fetch_outcomes", return_value=[]), \
              mock.patch("sys.argv", ["record_task_outcome.py", "--from-run", "20260723-test-run-123", "--dry-run"]):
             rc = record_tool.main()
             self.assertEqual(rc, 0)

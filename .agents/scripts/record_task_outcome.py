@@ -59,6 +59,70 @@ def _resolve_source_blob(run_id: str) -> tuple[str, str, str]:
     return "no", "", ""
 
 
+def _tally_closure_outcomes(outcomes: list[dict]) -> tuple[int, int, int, int]:
+    """Pure tally over closure_outcomes.fetch_outcomes()-shaped rows (keyed
+    by closure_outcomes.HEADER - "Outcome" with a capital O, matching the
+    real _closure_outcomes Sheet header, not a lowercase "outcome" key).
+    Split out from _derive_closure_counts so it is unit-testable against
+    real-shaped fixture data with no Google API/network dependency."""
+    count = updated = no_change = gated = 0
+    for rec in outcomes:
+        count += 1
+        outcome = rec.get("Outcome", "")
+        if outcome == "updated":
+            updated += 1
+        elif outcome == "no_change":
+            no_change += 1
+        elif outcome in ("gated", "regenerated"):
+            gated += 1
+    return count, updated, no_change, gated
+
+
+def _derive_closure_counts(run_id: str) -> tuple[int, int, int, int, str]:
+    """Fetch this run's _closure_outcomes rows (all scopes - this is a
+    reporting tally over what was already recorded, not the strict
+    per-scope closure check check_cascade_closure.py/complete perform) and
+    tally them by outcome.
+
+    Returns (count, updated, no_change, gated, status) where status is:
+      "ok"          - the fetch itself succeeded. 0 rows is a legitimate,
+                      real outcome for a route with no cascade edges, not
+                      a failure - it is NOT conflated with a derivation
+                      problem below.
+      "unavailable" - could not obtain Google API services (e.g. no
+                      credentials/network) - the zero counts returned here
+                      are NOT a real measurement, just unmeasured.
+      "error"       - fetch_outcomes itself raised (e.g. an import/attribute
+                      error, a malformed sheet) - same caveat as above.
+
+    Never silently swallows a derivation exception into an indistinguishable
+    false zero (the original bug: importing a nonexistent
+    closure_outcomes.read_closure_outcomes, caught by a bare `except
+    Exception: pass`) - the caller decides what a non-"ok" status means for
+    the row's own `status` field."""
+    try:
+        from qa_manage import get_services_cached
+        services = get_services_cached()
+    except Exception as exc:
+        sys.stderr.write(
+            f"Warning: could not obtain Google API services for closure-outcome "
+            f"derivation on run {run_id}: {exc}\n"
+        )
+        return 0, 0, 0, 0, "unavailable"
+
+    try:
+        from closure_outcomes import fetch_outcomes
+        outcomes = fetch_outcomes(services, run_id, all_scopes=True)
+    except Exception as exc:
+        sys.stderr.write(
+            f"ERROR: closure-outcome derivation failed for run {run_id}: {exc}\n"
+        )
+        return 0, 0, 0, 0, "error"
+
+    count, updated, no_change, gated = _tally_closure_outcomes(outcomes)
+    return count, updated, no_change, gated, "ok"
+
+
 def extract_from_run(run_id: str) -> dict:
     from qa_manage import cmd_review
 
@@ -105,24 +169,9 @@ def extract_from_run(run_id: str) -> dict:
                     elif outcome == "not_applicable":
                         record_apply_not_applicable += 1
 
-    closure_count = 0
-    closure_updated = 0
-    closure_no_change = 0
-    closure_gated = 0
-    try:
-        from closure_outcomes import read_closure_outcomes
-        outcomes = read_closure_outcomes(run_id)
-        for o in outcomes:
-            closure_count += 1
-            out = o.get("outcome", "")
-            if out == "updated":
-                closure_updated += 1
-            elif out == "no_change":
-                closure_no_change += 1
-            elif out in ("gated", "regenerated"):
-                closure_gated += 1
-    except Exception:
-        pass
+    closure_count, closure_updated, closure_no_change, closure_gated, closure_derivation_status = (
+        _derive_closure_counts(run_id)
+    )
 
     sys.stderr.write(
         "Warning: lane/source_type are not derivable from qa_manage.py review --json - "
@@ -148,6 +197,7 @@ def extract_from_run(run_id: str) -> dict:
         "closure_edges_updated_count": closure_updated,
         "closure_edges_no_change_count": closure_no_change,
         "closure_edges_gated_count": closure_gated,
+        "closure_derivation_status": closure_derivation_status,
         "status": status,
     }
 
@@ -215,6 +265,36 @@ def main() -> int:
         "status": extracted.get("status", args.status),
         "notes": args.notes,
     })
+
+    # If closure-outcome derivation itself failed/was unavailable (see
+    # _derive_closure_counts), the closure_edges_* counts above are NOT a
+    # real zero - do not let the row silently claim "ok" with unmeasured
+    # counts. An explicit --closure-edges-* override means the caller
+    # already supplied ground truth, so it is trusted and no escalation
+    # applies. Otherwise, escalate loudly: to "error" for a run whose other
+    # signals already looked clean (closure data should have been
+    # measurable), to "gated" when the row's status already reflected some
+    # other problem (already surfaced, don't downgrade it back to a milder
+    # label than an unrelated existing issue implies... this only ever
+    # raises severity, never lowers it).
+    explicit_closure_override = any(
+        v is not None for v in (
+            args.closure_edges_count, args.closure_edges_updated_count,
+            args.closure_edges_no_change_count, args.closure_edges_gated_count,
+        )
+    )
+    closure_derivation_status = extracted.get("closure_derivation_status", "ok")
+    if not explicit_closure_override and closure_derivation_status != "ok":
+        prior_status = row["status"]
+        escalated_status = "error" if prior_status == "ok" else prior_status
+        if escalated_status != prior_status:
+            sys.stderr.write(
+                f"Warning: closure-outcome derivation status={closure_derivation_status!r} - "
+                f"row status escalated from {prior_status!r} to {escalated_status!r} "
+                "(closure_edges_* counts are unmeasured, not a real zero). "
+                "Pass --closure-edges-* explicitly to override.\n"
+            )
+            row["status"] = escalated_status
 
     watch = None
     if args.check_registry:
