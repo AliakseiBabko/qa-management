@@ -17,10 +17,55 @@ from __future__ import annotations
 
 import datetime as dt
 import sys
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from google_api_smoke_test import build_services, load_credentials
+
+def execute_with_backoff(
+    request: Any,
+    max_retries: int = 5,
+    initial_backoff: float = 1.0,
+    max_backoff: float = 32.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> Any:
+    """Execute a Google API request with exponential backoff on retryable HttpErrors (429, 500, 503)."""
+    attempt = 0
+    backoff = initial_backoff
+    while True:
+        try:
+            return request.execute()
+        except Exception as exc:
+            status = None
+            headers = {}
+            if hasattr(exc, "resp") and exc.resp is not None:
+                status = getattr(exc.resp, "status", None)
+                headers = getattr(exc.resp, "headers", {}) or {}
+
+            if status is None and hasattr(exc, "status_code"):
+                status = getattr(exc, "status_code")
+
+            try:
+                status_code = int(status) if status is not None else None
+            except (ValueError, TypeError):
+                status_code = None
+
+            if status_code in (429, 500, 503) and attempt < max_retries:
+                attempt += 1
+                retry_after_str = headers.get("retry-after") or headers.get("Retry-After")
+                if retry_after_str:
+                    try:
+                        wait_seconds = float(retry_after_str)
+                    except (ValueError, TypeError):
+                        wait_seconds = backoff
+                else:
+                    wait_seconds = backoff
+
+                sleep_fn(wait_seconds)
+                backoff = min(backoff * 2.0, max_backoff)
+            else:
+                raise
 
 DEFAULT_CREDENTIALS = Path(".local/google/credentials.json")
 DEFAULT_TOKEN = Path(".local/google/token.json")

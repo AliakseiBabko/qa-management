@@ -197,6 +197,13 @@ class TestMeasurement(unittest.TestCase):
         for token in case["argv"]:
             self.assertNotIn(token, common.MUTATING_VERBS)
 
+    def test_run_id_alias_for_target_when_target_missing(self):
+        case = common.CASES["completed_run_review"]
+        target = "20260723-test-run-12345"
+        redacted, real = measure.build_argv("completed_run_review", case, target)
+        self.assertIn("20260723-test-run-12345", real)
+        self.assertIn("{target}", redacted)
+
     def test_dry_run_does_not_invoke_subprocess(self):
         # In-process check: patch subprocess.run inside the measure module
         # itself and call main() directly with --dry-run, so the mock is in

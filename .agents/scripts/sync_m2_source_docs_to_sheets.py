@@ -355,16 +355,16 @@ def merge_individual_metrics(existing: list[list[str]], new_rows: list[list[str]
 
 
 def read_sheet_values(services: dict[str, Any], spreadsheet_id: str) -> list[list[str]]:
-    metadata = services["sheets"].spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    from pipeline_common import execute_with_backoff
+    metadata = execute_with_backoff(services["sheets"].spreadsheets().get(spreadsheetId=spreadsheet_id))
     title = metadata["sheets"][0]["properties"]["title"]
-    return (
+    res = execute_with_backoff(
         services["sheets"]
         .spreadsheets()
         .values()
         .get(spreadsheetId=spreadsheet_id, range=f"'{title}'")
-        .execute()
-        .get("values", [])
     )
+    return res.get("values", [])
 
 
 def ensure_project_local_dirs(project: str, person_names: set[str]) -> None:

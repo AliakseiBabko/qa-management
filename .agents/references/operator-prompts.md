@@ -11,26 +11,59 @@ Each prompt states **who decides what** - a shortcut compresses the
 shortlist, never a `start` decision - read the source before starting
 anything, same as `classify` already requires.
 
+## Routine Shortcut Contract
+
+When a prompt says "process", "audit", "clean up", or "close out", the
+agent must follow the repository's current scripts, skills, and
+state-machine contracts from `AGENTS.md`/`README.md` without the prompt
+restating every step. In particular:
+
+- Use `dashboard`/`guide`/`classify`/`pack`/`recommend-next` as the
+  read-only entry points when they fit the task.
+- If `guide`/`pack` reports an intentional pre-processing source-hash
+  mismatch, use `refresh-source-hash <run-id>` before `start`.
+- Load the owning skill(s) for the selected source type and follow their
+  workflow, quality gate, and lane-boundary rules.
+- Close queue-backed intake runs through the explicit workflow:
+  `record-analysis`, per-scope `record-apply`, `resolve-edge`,
+  `archive-source`, mirror snapshot, `complete`, and the mandatory
+  `completed_run_review` telemetry row.
+- For no-queue passes, record the mandatory `agent-sessions.csv` row
+  instead of pretending a `completed_run_review` row exists.
+- Inspect the mirror changed-files list for unrelated Drive drift before
+  treating the pass as done.
+
+These steps are not copied into every prompt below; they are inherited by
+reference. If a prompt conflicts with the repository contract, the
+repository contract wins.
+
 ## Process the next Project Knowledge source for `<Project>`
 
-> Run `recommend-next --project <Project> --lane project_knowledge`,
-> confirm the top candidate makes sense (read `score_breakdown`, don't
-> just trust rank order), then process it end to end: classify from
-> content (not filename), `start`, apply the project-knowledge-intake
-> skill, and close it out with the existing explicit workflow
-> (`record-analysis`/`record-apply`/`resolve-edge`, snapshot, `complete`,
-> telemetry).
+> Process the next Project Knowledge source for `<Project>`. Use
+> `recommend-next --project <Project> --lane project_knowledge` to choose
+> a candidate, read the source before `start`, classify from content, and
+> follow the Routine Shortcut Contract.
 
 ## Process this specific source: `<path or filename>`
 
 > Process `00_Inbox/<Project>/<file>` as the next source (Project
 > Knowledge or M1/M2, whichever the content indicates). Classify from
-> content, not filename. [any focus/context notes]
+> content, not filename, and follow the Routine Shortcut Contract. [any
+> focus/context notes]
+
+## Process this Project Knowledge document for `<Project>`
+
+> Process `00_Inbox/<Project>/<file>` as a Project Knowledge source.
+> Confirm the exact source_type from content, update the durable knowledge
+> base and QA docs only where the source changes them, and follow the
+> Routine Shortcut Contract. [any focus/context notes]
 
 ## Answer the M2 gate for `<Project>`
 
 > Run `gates --project <Project>`, read the pending round's questions,
-> and record my answer(s) as an `m2_conversation` pass.
+> and record my answer(s) as an `m2_conversation` pass. Follow the
+> Routine Shortcut Contract for no-queue/rollup telemetry and snapshot
+> verification.
 
 ## I edited an inbox transcript to add speaker names/details
 
@@ -51,7 +84,8 @@ anything, same as `classify` already requires.
 
 > Run a controlled cleanup audit for `00_Inbox`, excluding `<folder>`.
 > Report before moving anything; only move terminal, evidence-backed
-> files.
+> files. Follow the Routine Shortcut Contract; cleanup is not business
+> intake.
 
 ## Run the qa-retro improvement loop
 
