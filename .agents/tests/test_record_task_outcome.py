@@ -108,18 +108,126 @@ class TestTaskOutcomeAppendAndDiffGuard(unittest.TestCase):
                     common.append_task_outcome_row(_base_task_outcome_row(task_outcome_id="outcome-001"))
 
 
+def _real_shaped_review_result(entries: dict, **data_overrides) -> mock.MagicMock:
+    """A cmd_review(...) return value shaped like the REAL CommandResult.data
+    (qa_manage.py's cmd_review, read directly - see record_task_outcome.py's
+    extract_from_run): no "lane"/"source_type" keys at all, and "entries" is
+    {scope_key: {doc_name: [outcome, reason]}} - one level deeper than a flat
+    {doc_name: [outcome, reason]} dict."""
+    res = mock.MagicMock()
+    res.ok = True
+    res.data = {
+        "run_id": "20260723-test-run-123",
+        "source": "fake-source",
+        "source_hash": "deadbeef",
+        "status": "completed",
+        "stage": "review",
+        "scopes": [],
+        "skills": [],
+        "entries": entries,
+        "outcomes": [],
+        "unresolved_edges": [],
+        "snapshot_sha": "abc123",
+        "snapshot_problem": None,
+        "invocation_present": True,
+        "mirror_cleanliness": True,
+        "ready_for_completion": True,
+        "recommended_action": "complete",
+    }
+    res.data.update(data_overrides)
+    return res
+
+
+class TestExtractFromRunEntriesParsing(unittest.TestCase):
+    """Regression tests for the nested-entries bug: real cmd_review output
+    is {scope_key: {doc_name: [outcome, reason]}}, not a flat
+    {doc_name: [outcome, reason]} dict - a flat-shaped fixture would have
+    silently hidden this bug (the old test's mock used a flat shape and
+    always passed while the real CLI produced all-zero counts)."""
+
+    def test_nested_entries_are_counted_by_outcome(self):
+        entries = {
+            "ProjectA|": {
+                "doc1": ["updated", "reason"],
+                "doc2": ["updated", "reason"],
+            },
+            "ProjectB|PersonX": {
+                "doc3": ["no_change", "reason"],
+                "doc4": ["not_applicable", "reason"],
+            },
+        }
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("yes", "1000", "250")):
+            extracted = record_tool.extract_from_run("20260723-test-run-123")
+        self.assertEqual(extracted["record_apply_updated_count"], 2)
+        self.assertEqual(extracted["record_apply_no_change_count"], 1)
+        self.assertEqual(extracted["record_apply_not_applicable_count"], 1)
+
+    def test_empty_entries_yields_zero_counts_not_an_error(self):
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result({})), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("no", "", "")):
+            extracted = record_tool.extract_from_run("20260723-test-run-123")
+        self.assertEqual(extracted["record_apply_updated_count"], 0)
+        self.assertEqual(extracted["record_apply_no_change_count"], 0)
+        self.assertEqual(extracted["record_apply_not_applicable_count"], 0)
+
+    def test_lane_and_source_type_are_always_blank(self):
+        # cmd_review's real output has no "lane"/"source_type" key at all -
+        # extract_from_run must not fabricate values for either, even if a
+        # caller's mock happens to include those keys (a stale/incorrect
+        # fixture should not silently pass).
+        entries = {"ProjectA|": {"doc1": ["updated", "reason"]}}
+        stale_result = _real_shaped_review_result(
+            entries, lane="project_knowledge", source_type="project_knowledge_document",
+        )
+        with mock.patch("qa_manage.cmd_review", return_value=stale_result), \
+             mock.patch("record_task_outcome._resolve_source_blob", return_value=("yes", "1000", "250")):
+            extracted = record_tool.extract_from_run("20260723-test-run-123")
+        self.assertEqual(extracted["lane"], "")
+        self.assertEqual(extracted["source_type"], "")
+
+
+class TestResolveSourceBlobManifestField(unittest.TestCase):
+    """Regression test for the manifest field-name bug: the real
+    _source_text_manifest.json entries key their blob location as
+    "text_path" (see export_source_text.py), not "blob_path"."""
+
+    def test_reads_text_path_field_from_manifest(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            mirror_root = Path(td) / "Documents" / "qa-drive-mirror"
+            mirror_root.mkdir(parents=True)
+            blob_rel = "_source_text/blobs/v1/fake.txt"
+            (mirror_root / "_source_text").mkdir()
+            (mirror_root / "_source_text" / "blobs").mkdir()
+            (mirror_root / "_source_text" / "blobs" / "v1").mkdir()
+            blob_text = "fake source text " * 10
+            (mirror_root / blob_rel).write_text(blob_text, encoding="utf-8")
+            manifest = {
+                "20260723-test-run-123:v1": {
+                    "text_path": blob_rel,
+                    "source_path": "fake",
+                    "queue_source_hash": "fake",
+                    "source_sha256": "fake",
+                    "text_sha256": "fake",
+                    "extractor_profile": "fake",
+                }
+            }
+            (mirror_root / "_source_text_manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8",
+            )
+
+            with mock.patch.object(Path, "home", return_value=Path(td)):
+                blob_present, chars, tokens = record_tool._resolve_source_blob("20260723-test-run-123")
+        self.assertEqual(blob_present, "yes")
+        self.assertEqual(chars, str(len(blob_text)))
+        self.assertEqual(tokens, str(len(blob_text) // 4))
+
+
 class TestRecordTaskOutcomeCLI(unittest.TestCase):
     def test_dry_run_output(self):
-        mock_review_res = mock.MagicMock()
-        mock_review_res.ok = True
-        mock_review_res.data = {
-            "lane": "project_knowledge",
-            "source_type": "project_knowledge_document",
-            "status": "completed",
-            "unresolved_edges": [],
-            "entries": {"doc1": ["updated", "reason"]},
-        }
-        with mock.patch("qa_manage.cmd_review", return_value=mock_review_res), \
+        entries = {"ProjectA|": {"doc1": ["updated", "reason"]}}
+        with mock.patch("qa_manage.cmd_review", return_value=_real_shaped_review_result(entries)), \
              mock.patch("record_task_outcome._resolve_source_blob", return_value=("yes", "1000", "250")), \
              mock.patch("sys.argv", ["record_task_outcome.py", "--from-run", "20260723-test-run-123", "--dry-run"]):
             rc = record_tool.main()
