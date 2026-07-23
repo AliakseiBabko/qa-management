@@ -29,12 +29,17 @@ from operator_telemetry_common import (  # noqa: E402
     AGENT_SESSION_CSV_PATH,
     CSV_HEADER,
     CSV_PATH,
+    TASK_OUTCOME_CSV_HEADER,
+    TASK_OUTCOME_CSV_PATH,
     diff_guard_agent_session_new_row_only,
     diff_guard_new_row_only,
+    diff_guard_task_outcome_new_row_only,
     read_agent_session_rows,
     read_rows,
+    read_task_outcome_rows,
     validate_agent_session_row,
     validate_row,
+    validate_task_outcome_row,
 )
 
 
@@ -122,20 +127,38 @@ def validate_agent_sessions_csv() -> bool:
 
     return True
 
+def validate_task_outcomes_csv() -> bool:
+    return _validate_csv(
+        TASK_OUTCOME_CSV_PATH,
+        TASK_OUTCOME_CSV_HEADER,
+        read_task_outcome_rows,
+        validate_task_outcome_row,
+        "task_outcome_id",
+        "task-outcomes",
+    )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sessions", action="store_true",
                         help="Validate agent-sessions.csv instead of operator-runs.csv.")
+    parser.add_argument("--outcomes", action="store_true",
+                        help="Validate task-outcomes.csv instead of operator-runs.csv.")
     parser.add_argument("--diff-guard", action="store_true",
                         help="Assert the working CSV only added the target row vs --ref.")
     parser.add_argument("--run-id", help="Target run_id (operator-runs.csv --diff-guard).")
     parser.add_argument("--session-run-id", help="Target session_run_id (agent-sessions.csv --diff-guard).")
+    parser.add_argument("--task-outcome-id", help="Target task_outcome_id (task-outcomes.csv --diff-guard).")
     parser.add_argument("--ref", default="HEAD", help="Git ref to compare against (default: HEAD).")
     args = parser.parse_args()
 
     if args.diff_guard:
-        if args.sessions:
+        if args.outcomes:
+            if not args.task_outcome_id:
+                parser.error("--outcomes --diff-guard requires --task-outcome-id")
+            ok, violations = diff_guard_task_outcome_new_row_only(args.task_outcome_id, args.ref)
+            target = args.task_outcome_id
+        elif args.sessions:
             if not args.session_run_id:
                 parser.error("--sessions --diff-guard requires --session-run-id")
             ok, violations = diff_guard_agent_session_new_row_only(args.session_run_id, args.ref)
@@ -153,6 +176,8 @@ def main() -> int:
         print(f"Diff guard OK: only '{target}' changed vs {args.ref}.")
         return 0
 
+    if args.outcomes:
+        return 0 if validate_task_outcomes_csv() else 1
     if args.sessions:
         return 0 if validate_agent_sessions_csv() else 1
     return 0 if validate_csv() else 1

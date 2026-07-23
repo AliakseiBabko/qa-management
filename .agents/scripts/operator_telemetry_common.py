@@ -545,3 +545,167 @@ def diff_guard_agent_session_new_row_only(session_run_id: str, ref: str = "HEAD"
     """diff-guard for agent-sessions.csv - see _diff_guard_new_row_only."""
     return _diff_guard_new_row_only(AGENT_SESSION_CSV_PATH, "session_run_id", session_run_id,
                                     read_agent_session_rows, ref=ref, repo_root=repo_root)
+
+
+# ---------------------------------------------------------------------------
+# task-outcomes.csv (derived pass closure facts & workload telemetry)
+# ---------------------------------------------------------------------------
+
+TASK_OUTCOME_CSV_PATH = TELEMETRY_ROOT / "task-outcomes.csv"
+
+TASK_OUTCOME_CSV_HEADER = [
+    "task_outcome_id",
+    "date",
+    "task_type",
+    "runtime",
+    "linked_session_run_id",
+    "queue_run_hash",
+    "lane",
+    "source_type",
+    "source_count",
+    "source_blob_present",
+    "source_chars",
+    "source_estimated_tokens",
+    "record_apply_updated_count",
+    "record_apply_no_change_count",
+    "record_apply_not_applicable_count",
+    "closure_edges_count",
+    "closure_edges_updated_count",
+    "closure_edges_no_change_count",
+    "closure_edges_gated_count",
+    "mirror_export_mode",
+    "status",
+    "notes",
+]
+
+TASK_OUTCOME_REQUIRED_FIELDS = [
+    "task_outcome_id", "date", "task_type", "runtime", "status",
+]
+
+TASK_OUTCOME_NUMERIC_FIELDS = [
+    "source_count", "source_chars", "source_estimated_tokens",
+    "record_apply_updated_count", "record_apply_no_change_count",
+    "record_apply_not_applicable_count", "closure_edges_count",
+    "closure_edges_updated_count", "closure_edges_no_change_count",
+    "closure_edges_gated_count",
+]
+
+TASK_OUTCOME_VALID_TASK_TYPE = {
+    "intake_run", "repo_maintenance", "retro_pass", "admin_pass", "quality_audit", "cleanup_pass",
+}
+TASK_OUTCOME_VALID_RUNTIME = {"antigravity", "claude", "codex", "cline", "manual"}
+TASK_OUTCOME_VALID_LANE = {"m2_project_management", "project_knowledge", "m1_people_management", "workspace", ""}
+TASK_OUTCOME_VALID_MIRROR_EXPORT_MODE = {"full", "scoped", "none", ""}
+TASK_OUTCOME_VALID_STATUS = {"ok", "error", "gated"}
+TASK_OUTCOME_VALID_YES_NO = {"yes", "no"}
+
+
+def valid_source_types() -> set[str]:
+    from pipeline_common import SKILL_INVOCATION_SOURCE_TYPES
+    return set(SKILL_INVOCATION_SOURCE_TYPES) | {""}
+
+
+def read_task_outcome_rows() -> tuple[list[str], list[dict]]:
+    """Read task-outcomes.csv, returning (header, rows)."""
+    return _read_csv_rows(TASK_OUTCOME_CSV_PATH, TASK_OUTCOME_CSV_HEADER)
+
+
+def validate_task_outcome_row(row: dict, watch=None) -> list[str]:
+    errors = []
+    for field in TASK_OUTCOME_REQUIRED_FIELDS:
+        if not str(row.get(field, "")).strip():
+            errors.append(f"required field '{field}' is blank")
+
+    for field in TASK_OUTCOME_NUMERIC_FIELDS:
+        val = row.get(field, "")
+        if val is None or str(val).strip() == "":
+            continue
+        try:
+            int(val)
+        except (TypeError, ValueError):
+            errors.append(f"field '{field}' has non-integer value {val!r}")
+
+    task_type = row.get("task_type")
+    if task_type and task_type not in TASK_OUTCOME_VALID_TASK_TYPE:
+        errors.append(
+            f"field 'task_type' has invalid value {task_type!r} "
+            f"(allowed: {sorted(TASK_OUTCOME_VALID_TASK_TYPE)})"
+        )
+
+    runtime = row.get("runtime")
+    if runtime and runtime not in TASK_OUTCOME_VALID_RUNTIME:
+        errors.append(
+            f"field 'runtime' has invalid value {runtime!r} "
+            f"(allowed: {sorted(TASK_OUTCOME_VALID_RUNTIME)})"
+        )
+
+    lane = row.get("lane")
+    if lane and lane not in TASK_OUTCOME_VALID_LANE:
+        errors.append(
+            f"field 'lane' has invalid value {lane!r} "
+            f"(allowed: {sorted(TASK_OUTCOME_VALID_LANE)})"
+        )
+
+    source_type = row.get("source_type")
+    allowed_sources = valid_source_types()
+    if source_type and source_type not in allowed_sources:
+        errors.append(
+            f"field 'source_type' has invalid value {source_type!r} "
+            f"(allowed: {sorted(allowed_sources)})"
+        )
+
+    blob_present = row.get("source_blob_present")
+    if blob_present and blob_present not in TASK_OUTCOME_VALID_YES_NO:
+        errors.append(
+            f"field 'source_blob_present' has invalid value {blob_present!r} (allowed: yes/no)"
+        )
+
+    export_mode = row.get("mirror_export_mode")
+    if export_mode and export_mode not in TASK_OUTCOME_VALID_MIRROR_EXPORT_MODE:
+        errors.append(
+            f"field 'mirror_export_mode' has invalid value {export_mode!r} "
+            f"(allowed: {sorted(TASK_OUTCOME_VALID_MIRROR_EXPORT_MODE)})"
+        )
+
+    status = row.get("status")
+    if status and status not in TASK_OUTCOME_VALID_STATUS:
+        errors.append(
+            f"field 'status' has invalid value {status!r} "
+            f"(allowed: {sorted(TASK_OUTCOME_VALID_STATUS)})"
+        )
+
+    # Non-zero workload guard: at least one count field must be > 0
+    workload_counts = [row.get(f) for f in TASK_OUTCOME_NUMERIC_FIELDS]
+    has_non_zero = False
+    for c in workload_counts:
+        if c is not None and str(c).strip().isdigit() and int(c) > 0:
+            has_non_zero = True
+            break
+    if not has_non_zero:
+        errors.append(
+            "row failed non-zero workload guard: at least one count field "
+            "(source_count, source_chars, record_apply_*, closure_edges_*) must be > 0"
+        )
+
+    for field in ("notes",):
+        errors.extend(_check_free_text_field(field, str(row.get(field, "")), watch))
+
+    return errors
+
+
+def append_task_outcome_row(row: dict) -> None:
+    """Append exactly one validated row to task-outcomes.csv, creating the file
+    with the canonical header if it does not exist yet. Never rewrites an
+    existing row. Raises ValueError on any validation failure, writing nothing."""
+    errors = validate_task_outcome_row(row)
+    if errors:
+        raise ValueError("Row failed validation:\n  " + "\n  ".join(errors))
+    _append_csv_row(TASK_OUTCOME_CSV_PATH, TASK_OUTCOME_CSV_HEADER, "task_outcome_id", row,
+                    read_task_outcome_rows)
+
+
+def diff_guard_task_outcome_new_row_only(task_outcome_id: str, ref: str = "HEAD",
+                                         repo_root: Path | None = None) -> tuple[bool, list[str]]:
+    """diff-guard for task-outcomes.csv - see _diff_guard_new_row_only."""
+    return _diff_guard_new_row_only(TASK_OUTCOME_CSV_PATH, "task_outcome_id", task_outcome_id,
+                                    read_task_outcome_rows, ref=ref, repo_root=repo_root)

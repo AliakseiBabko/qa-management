@@ -28,33 +28,34 @@ scripts live in `.agents/scripts/` alongside every other pipeline script
 (this repo's convention - scripts are not nested under per-topic
 subfolders).
 
-## Two CSVs, two different questions
+## Three CSVs, three different questions
 
 - **`operator-runs.csv`** answers *"how large was this command's output?"*
-  - one row per measured read-only command invocation
-  (`measure_operator_outputs.py` / `finalize_operator_run.py`).
-- **`agent-sessions.csv`** answers *"how many model tokens did this agent
-  session actually consume?"* - one row per recorded agent-runtime session
-  (`record_agent_session.py`), which commonly spans MANY
-  `operator-runs.csv` rows.
+  - one row per measured read-only command invocation (`measure_operator_outputs.py` / `finalize_operator_run.py`).
+- **`agent-sessions.csv`** answers *"how many model tokens did this agent session actually consume?"*
+  - one row per recorded agent-runtime session (`record_agent_session.py`).
+- **`task-outcomes.csv`** answers *"what derived closure facts and deliverables were accomplished by this pass?"*
+  - one row per completed intake run or task (`record_task_outcome.py --from-run <run-id>`).
 
-They are separate on purpose: `extract_agent_telemetry.py` returns a
-SESSION-WIDE token total, and a single long agent conversation can run
-many measured commands. There is no way to honestly slice that total back
-into "how much did just this one command cost" - writing the same session
-total into several `operator-runs.csv` rows would duplicate and overstate
-token use. So `operator-runs.csv`'s `actual_*` fields stay blank unless a
-row genuinely was measured in its own dedicated session (rare); a
-session's real token usage instead gets its own row in `agent-sessions.csv`,
-with `linked_operator_run_ids` recording which `operator-runs.csv` rows (if
-any) were measured during it. **Existing `operator-runs.csv` rows are never
-rewritten to backfill this** - see Rule 3 below, enforced structurally by
-both CSVs' append-only/diff-guard model.
+They are separate on purpose:
+1. `extract_agent_telemetry.py` returns a SESSION-WIDE token total that cannot be sliced back into individual command cost.
+2. `task-outcomes.csv` records objective derived closure facts (scope updates, cascade edges resolved, source text blob sizes) extracted automatically from machine-readable state (`qa_manage.py review --json`, `_source_text_manifest.json` keyed by `<run_id>:v1`), eliminating manual bookkeeping burden.
 
-`reduction_ratio_vs_baseline` (an `operator-runs.csv`-only column) compares
-one command's `output_chars` against a baseline command's - it says nothing
-about `agent-sessions.csv` token totals, and applies to command-output rows
-only, unless a deliberately-designed one-session-per-case experiment is run
+### Execution Sequence for Queue-Backed Intake Runs
+For every queue-backed intake run, `record_task_outcome.py` is mandatory and runs as the final telemetry step in this exact sequence:
+```powershell
+# 1. Archive source
+python .agents/scripts/qa_manage.py archive-source <run-id>
+
+# 2. Commit workspace mirror state (creates _source_text_manifest.json blob entry <run_id>:v1)
+python .agents/scripts/commit_workspace_state.py -m "..."
+
+# 3. Complete intake run
+python .agents/scripts/qa_manage.py complete <run-id>
+
+# 4. Record task outcome closure telemetry
+python .agents/scripts/record_task_outcome.py --from-run <run-id> --linked-session-run-id <session-row-id> --append-csv
+```
 ## Raw Telemetry vs Authoritative Common-Ground Analytics
 
 `agent-sessions.csv` preserves raw, provider-native telemetry evidence (`actual_input_tokens`, `actual_cache_read_tokens`, `actual_reasoning_tokens`, etc.) without modifying raw provider data at ingestion time.
