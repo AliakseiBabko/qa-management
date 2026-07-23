@@ -45,7 +45,7 @@ def _resolve_source_blob(run_id: str) -> tuple[str, str, str]:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             blob_key = f"{run_id}:v1"
             if blob_key in manifest:
-                rel_blob = manifest[blob_key].get("blob_path", "")
+                rel_blob = manifest[blob_key].get("text_path", "")
                 blob_file = root / rel_blob
                 if blob_file.exists():
                     text = blob_file.read_text(encoding="utf-8", errors="replace")
@@ -67,8 +67,13 @@ def extract_from_run(run_id: str) -> dict:
         raise SystemExit(f"qa_manage.py review failed for run {run_id}: {res.human_lines}")
 
     data = res.data
-    lane = data.get("lane", "")
-    source_type = data.get("source_type", "")
+    # cmd_review's actual output (qa_manage.py's CommandResult.data) has no
+    # "lane" or "source_type" key at all - those describe the queue row's
+    # routing, not review's own return schema. Left blank rather than
+    # guessed; add real fields to cmd_review's output later if this is
+    # needed, instead of reading keys that don't exist.
+    lane = ""
+    source_type = ""
     run_status = data.get("status", "")
     unresolved_edges = data.get("unresolved_edges", [])
 
@@ -79,20 +84,26 @@ def extract_from_run(run_id: str) -> dict:
     else:
         status = "error"
 
+    # entries is {scope_key: {doc_name: [outcome, reason]}} - see
+    # qa_manage.py's parse_entries_cell() - one level deeper than a flat
+    # {doc_name: [outcome, reason]} dict.
     entries = data.get("entries", {})
     record_apply_updated = 0
     record_apply_no_change = 0
     record_apply_not_applicable = 0
     if isinstance(entries, dict):
-        for doc_name, item in entries.items():
-            if isinstance(item, list) and len(item) > 0:
-                outcome = item[0]
-                if outcome == "updated":
-                    record_apply_updated += 1
-                elif outcome == "no_change":
-                    record_apply_no_change += 1
-                elif outcome == "not_applicable":
-                    record_apply_not_applicable += 1
+        for scope_key, docs in entries.items():
+            if not isinstance(docs, dict):
+                continue
+            for doc_name, item in docs.items():
+                if isinstance(item, list) and len(item) > 0:
+                    outcome = item[0]
+                    if outcome == "updated":
+                        record_apply_updated += 1
+                    elif outcome == "no_change":
+                        record_apply_no_change += 1
+                    elif outcome == "not_applicable":
+                        record_apply_not_applicable += 1
 
     closure_count = 0
     closure_updated = 0
@@ -112,6 +123,12 @@ def extract_from_run(run_id: str) -> dict:
                 closure_gated += 1
     except Exception:
         pass
+
+    sys.stderr.write(
+        "Warning: lane/source_type are not derivable from qa_manage.py review --json - "
+        "leaving both blank. Pass --lane/--source-type explicitly, or add those fields "
+        "to cmd_review's output if this becomes a recurring need.\n"
+    )
 
     blob_present, source_chars, source_tokens = _resolve_source_blob(run_id)
     queue_run_hash = hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:16]
