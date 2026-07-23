@@ -50,6 +50,8 @@ KNOWN_PRICING: dict[str, dict[str, float]] = {
     "claude-3-5-sonnet-20241022": {"input": 3.0, "cache_write": 3.75, "cache_read": 0.30, "output": 15.0},
     "claude-3-7-sonnet-20250219": {"input": 3.0, "cache_write": 3.75, "cache_read": 0.30, "output": 15.0},
     "claude-3-haiku-20240307": {"input": 0.25, "cache_write": 0.30, "cache_read": 0.03, "output": 1.25},
+    "gemini-3.6-flash-medium": {"input": 0.15, "cache_write": 0.15, "cache_read": 0.0375, "output": 0.60},
+    "codex-5.5-medium": {"input": 2.50, "cache_read": 1.25, "output": 10.00},
     "gpt-4o": {"input": 2.50, "cache_read": 1.25, "output": 10.00},
 }
 
@@ -247,8 +249,22 @@ def print_text_report(summary: dict, verbose: bool = False) -> None:
         print("WARNING: Aggregating all snapshot rows includes cumulative token counts.")
     print("")
 
+    print("COMMON GROUND COMPARISON (FAIR CROSS-RUNTIME METRICS)")
+    print("-" * 75)
+    print(f"{'Runtime':<12} | {'Work Done (In+Out+Think)':<25} | {'Context Pressure (In+CacheRead)':<30} | {'Billing Est.':<12}")
+    print("-" * 75)
+    for rt, stats in summary["runtimes"].items():
+        work_str = f"{stats['model_work_estimate']:,}"
+        ctx_str = f"{stats['context_pressure']:,}"
+        cost_str = stats['billing_estimate_formatted']
+        print(f"{rt:<12} | {work_str:<25} | {ctx_str:<30} | {cost_str:<12}")
+    print("-" * 75)
+    print("  * Work Done = Fresh Input + Output + Reasoning (excludes cache-read multiplication).")
+    print("  * Context Pressure = Fresh Input + Cache Reads (measures multi-turn context accumulation).")
+    print("")
+
     print("PER-RUNTIME SUMMARY")
-    print("-" * 70)
+    print("-" * 75)
     for rt, stats in summary["runtimes"].items():
         print(f"Runtime: {rt} ({stats['session_count']} session unit(s))")
         print(f"  Raw Total Tokens:        {stats['raw_total_tokens']:,}")
