@@ -1,12 +1,14 @@
-"""Phase 11 operator telemetry: summarize agent session usage and health.
+"""Phase 11 operator telemetry: authoritative summarize agent session usage and health.
 
 Reads .agents/telemetry/agent-sessions.csv and computes:
-  1. Deduplicated session totals by runtime (default: latest row per session_id
-     to avoid overcounting cumulative multi-turn session logs).
-  2. Derived comparative metrics:
-     - model_work_estimate = actual_input_tokens + actual_output_tokens + actual_reasoning_tokens
-     - context_pressure    = actual_input_tokens + actual_cache_read_tokens
-     - billing_estimate    = existing estimated_cost_usd or provider pricing when model_label is known
+  1. Common Ground Comparison (default cross-runtime comparison layer):
+     - work_done_tokens        = actual_input_tokens + actual_output_tokens + actual_reasoning_tokens
+                                 (excludes cache-read multiplication)
+     - context_pressure_tokens = actual_input_tokens + actual_cache_read_tokens
+                                 (reflects total context window accumulation)
+     - billable_estimate_usd   = existing estimated_cost_usd or provider pricing when model_label is known
+  2. Provider-Native Raw Totals (preserved raw evidence, labeled provider-native):
+     - input, cache creation, cache read, output, reasoning, total tokens
   3. Telemetry Health & Quality checks:
      - cumulative snapshot detection (duplicate session_id rows)
      - rows with blank token totals
@@ -98,7 +100,7 @@ def calculate_billing_estimate(row: dict) -> float | None:
     return round(cost, 6)
 
 
-def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bool = False) -> dict:
+def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bool = False, verbose: bool = False) -> dict:
     _, all_rows = read_agent_session_rows()
 
     if runtime_filter:
@@ -108,7 +110,6 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
     health_warnings: list[str] = []
     seen_session_ids: dict[str, list[dict]] = {}
 
-    # Group all rows by session_id to detect cumulative snapshots
     for r in all_rows:
         sid = r.get("session_id", "").strip()
         if sid:
@@ -124,21 +125,22 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
                "Default mode: using latest snapshot per session_id to prevent cumulative overcounting.")
         )
 
-    # Determine which rows to include in token/cost aggregation
+    # Determine aggregated targets: deduplicated vs all snapshot rows
     if include_snapshots:
         target_rows = all_rows
     else:
-        # Deduplicate: select the latest row for each (runtime, session_id) group
         deduped: dict[tuple[str, str], dict] = {}
         for r in all_rows:
             rt = r.get("runtime", "unknown")
             sid = r.get("session_id", "").strip()
             key = (rt, sid if sid else r.get("session_run_id", ""))
-            deduped[key] = r  # later row overwrites earlier
+            deduped[key] = r
         target_rows = list(deduped.values())
 
-    runtimes: dict[str, dict] = {}
-    confidence_counts: dict[str, int] = {}
+    runtimes_cg: dict[str, dict] = {}
+    runtimes_raw: dict[str, dict] = {}
+    overall_confidence: dict[str, int] = {}
+
     missing_model_count = 0
     missing_cost_count = 0
     missing_timestamps_count = 0
@@ -151,7 +153,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             legacy_runtime_count += 1
 
         conf = r.get("confidence", "unknown")
-        confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
+        overall_confidence[conf] = overall_confidence.get(conf, 0) + 1
 
         model_lbl = r.get("model_label", "").strip()
         if not model_lbl:
@@ -164,65 +166,125 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         if cost is None:
             missing_cost_count += 1
 
+        in_tok = _safe_int(r.get("actual_input_tokens"))
+        out_tok = _safe_int(r.get("actual_output_tokens"))
+        tot_tok = _safe_int(r.get("total_tokens"))
+        if tot_tok == 0 and (in_tok + out_tok) == 0:
+            blank_tokens_count += 1
+
+    # Aggregations for common_ground and provider_native_raw_totals
+    overall_work_done = 0
+    overall_context_pressure = 0
+    overall_billable_cost = 0.0
+    overall_has_unknown_cost = False
+
     for r in target_rows:
         rt = r.get("runtime", "unknown")
+        conf = r.get("confidence", "unknown")
+
         in_tok = _safe_int(r.get("actual_input_tokens"))
         cw_tok = _safe_int(r.get("actual_cache_creation_tokens"))
         cr_tok = _safe_int(r.get("actual_cache_read_tokens"))
         out_tok = _safe_int(r.get("actual_output_tokens"))
         rs_tok = _safe_int(r.get("actual_reasoning_tokens"))
         tot_tok = _safe_int(r.get("total_tokens"))
-
-        if tot_tok == 0 and (in_tok + out_tok) == 0:
-            blank_tokens_count += 1
-
         cost = calculate_billing_estimate(r)
 
-        if rt not in runtimes:
-            runtimes[rt] = {
+        work_done = in_tok + out_tok + rs_tok
+        context_pressure = in_tok + cr_tok
+
+        # Common ground by runtime
+        if rt not in runtimes_cg:
+            runtimes_cg[rt] = {
                 "session_count": 0,
+                "row_count": 0,
+                "work_done_tokens": 0,
+                "context_pressure_tokens": 0,
+                "billable_estimate_usd": 0.0,
+                "has_unknown_cost": False,
+                "confidence_breakdown": {},
+            }
+        cg = runtimes_cg[rt]
+        cg["session_count"] += 1
+        cg["work_done_tokens"] += work_done
+        cg["context_pressure_tokens"] += context_pressure
+        cg["confidence_breakdown"][conf] = cg["confidence_breakdown"].get(conf, 0) + 1
+
+        if cost is not None:
+            cg["billable_estimate_usd"] += cost
+        else:
+            cg["has_unknown_cost"] = True
+
+        # Overall common ground
+        overall_work_done += work_done
+        overall_context_pressure += context_pressure
+        if cost is not None:
+            overall_billable_cost += cost
+        else:
+            overall_has_unknown_cost = True
+
+        # Raw totals by runtime
+        if rt not in runtimes_raw:
+            runtimes_raw[rt] = {
                 "raw_input_tokens": 0,
                 "raw_cache_creation_tokens": 0,
                 "raw_cache_read_tokens": 0,
                 "raw_output_tokens": 0,
                 "raw_reasoning_tokens": 0,
                 "raw_total_tokens": 0,
-                "model_work_estimate": 0,
-                "context_pressure": 0,
-                "billing_estimate_usd": 0.0,
-                "has_unknown_cost": False,
             }
+        raw = runtimes_raw[rt]
+        raw["raw_input_tokens"] += in_tok
+        raw["raw_cache_creation_tokens"] += cw_tok
+        raw["raw_cache_read_tokens"] += cr_tok
+        raw["raw_output_tokens"] += out_tok
+        raw["raw_reasoning_tokens"] += rs_tok
+        raw["raw_total_tokens"] += tot_tok
 
-        rt_summary = runtimes[rt]
-        rt_summary["session_count"] += 1
-        rt_summary["raw_input_tokens"] += in_tok
-        rt_summary["raw_cache_creation_tokens"] += cw_tok
-        rt_summary["raw_cache_read_tokens"] += cr_tok
-        rt_summary["raw_output_tokens"] += out_tok
-        rt_summary["raw_reasoning_tokens"] += rs_tok
-        rt_summary["raw_total_tokens"] += tot_tok
+    # Count total rows matching each runtime
+    for r in all_rows:
+        rt = r.get("runtime", "unknown")
+        if rt in runtimes_cg:
+            runtimes_cg[rt]["row_count"] += 1
 
-        rt_summary["model_work_estimate"] += (in_tok + out_tok + rs_tok)
-        rt_summary["context_pressure"] += (in_tok + cr_tok)
-
-        if cost is not None:
-            rt_summary["billing_estimate_usd"] += cost
+    # Format billing estimates
+    for rt, cg in runtimes_cg.items():
+        if cg["has_unknown_cost"] and cg["billable_estimate_usd"] == 0.0:
+            cg["billable_estimate_usd"] = None
+            cg["billable_estimate_formatted"] = "N/A (model/pricing unknown)"
+            health_warnings.append(f"Runtime '{rt}' includes sessions with unknown model pricing.")
+        elif cg["has_unknown_cost"]:
+            cg["billable_estimate_formatted"] = f"${cg['billable_estimate_usd']:.2f}+ (partial)"
         else:
-            rt_summary["has_unknown_cost"] = True
+            cg["billable_estimate_formatted"] = f"${cg['billable_estimate_usd']:.2f}"
 
-    for rt, stats in runtimes.items():
-        if stats["has_unknown_cost"] and stats["billing_estimate_usd"] == 0.0:
-            stats["billing_estimate_formatted"] = "N/A (model/pricing unknown)"
-        elif stats["has_unknown_cost"]:
-            stats["billing_estimate_formatted"] = f"${stats['billing_estimate_usd']:.2f}+ (partial)"
-        else:
-            stats["billing_estimate_formatted"] = f"${stats['billing_estimate_usd']:.2f}"
+    if overall_has_unknown_cost and overall_billable_cost == 0.0:
+        overall_billable_val = None
+        overall_billable_fmt = "N/A (model/pricing unknown)"
+    elif overall_has_unknown_cost:
+        overall_billable_val = round(overall_billable_cost, 6)
+        overall_billable_fmt = f"${overall_billable_cost:.2f}+ (partial)"
+    else:
+        overall_billable_val = round(overall_billable_cost, 6)
+        overall_billable_fmt = f"${overall_billable_cost:.2f}"
 
-    summary = {
-        "total_rows_recorded": len(all_rows),
-        "aggregated_sessions_count": len(target_rows),
-        "mode": "all_snapshots" if include_snapshots else "deduplicated_latest",
-        "runtimes": runtimes,
+    data_payload = {
+        "aggregation_mode": "include_snapshots" if include_snapshots else "deduplicated_latest",
+        "common_ground": {
+            "overall": {
+                "session_count": len(target_rows),
+                "row_count": len(all_rows),
+                "work_done_tokens": overall_work_done,
+                "context_pressure_tokens": overall_context_pressure,
+                "billable_estimate_usd": overall_billable_val,
+                "billable_estimate_formatted": overall_billable_fmt,
+                "confidence_breakdown": overall_confidence,
+            },
+            "by_runtime": runtimes_cg,
+        },
+        "provider_native_raw_totals": {
+            "by_runtime": runtimes_raw,
+        },
         "health": {
             "duplicate_session_ids_count": len(duplicate_session_groups),
             "cumulative_snapshot_rows_count": sum(len(v) for v in duplicate_session_groups.values()),
@@ -231,57 +293,76 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             "missing_model_label_count": missing_model_count,
             "missing_timestamps_count": missing_timestamps_count,
             "missing_cost_count": missing_cost_count,
-            "confidence_breakdown": confidence_counts,
-            "warnings": health_warnings,
+            "confidence_breakdown": overall_confidence,
         },
     }
-    return summary
+
+    if verbose:
+        data_payload["runtime_details"] = target_rows
+
+    envelope = {
+        "schema_version": "1.0",
+        "ok": True,
+        "command": "summarize_agent_telemetry.py",
+        "data": data_payload,
+        "warnings": health_warnings,
+        "errors": [],
+    }
+    return envelope
 
 
-def print_text_report(summary: dict, verbose: bool = False) -> None:
-    print("=" * 70)
-    print("OPERATOR TELEMETRY SESSION SUMMARY")
-    print("=" * 70)
-    print(f"Total rows recorded: {summary['total_rows_recorded']}")
-    print(f"Aggregated session units: {summary['aggregated_sessions_count']}")
-    print(f"Aggregation mode: {summary['mode']}")
-    if summary['mode'] == 'all_snapshots':
+def print_text_report(envelope: dict, verbose: bool = False) -> None:
+    data = envelope["data"]
+    cg_overall = data["common_ground"]["overall"]
+    cg_runtimes = data["common_ground"]["by_runtime"]
+    raw_runtimes = data["provider_native_raw_totals"]["by_runtime"]
+    health = data["health"]
+
+    print("=" * 78)
+    print("OPERATOR TELEMETRY SESSION SUMMARY — AUTHORITATIVE COMMON GROUND")
+    print("=" * 78)
+    print(f"Total rows in CSV: {cg_overall['row_count']}")
+    print(f"Aggregated session units: {cg_overall['session_count']}")
+    print(f"Aggregation mode: {data['aggregation_mode']}")
+    if data['aggregation_mode'] == 'include_snapshots':
         print("WARNING: Aggregating all snapshot rows includes cumulative token counts.")
     print("")
 
-    print("COMMON GROUND COMPARISON (FAIR CROSS-RUNTIME METRICS)")
-    print("-" * 75)
+    print("1. COMMON GROUND COMPARISON (DEFAULT CROSS-RUNTIME PRODUCTIVITY METRICS)")
+    print("-" * 78)
     print(f"{'Runtime':<12} | {'Work Done (In+Out+Think)':<25} | {'Context Pressure (In+CacheRead)':<30} | {'Billing Est.':<12}")
-    print("-" * 75)
-    for rt, stats in summary["runtimes"].items():
-        work_str = f"{stats['model_work_estimate']:,}"
-        ctx_str = f"{stats['context_pressure']:,}"
-        cost_str = stats['billing_estimate_formatted']
+    print("-" * 78)
+    for rt, cg in cg_runtimes.items():
+        work_str = f"{cg['work_done_tokens']:,}"
+        ctx_str = f"{cg['context_pressure_tokens']:,}"
+        cost_str = cg['billable_estimate_formatted']
         print(f"{rt:<12} | {work_str:<25} | {ctx_str:<30} | {cost_str:<12}")
-    print("-" * 75)
+    print("-" * 78)
+    work_ov = f"{cg_overall['work_done_tokens']:,}"
+    ctx_ov = f"{cg_overall['context_pressure_tokens']:,}"
+    cost_ov = cg_overall['billable_estimate_formatted']
+    print(f"{'OVERALL':<12} | {work_ov:<25} | {ctx_ov:<30} | {cost_ov:<12}")
+    print("-" * 78)
     print("  * Work Done = Fresh Input + Output + Reasoning (excludes cache-read multiplication).")
     print("  * Context Pressure = Fresh Input + Cache Reads (measures multi-turn context accumulation).")
     print("")
 
-    print("PER-RUNTIME SUMMARY")
-    print("-" * 75)
-    for rt, stats in summary["runtimes"].items():
-        print(f"Runtime: {rt} ({stats['session_count']} session unit(s))")
-        print(f"  Raw Total Tokens:        {stats['raw_total_tokens']:,}")
-        print(f"  Model Work Estimate:     {stats['model_work_estimate']:,} (input + output + reasoning)")
-        print(f"  Context Pressure:        {stats['context_pressure']:,} (input + cache_read)")
-        print(f"  Billing Estimate:        {stats['billing_estimate_formatted']}")
+    print("2. PROVIDER-NATIVE RAW TOTALS (PRESERVED RAW EVIDENCE - NOT RECOMMENDED FOR DIRECT COMPARISON)")
+    print("-" * 78)
+    for rt, raw in raw_runtimes.items():
+        cg = cg_runtimes.get(rt, {})
+        print(f"Runtime: {rt} ({cg.get('session_count', 0)} session unit(s), {cg.get('row_count', 0)} row(s))")
+        print(f"  Raw Total Tokens:        {raw['raw_total_tokens']:,}")
         print(f"  Breakdown:")
-        print(f"    - Input Tokens:        {stats['raw_input_tokens']:,}")
-        print(f"    - Cache Read Tokens:   {stats['raw_cache_read_tokens']:,}")
-        print(f"    - Cache Creation:      {stats['raw_cache_creation_tokens']:,}")
-        print(f"    - Output Tokens:       {stats['raw_output_tokens']:,}")
-        print(f"    - Reasoning Tokens:    {stats['raw_reasoning_tokens']:,}")
-        print("-" * 70)
+        print(f"    - Input Tokens:        {raw['raw_input_tokens']:,}")
+        print(f"    - Cache Read Tokens:   {raw['raw_cache_read_tokens']:,}")
+        print(f"    - Cache Creation:      {raw['raw_cache_creation_tokens']:,}")
+        print(f"    - Output Tokens:       {raw['raw_output_tokens']:,}")
+        print(f"    - Reasoning Tokens:    {raw['raw_reasoning_tokens']:,}")
+        print("-" * 78)
 
-    print("\nHEALTH & QUALITY REPORT")
-    print("-" * 70)
-    health = summary["health"]
+    print("\n3. TELEMETRY HEALTH & QUALITY REPORT")
+    print("-" * 78)
     print(f"  Duplicate session_id groups: {health['duplicate_session_ids_count']} ({health['cumulative_snapshot_rows_count']} rows)")
     print(f"  Blank token rows:            {health['blank_tokens_count']}")
     print(f"  Legacy runtime aliases:      {health['legacy_runtime_alias_count']}")
@@ -292,13 +373,13 @@ def print_text_report(summary: dict, verbose: bool = False) -> None:
     for conf, cnt in sorted(health["confidence_breakdown"].items()):
         print(f"    - {conf}: {cnt}")
 
-    if health["warnings"]:
-        print("\nHealth Notes:")
-        for w in health["warnings"]:
+    if envelope["warnings"]:
+        print("\nHealth & Operational Warnings:")
+        for w in envelope["warnings"]:
             print(f"  * {w}")
     else:
         print("\nAll health checks passed cleanly.")
-    print("=" * 70)
+    print("=" * 78)
 
 
 def main() -> int:
@@ -310,12 +391,16 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Print extra details.")
     args = parser.parse_args()
 
-    summary = summarize_telemetry(runtime_filter=args.runtime, include_snapshots=args.include_snapshots)
+    envelope = summarize_telemetry(
+        runtime_filter=args.runtime,
+        include_snapshots=args.include_snapshots,
+        verbose=args.verbose,
+    )
 
     if args.json:
-        print(json.dumps(summary, indent=2))
+        print(json.dumps(envelope, indent=2))
     else:
-        print_text_report(summary, verbose=args.verbose)
+        print_text_report(envelope, verbose=args.verbose)
 
     return 0
 

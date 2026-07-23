@@ -55,21 +55,24 @@ both CSVs' append-only/diff-guard model.
 one command's `output_chars` against a baseline command's - it says nothing
 about `agent-sessions.csv` token totals, and applies to command-output rows
 only, unless a deliberately-designed one-session-per-case experiment is run
-## Raw Telemetry vs Derived Normalization Analytics
+## Raw Telemetry vs Authoritative Common-Ground Analytics
 
-`agent-sessions.csv` stores raw, provider-native telemetry evidence (`actual_input_tokens`, `actual_cache_read_tokens`, `actual_reasoning_tokens`, etc.) without forcing unlike provider metrics to look identical at ingestion time.
+`agent-sessions.csv` preserves raw, provider-native telemetry evidence (`actual_input_tokens`, `actual_cache_read_tokens`, `actual_reasoning_tokens`, etc.) without modifying raw provider data at ingestion time.
 
-For cross-runtime analytics and comparisons, use `.agents/scripts/summarize_agent_telemetry.py`, which dynamically computes normalized metrics:
+> [!IMPORTANT]
+> **Do NOT compare raw `total_tokens` directly across runtimes (Claude, Antigravity, Codex, Cline, manual)!**
+> Raw totals differ wildly because provider logs account for context reuse and KV prompt caching differently. Always use `.agents/scripts/summarize_agent_telemetry.py` as the authoritative layer for cross-runtime comparison.
 
-- **Model Work Estimate**: `actual_input_tokens + actual_output_tokens + actual_reasoning_tokens` — excludes cache-read token multiplication to reflect actual generative work.
-- **Context Pressure**: `actual_input_tokens + actual_cache_read_tokens` — reflects total context reuse depth across multi-turn sessions.
-- **Billing Estimate**: Provider-specific pricing calculated only when `model_label` and pricing are explicitly known; returns `N/A` otherwise.
+`summarize_agent_telemetry.py` computes normalized common-ground metrics:
+
+- **Work Done (`work_done_tokens`)**: `actual_input_tokens + actual_output_tokens + actual_reasoning_tokens` — excludes cache-read multiplication; this is the primary metric for fair cross-runtime comparison of generative work done.
+- **Context Pressure (`context_pressure_tokens`)**: `actual_input_tokens + actual_cache_read_tokens` — measures total context window accumulation over multi-turn sessions.
+- **Billable Estimate (`billable_estimate_usd`)**: Provider-specific financial cost calculated only when `model_label` and pricing are explicitly known; returns `null` / `N/A` otherwise to prevent cost invention.
 
 ### Key Data Interpretation Principles
-1. **Cache-read tokens vs Fresh input tokens**: Anthropic prompt caching (`claude_log`) records `cache_read_input_tokens` on every turn. In long multi-turn sessions, cache-read tokens accumulate to hundreds of millions or billions of tokens; they represent context reuse and should not be interpreted as fresh input tokens or new work done.
-2. **Cumulative Session Snapshots**: `agent-sessions.csv` preserves historical cumulative session snapshots for multi-pass runs sharing the same `session_id`. Do not sum duplicate `session_id` rows directly; use `summarize_agent_telemetry.py`'s default mode (which selects the latest snapshot per session) for deduplicated totals. Pass `--include-snapshots` only for debugging.
-3. **Antigravity DB Confidence & Mapping**: `antigravity_db` extraction uses a heuristic SQLite protobuf field scan (`medium` confidence). It maps fresh uncached prompt tokens to `actual_input_tokens` and cached tokens separately to `actual_cache_read_tokens`, avoiding double-counting.
-4. **User-Configured Default Model Labels**: When `model_label` is omitted during session recording, default labels are automatically assigned by runtime (`antigravity` → `gemini-3.6-flash-medium`, `claude`/`claude-code` → `claude-sonnet-5-medium`, `codex` → `codex-5.5-medium`). These reflect the user's default runtime configuration.
+1. **Claude Cache-Read Multiplication vs Antigravity/Gemini DB Extraction**: Anthropic prompt caching (`claude_log`) records `cache_read_input_tokens` on every single turn. In long multi-turn sessions, cache-read tokens accumulate to hundreds of millions or billions of tokens; they represent context window re-reads and must not be confused with fresh input tokens or new work done. Antigravity SQLite DB extraction maps uncached prompt tokens to `actual_input_tokens` and cached tokens separately to `actual_cache_read_tokens` (`medium` confidence).
+2. **Cumulative Session Snapshots**: `agent-sessions.csv` preserves historical cumulative session snapshots for multi-pass runs sharing the same `session_id`. Do not sum duplicate `session_id` rows directly; `summarize_agent_telemetry.py`'s default mode (`deduplicated_latest`) selects the latest snapshot per session for deduplicated totals. Pass `--include-snapshots` only for debugging.
+3. **User-Configured Default Model Labels**: When `model_label` is omitted during session recording, default labels are automatically assigned by runtime (`antigravity` → `gemini-3.6-flash-medium`, `claude`/`claude-code` → `claude-sonnet-5-medium`, `codex` → `codex-5.5-medium`). These reflect the user's default runtime configuration.
 
 ## Directory layout
 

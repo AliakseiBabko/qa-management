@@ -397,5 +397,94 @@ class TestFinalize(unittest.TestCase):
             self.assertTrue(str(row[key]).lstrip("-").isdigit() or row[key] == "")
 
 
+class TestSummarizeAgentTelemetry(unittest.TestCase):
+    def test_work_done_and_context_pressure_metrics(self):
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-1", "objective": "obj", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100",
+                "actual_output_tokens": "50", "actual_reasoning_tokens": "10",
+                "actual_cache_read_tokens": "5000", "total_tokens": "5160",
+                "model_label": "claude-sonnet-5",
+            }
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            envelope = summ.summarize_telemetry()
+
+        cg = envelope["data"]["common_ground"]["by_runtime"]["claude"]
+        # work_done = 100 (in) + 50 (out) + 10 (think) = 160 (excludes 5000 cache read)
+        self.assertEqual(cg["work_done_tokens"], 160)
+        # context_pressure = 100 (in) + 5000 (cache read) = 5100
+        self.assertEqual(cg["context_pressure_tokens"], 5100)
+
+    def test_deduplicated_latest_vs_include_snapshots(self):
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1_v1", "date": "2026-01-01", "runtime": "claude",
+                "session_id": "sid-cumul", "objective": "v1", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "actual_cache_read_tokens": "1000", "total_tokens": "1150",
+            },
+            {
+                "session_run_id": "s1_v2", "date": "2026-01-02", "runtime": "claude",
+                "session_id": "sid-cumul", "objective": "v2", "extraction_method": "claude_log",
+                "confidence": "high", "actual_input_tokens": "200", "actual_output_tokens": "100",
+                "actual_cache_read_tokens": "2000", "total_tokens": "2300",
+            },
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            dedup_env = summ.summarize_telemetry(include_snapshots=False)
+            snap_env = summ.summarize_telemetry(include_snapshots=True)
+
+        cg_dedup = dedup_env["data"]["common_ground"]["by_runtime"]["claude"]
+        cg_snap = snap_env["data"]["common_ground"]["by_runtime"]["claude"]
+
+        self.assertEqual(cg_dedup["work_done_tokens"], 300)      # 200 + 100 from v2
+        self.assertEqual(cg_snap["work_done_tokens"], 450)       # 150 (v1) + 300 (v2)
+        self.assertTrue(any("overcounting" in w for w in dedup_env["warnings"]))
+        self.assertTrue(any("overcount warning" in w for w in snap_env["warnings"]))
+
+    def test_json_strict_envelope_structure(self):
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "antigravity",
+                "session_id": "sid-ag", "objective": "audit", "extraction_method": "antigravity_db",
+                "confidence": "medium", "actual_input_tokens": "500", "actual_output_tokens": "50",
+                "actual_reasoning_tokens": "20", "actual_cache_read_tokens": "100", "total_tokens": "670",
+            }
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            envelope = summ.summarize_telemetry()
+
+        self.assertEqual(envelope["schema_version"], "1.0")
+        self.assertTrue(envelope["ok"])
+        self.assertEqual(envelope["command"], "summarize_agent_telemetry.py")
+        self.assertIn("common_ground", envelope["data"])
+        self.assertIn("provider_native_raw_totals", envelope["data"])
+        self.assertIn("health", envelope["data"])
+
+    def test_unknown_pricing_produces_null_cost_and_warning(self):
+        import summarize_agent_telemetry as summ
+        rows = [
+            {
+                "session_run_id": "s1", "date": "2026-01-01", "runtime": "unknown_rt",
+                "session_id": "sid-unk", "objective": "test", "extraction_method": "manual",
+                "confidence": "manual", "actual_input_tokens": "100", "actual_output_tokens": "50",
+                "total_tokens": "150", "model_label": "mystery-model-xyz",
+            }
+        ]
+        with mock.patch.object(summ, "read_agent_session_rows", return_value=(common.AGENT_SESSION_CSV_HEADER, rows)):
+            envelope = summ.summarize_telemetry()
+
+        cg = envelope["data"]["common_ground"]["by_runtime"]["unknown_rt"]
+        self.assertIsNone(cg["billable_estimate_usd"])
+        self.assertIn("N/A", cg["billable_estimate_formatted"])
+        self.assertTrue(any("unknown model pricing" in w for w in envelope["warnings"]))
+
+
 if __name__ == "__main__":
     unittest.main()
