@@ -927,6 +927,14 @@ These are what actually runs day to day, once a project's folder already exists:
   Never touches `operator-runs.csv`; `--linked-operator-run-ids` entries
   not found there are a warning, not a failure. Same append-only/diff-guard
   model as the other CSV.
+- `record_task_outcome.py` — appends one row to
+  `.agents/telemetry/task-outcomes.csv`, the pass-level derived closure and
+  workload deliverable counterpart to `operator-runs.csv` and `agent-sessions.csv`:
+  auto-extracts objective closure facts from `qa_manage.py review <run-id> --json`,
+  `record-apply` entries, `closure_outcomes.py` edges, and private mirror source text
+  blobs (`_source_text_manifest.json` keyed by `<run_id>:v1`). Primary mode `--from-run
+  <run-id> --linked-session-run-id <session-row-id> --append-csv` runs as the final
+  telemetry step after `complete`.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals
   by runtime (deduplicating cumulative session snapshots by default) and derived

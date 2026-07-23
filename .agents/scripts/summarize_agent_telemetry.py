@@ -286,6 +286,30 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
         overall_billable_val = round(overall_billable_cost, 6)
         overall_billable_fmt = f"${overall_billable_cost:.2f}"
 
+    # Task outcomes reading & summary
+    outcomes_payload = {"total_outcomes_count": 0, "by_runtime": {}}
+    try:
+        from operator_telemetry_common import TASK_OUTCOME_CSV_PATH, read_task_outcome_rows
+        if TASK_OUTCOME_CSV_PATH.exists():
+            _out_header, out_rows = read_task_outcome_rows()
+            outcomes_payload["total_outcomes_count"] = len(out_rows)
+            for orow in out_rows:
+                ort = orow.get("runtime", "unknown")
+                if ort not in outcomes_payload["by_runtime"]:
+                    outcomes_payload["by_runtime"][ort] = {
+                        "outcome_count": 0,
+                        "source_chars": 0,
+                        "record_apply_updated_count": 0,
+                        "closure_edges_updated_count": 0,
+                    }
+                op = outcomes_payload["by_runtime"][ort]
+                op["outcome_count"] += 1
+                op["source_chars"] += _safe_int(orow.get("source_chars"))
+                op["record_apply_updated_count"] += _safe_int(orow.get("record_apply_updated_count"))
+                op["closure_edges_updated_count"] += _safe_int(orow.get("closure_edges_updated_count"))
+    except Exception:
+        pass
+
     raw_totals_key = "provider_native_all_snapshot_totals" if include_snapshots else "provider_native_latest_snapshot_totals"
 
     data_payload = {
@@ -302,6 +326,7 @@ def summarize_telemetry(runtime_filter: str | None = None, include_snapshots: bo
             },
             "by_runtime": runtimes_cg,
         },
+        "task_outcomes": outcomes_payload,
         raw_totals_key: {
             "by_runtime": runtimes_raw,
         },

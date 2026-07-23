@@ -1,0 +1,2 @@
+task_outcome_id,date,task_type,runtime,linked_session_run_id,queue_run_hash,lane,source_type,source_count,source_blob_present,source_chars,source_estimated_tokens,record_apply_updated_count,record_apply_no_change_count,record_apply_not_applicable_count,closure_edges_count,closure_edges_updated_count,closure_edges_no_change_count,closure_edges_gated_count,mirror_export_mode,status,notes
+outcome-intake-2026-07-23-0222b91f,2026-07-23,intake_run,antigravity,session-antigravity-2026-07-23-e4a53816,24f8ffd4652d6fb9,,,1,no,,,0,0,0,0,0,0,0,,ok,
