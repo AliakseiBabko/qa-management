@@ -347,11 +347,11 @@ class AntigravityAdapter:
     def extract(self, session_id: str, home: Path | None = None) -> dict:
         home = home or Path.home()
         result = self._try_agy_cli(session_id)
-        if result:
-            return result
+        if not result:
+            result = self._try_db(session_id, home)
 
-        result = self._try_db(session_id, home)
         if result:
+            self._try_timestamps(result, session_id, home)
             return result
 
         raise RuntimeError(
@@ -365,6 +365,46 @@ class AntigravityAdapter:
             "This is a first-class supported outcome, not a workaround - manual entry after reading "
             "the runtime's own usage UI is expected for Antigravity today."
         )
+
+    def _try_timestamps(self, result: dict, session_id: str, home: Path) -> None:
+        import datetime as dt
+        brain_dirs = [
+            home / ".gemini" / "antigravity" / "brain" / session_id / ".system_generated" / "logs",
+            home / ".gemini" / "antigravity-ide" / "brain" / session_id / ".system_generated" / "logs",
+        ]
+        for log_dir in brain_dirs:
+            transcript = log_dir / "transcript.jsonl"
+            if not transcript.exists():
+                continue
+            first_ts = None
+            last_ts = None
+            parse_ok = True
+            try:
+                with open(transcript, encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        ts = data.get("created_at")
+                        if ts:
+                            if first_ts is None:
+                                first_ts = ts
+                            last_ts = ts
+            except Exception:
+                parse_ok = False
+            if parse_ok and first_ts and last_ts:
+                result["session_started_at"] = first_ts
+                result["session_ended_at"] = last_ts
+                dt1 = dt.datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+                dt2 = dt.datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+                elapsed = (dt2 - dt1).total_seconds() / 60.0
+                result["elapsed_min"] = f"{elapsed:.2f}"
+            break
+
 
     def _try_agy_cli(self, session_id: str) -> dict | None:
         try:
