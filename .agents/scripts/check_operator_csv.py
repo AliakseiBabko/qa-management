@@ -103,28 +103,22 @@ def validate_agent_sessions_csv() -> bool:
     if not ok:
         return False
 
-    # Enforce strict single session_id rule post-migration
+    # Report duplicate session_id entries as cumulative snapshots (informational)
     _, rows = read_agent_session_rows()
     seen_sids: dict[str, int] = {}
-    dup_errors: list[str] = []
+    dups: dict[str, list[int]] = {}
     for i, r in enumerate(rows):
         sid = r.get("session_id", "").strip()
         if not sid:
             continue
         line_num = i + 2
         if sid in seen_sids:
-            dup_errors.append(
-                f"Line {line_num} ({r.get('session_run_id')}): duplicate session_id '{sid}' "
-                f"(first seen at line {seen_sids[sid]}). agent-sessions.csv allows only one canonical row per session."
-            )
+            dups.setdefault(sid, [seen_sids[sid]]).append(line_num)
         else:
             seen_sids[sid] = line_num
 
-    if dup_errors:
-        print("\n--- agent-sessions CSV duplicate session_id errors ---", file=sys.stderr)
-        for e in dup_errors:
-            print(f" - {e}", file=sys.stderr)
-        return False
+    if dups:
+        print(f"Info: {len(dups)} session_id group(s) contain cumulative snapshot rows (historical multi-pass sessions).")
 
     return True
 

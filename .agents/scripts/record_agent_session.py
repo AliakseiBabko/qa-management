@@ -116,6 +116,13 @@ DEFAULT_CONFIDENCE_BY_METHOD = {
     "manual": "manual",
 }
 
+DEFAULT_MODEL_LABELS_BY_RUNTIME = {
+    "antigravity": "gemini-3.6-flash-medium",
+    "claude": "claude-sonnet-5-medium",
+    "claude-code": "claude-sonnet-5-medium",
+    "codex": "codex-5.5-medium",
+}
+
 ACTUAL_TOKEN_FIELDS = (
     "actual_input_tokens", "actual_cache_creation_tokens", "actual_cache_read_tokens",
     "actual_output_tokens", "actual_reasoning_tokens",
@@ -226,7 +233,10 @@ def build_row(args) -> tuple[dict, list[str]]:
     row["session_run_id"] = args.session_run_id or _default_session_run_id(row_runtime)
     row["date"] = args.date or date.today().isoformat()
     row["runtime"] = row_runtime
-    row["model_label"] = args.model_label or telemetry.get("model_label", "")
+    model_lbl = args.model_label or telemetry.get("model_label", "")
+    if not model_lbl and extraction_method != "manual":
+        model_lbl = DEFAULT_MODEL_LABELS_BY_RUNTIME.get(row_runtime, "")
+    row["model_label"] = model_lbl
     row["session_id"] = args.session_id
     row["linked_operator_run_ids"] = ",".join(args.linked_operator_run_ids or [])
     row["objective"] = args.objective

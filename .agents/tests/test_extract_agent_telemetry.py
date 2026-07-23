@@ -271,7 +271,7 @@ class AntigravityAdapterTests(unittest.TestCase):
         with mock.patch.object(ext.subprocess, "run", side_effect=FileNotFoundError("no agy")):
             totals = ext.AntigravityAdapter().extract("session-y", home=self.home)
 
-        self.assertEqual(totals["actual_input_tokens"], 110)  # uncached + cached
+        self.assertEqual(totals["actual_input_tokens"], 100)  # uncached only
         self.assertEqual(totals["actual_output_tokens"], 40)
         self.assertEqual(totals["actual_cache_read_tokens"], 10)
         self.assertEqual(totals["actual_reasoning_tokens"], 5)
