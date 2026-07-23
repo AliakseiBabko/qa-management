@@ -486,7 +486,7 @@ class AntigravityAdapter:
                     output = usage.get(3, 0)
                     thinking = usage.get(10, 0)
                     if output > 0 or uncached > 0:
-                        totals["actual_input_tokens"] += (uncached + cached)
+                        totals["actual_input_tokens"] += uncached
                         totals["actual_output_tokens"] += output
                         totals["actual_cache_read_tokens"] += cached
                         totals["actual_reasoning_tokens"] += thinking

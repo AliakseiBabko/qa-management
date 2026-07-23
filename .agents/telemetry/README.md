@@ -67,8 +67,9 @@ For cross-runtime analytics and comparisons, use `.agents/scripts/summarize_agen
 
 ### Key Data Interpretation Principles
 1. **Cache-read tokens vs Fresh input tokens**: Anthropic prompt caching (`claude_log`) records `cache_read_input_tokens` on every turn. In long multi-turn sessions, cache-read tokens accumulate to hundreds of millions or billions of tokens; they represent context reuse and should not be interpreted as fresh input tokens or new work done.
-2. **Antigravity DB Confidence**: `antigravity_db` extraction uses a heuristic SQLite protobuf field scan (`medium` confidence). It represents trend-quality data, not authoritative accounting.
-3. **Single Session Rule & One-Time Repair**: `agent-sessions.csv` enforces exactly one canonical row per unique `session_id` (`check_operator_csv.py --sessions` fails on duplicates). A one-time telemetry repair migration (`repair_agent_sessions_csv.py`) consolidated historical duplicate cumulative Claude rows into single canonical rows with unioned operator run IDs and public-safe objectives.
+2. **Cumulative Session Snapshots**: `agent-sessions.csv` preserves historical cumulative session snapshots for multi-pass runs sharing the same `session_id`. Do not sum duplicate `session_id` rows directly; use `summarize_agent_telemetry.py`'s default mode (which selects the latest snapshot per session) for deduplicated totals. Pass `--include-snapshots` only for debugging.
+3. **Antigravity DB Confidence & Mapping**: `antigravity_db` extraction uses a heuristic SQLite protobuf field scan (`medium` confidence). It maps fresh uncached prompt tokens to `actual_input_tokens` and cached tokens separately to `actual_cache_read_tokens`, avoiding double-counting.
+4. **User-Configured Default Model Labels**: When `model_label` is omitted during session recording, default labels are automatically assigned by runtime (`antigravity` → `gemini-3.6-flash-medium`, `claude`/`claude-code` → `claude-sonnet-5-medium`, `codex` → `codex-5.5-medium`). These reflect the user's default runtime configuration.
 
 ## Directory layout
 

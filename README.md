@@ -929,19 +929,11 @@ These are what actually runs day to day, once a project's folder already exists:
   model as the other CSV.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals
-  by runtime and derived comparative metrics (`model_work_estimate`,
-  `context_pressure`, `billing_estimate`). Reports telemetry health checks: duplicate
-  `session_id`s, blank token fields, legacy runtime aliases (`claude-code`), missing
-  model labels or timestamps, and confidence breakdowns. Supports `--json`,
-  `--runtime`, and `--verbose`.
-- `repair_agent_sessions_csv.py` — one-time telemetry repair migration script for
-  `.agents/telemetry/agent-sessions.csv`. Consolidates duplicate rows sharing the
-  same continuous `session_id`, unions linked operator run IDs, re-extracts
-  authoritative usage from local logs via `extract_agent_telemetry.py` where available
-  (falling back to existing maximum cumulative totals if missing), applies generic
-  public-safe objectives, and normalizes legacy runtime aliases (`claude-code` →
-  `claude`). Requires explicit `--apply` (default is `--dry-run`) and refuses to run
-  if git status is dirty unless `--allow-dirty` is passed. Creates no temporary backup files.
+  by runtime (deduplicating cumulative session snapshots by default) and derived
+  comparative metrics (`model_work_estimate`, `context_pressure`, `billing_estimate`).
+  Reports telemetry health checks: cumulative snapshot groups, blank token fields,
+  legacy runtime aliases (`claude-code`), missing model labels or timestamps, and
+  confidence breakdowns. Supports `--json`, `--runtime`, `--include-snapshots`, and `--verbose`.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
