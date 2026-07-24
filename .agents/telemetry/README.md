@@ -359,6 +359,15 @@ python .agents/scripts/check_operator_csv.py --sessions --diff-guard --session-r
    session, and a session's cumulative total cannot be honestly
    attributed back to any single command within it (this is exactly why
    `agent-sessions.csv` exists as its own table - see "Two CSVs" above).
+   **Uncommitted vs. committed rows are not the same case**: a row you just
+   appended in the working tree, not yet committed, is still a draft - if a
+   field turns out to be objectively wrong (e.g. a `model_label` that
+   doesn't match the runtime's own logged model), correct it in place
+   before committing, the same way you'd fix a typo before publishing.
+   Once a row has been committed, treat it as historical - don't rewrite it
+   casually for a later-noticed issue; append a correction/superseding row
+   instead (or, for a genuine repair across many rows, a clearly-labeled
+   one-off migration pass, not a silent edit).
 4. Real names/projects/output text never go in either CSV, run notes
    template, or any committed file under this directory - only under
    gitignored `tmp/telemetry/`. No raw agent/session logs are ever stored
