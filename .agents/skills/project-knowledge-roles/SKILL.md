@@ -64,6 +64,17 @@ happened yet.
   changes testing scope/approach - most sources touch only the knowledge
   base and leave these three untouched (a valid `no_change` outcome, not a
   gap).
+- **Never create one of these three as a placeholder.** A first-time
+  `pk_test_plan`/`pk_test_strategy`/`pk_performance_test_plan` gets created
+  only when the user explicitly asks for it, or when the knowledge base
+  already holds concrete, non-generic content to put in it (real
+  workflows, real scope boundaries, real workload/latency numbers - not
+  restated section headings). A generic test plan or strategy with no
+  project-specific content is worse than no document at all - it looks
+  authoritative while carrying zero information, and someone will act on
+  it as if it were real. If the knowledge is too thin for a real first
+  version, say so and leave the document uncreated rather than filling the
+  gap with boilerplate.
 - **No presentations, no Slides.** This lane does not produce
   presentation decks. A later phase may read a reviewed brief and generate
   one; nothing in this lane does that today.

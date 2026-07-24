@@ -257,6 +257,21 @@ Leaving `project_metrics` or `_project_registry` stale after an
 supposed to be the one place to see the full picture, not one of several
 places that might be out of date.
 
+The same refresh discipline applies no matter which document the change
+enters through. `_project_registry` is mechanically generated from
+`project_metrics` only (`refresh_project_registry.py` never reads
+`project_risk` directly), so a `project_risk` update refreshes the
+registry only when it also changes one of the `project_metrics` rows the
+registry mirrors (`Статус проекта`, `Горизонт совместной работы`,
+`Бизнес-риск продукта клиента`, `Вклад в проект: <Имя>`,
+`Качество QA-процесса`) — for example, a risk review that concludes a
+project should move to `На паузе`, or that changes a person's `Вклад в
+проект` conclusion. When a `project_risk` pass does touch one of those
+`project_metrics` rows, update that row and rerun
+`refresh_project_registry.py` in the same pass, same as any other
+`project_metrics` change — do not treat `project_risk` as a dead end just
+because the script doesn't read it directly.
+
 This fan-out (and the M1 chain) is encoded as data in
 `.agents/document_graph.yaml`; `.agents/scripts/check_cascade_closure.py`
 expands it into a checklist and flags downstream documents not yet

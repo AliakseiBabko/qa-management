@@ -46,9 +46,21 @@ Local CSV fallback filename: `action_items.csv`.
 Use exactly the columns in `Templates\action_items.csv`:
 
 1. `Проект`
-2. `Дата события` — ISO `YYYY-MM-DD`. Never blank; if the real date is
-   unknown, use the nearest concrete placeholder and record the uncertainty
-   in `Комментарии`.
+2. `Дата события` — ISO `YYYY-MM-DD` when the source or M2 actually gives a
+   date, real or approximate (a named week/month is fine — round to that
+   period's nearest concrete date and say so in `Комментарии`). Never
+   invent a date that nothing in the source supports — a "today" or
+   near-term date fabricated just to fill the cell is worse than an honest
+   cadence label, because it reads as a real deadline on `_timeline`/the
+   Calendar view. For a genuinely dateless follow-up (no date given, not
+   tied to a known cadence), use a cadence label instead of a date:
+   `Еженедельный review`, `Backlog`, or `Следующий цикл планирования`
+   (mirrors `project_risk`'s `Следующий review` convention for the
+   equivalent no-date case) — pick whichever matches how M2 actually plans
+   to revisit it. Leave the cell blank only if none of those fit and the
+   schema's consumers (`_timeline`'s sort, the Calendar sync) can tolerate
+   it; a cadence label is the safer default. Either way, name in
+   `Комментарии` what would turn the label into a real date.
 3. `Тип` — free text but keep to a small consistent set: `Встреча`
    (1:1/status/client sync), `Отчёт/статус в чат`, `Дедлайн`, `Follow-up`
    (a clarification owed to or from someone), `Прочее`.

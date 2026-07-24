@@ -87,7 +87,12 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    turned up something that actually changes scope/approach - these
    remain the exception, not the default; most passes leave all three
    untouched, but "most passes skip this" is not a reason to skip the
-   check itself.
+   check itself. If one of these three doesn't exist yet for the project,
+   creating it here is still subject to the same rule as any other
+   creation of it (see `project-knowledge-roles/SKILL.md`, "Never create
+   one of these three as a placeholder") - do not scaffold it with generic
+   section headings just because this pass happened to touch the topic;
+   only create it when there's real, project-specific content to write.
 6. **Log `_skill_invocations`** via `pipeline_common.log_skill_invocation()`
    with `source_type` set to the source's actual type and `Documents
    touched` listing everything actually written this pass.

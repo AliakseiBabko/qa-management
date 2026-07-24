@@ -77,13 +77,20 @@ Suggested naming pattern:
 
 ## Versioning
 
-- `individual_metrics` is an append-only history of snapshots, not a
-  single overwritten row per metric — each sync/update adds the current
-  date's rows alongside prior dates rather than replacing them. This is
-  what makes `Тренд` meaningful: without kept history there is nothing to
-  compare the current value against.
-- Deduplicate on (`Проект`, `Сотрудник`, `Дата`, `Метрика`) — re-running on
-  the same date updates that date's row in place; a new date adds new rows.
+- `individual_metrics` is a current-state dashboard, same as
+  `project_metrics` — one row per (`Проект`, `Сотрудник`, `Метрика`). New
+  evidence updates that row in place (new `Дата`, new `Показатель`, new
+  `Пояснение`); it does not add a second row for a metric that already has
+  one. A real intake once appended a fresh dated row instead of updating
+  the existing one, which is exactly the duplicate-row failure this rule
+  exists to prevent — see `m2-role-rules.md`, Cascading Updates, for the
+  same discipline applied to `project_metrics`.
+- Deduplicate on (`Проект`, `Сотрудник`, `Метрика`) — `Дата` is not part of
+  the key; it is the row's own "as of" field and gets overwritten along
+  with `Показатель`/`Пояснение`/`Тренд` when the row updates.
+- If a metric's evolution over time is itself worth keeping (not just its
+  current value), that belongs in `evidence_log` (already append-only) or
+  a dedicated history table — not as a second current row in this sheet.
 - Append source traceability to the project `evidence_log`.
 - If a predecessor's differently-structured metrics data already exists for
   a person when this schema is first applied, preserve it as a same-folder
@@ -134,8 +141,10 @@ nothing more:
    `Вклад в проект` is not a row in this table — it lives in
    `project_metrics` instead, since this Sheet is visible to the employee
    it's about and that conclusion is M2's private judgment.
-8. `Тренд` — filled once there is at least one prior date to compare
-   against; leave blank on the first-ever snapshot for a metric.
+8. `Тренд` — filled once there is a prior value to compare against (the
+   previous `Показатель` this row held, found via `evidence_log` if the
+   row itself was already overwritten in place); leave blank on the
+   first-ever value for a metric.
 
 ## Internal Variant
 
@@ -159,10 +168,14 @@ exists specifically to hold multiple, sometimes-disagreeing perspectives
 side by side rather than collapsing them into one voice the way the shared
 table does.
 
-Same append-only/dedup mechanics as `individual_metrics`
-(`Проект`/`Сотрудник`/`Дата`/`Метрика` as the dedup key, now also scoped by
-`Сторона` since the same metric can carry different reads from different
-sides on the same date).
+Same current-state/dedup mechanics as `individual_metrics` — one row per
+(`Проект`, `Сотрудник`, `Метрика`, `Сторона`); new evidence for the same
+side updates that row in place. `Сторона` is part of the key (not `Дата`)
+because the same metric can carry different reads from different sides at
+once — that's the coexistence this table exists for. It is not a place to
+stack the same side's opinion over time; if a side's read on a metric
+changes, update their row, and keep the evolution in `evidence_log` if
+it's worth keeping.
 
 Do not feed this table into the automated `project_metrics` rollup script —
 it only reads the shared `individual_metrics` Core set. Anything from here
