@@ -262,6 +262,18 @@ The extractor does not modify source documents. It writes a `manifest.csv` and p
 subfolders with DOCX text as Markdown and XLSX sheets as CSV. These are intermediate
 analysis artifacts, not the preferred final business output format.
 
+## Visual Evidence Drop
+
+`00_Inbox/_Visual_Drop/` is a special subfolder for raw screenshot dumps
+with arbitrary filenames, plus an optional `visual_context.md` with rough
+notes (project, related meeting/source, person, groups, what to extract).
+Image files aren't in `qa_manage.py`'s `SCAN_EXTS`, so they never get
+auto-queued - they sit inert until an agent organizes them via the
+`visual-evidence-intake` skill into a renamed/grouped bundle under
+`00_Inbox/<Project>/visual-bundle-<topic>/` with a preserved
+original-filename-to-new-filename mapping. See
+`.agents/skills/visual-evidence-intake/SKILL.md`.
+
 ## Google API Smoke Test
 
 Use the smoke test before replacing CSV outputs with Google Sheets or Google Docs updates.

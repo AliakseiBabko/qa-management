@@ -101,6 +101,16 @@ repository contract wins.
 > files. Follow the Routine Shortcut Contract; cleanup is not business
 > intake.
 
+## Organize screenshots from the visual drop folder
+
+> Organize screenshots from `00_Inbox/_Visual_Drop` using
+> `visual-evidence-intake`: inspect each image, rename/group them into a
+> bundle with a preserved original-to-new filename mapping, and recommend
+> whether the bundle should later be processed as Project Knowledge or M2
+> supporting context. Don't guess from unclear content, and don't update
+> any business document in this pass - organizing the bundle is the whole
+> job here.
+
 ## Run the qa-retro improvement loop
 
 > Run the qa-retro skill's improvement-loop pass against recent pipeline
