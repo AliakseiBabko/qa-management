@@ -118,8 +118,14 @@ def canonical_runtime(runtime: str) -> str:
 def run_subprocess(argv: list[str]) -> subprocess.CompletedProcess:
     """The single chokepoint every sibling-script/git call goes through -
     tests mock this one function rather than patching subprocess.run at
-    every call site."""
-    return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True)
+    every call site. encoding="utf-8" is required, not optional: on
+    Windows, text=True alone decodes with the console's locale codepage
+    (cp1252 here), which crashes outright the first time a called script's
+    JSON output contains Cyrillic - and business content in this repo is
+    Russian-primary by default, so that is the common case, not an edge
+    case."""
+    return subprocess.run(argv, cwd=REPO_ROOT, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
 
 
 def parse_json_prefix(text: str) -> dict[str, Any] | None:
