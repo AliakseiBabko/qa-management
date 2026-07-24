@@ -99,6 +99,16 @@ happened yet.
   project's current, cross-source understanding of a topic. The same fact
   can appear in both, but the summary should never be the only place a
   durable fact lives.
+- **Do a core-section extraction before writing "unknown".** Business
+  Goals, System/Architecture, Core Workflows, Data/Integrations, and QA
+  Scope are not optional skim targets. Before leaving one of these
+  sections blank, vague, or "not described by sources", re-read the source
+  and any linked sidecar evidence (screenshots, notes, tables) specifically
+  for that section. If the source answers the section indirectly through
+  product walkthroughs, screen flows, examples, or owner explanations,
+  extract that answer instead of preserving a generic unknown placeholder.
+  Keep "unknown" only when the re-read still finds no evidence, and make
+  the resulting Open Question specific.
 
 ## Guardrails
 

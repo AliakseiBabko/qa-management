@@ -27,6 +27,18 @@ which applies here too.
 - **When the user provides their own edited variant of a drafted message,
   use their wording close to verbatim** in future messages of the same
   kind, rather than re-paraphrasing back toward the original draft.
+- **Prefer the user's conversational update framing over a formal report
+  voice.** When the user writes a better version as a short personal
+  update, preserve that shape: brief greeting, "updates from my side"
+  framing, concrete "we reviewed X" phrasing, calibrated first impression,
+  next-step plan, and a short staffing/business constraint note. Do not
+  inflate it into formal report language, strategic abstractions, or
+  executive-summary phrasing.
+- **Keep the user's balanced evaluation tone.** For a person's work, avoid
+  swinging to either praise or criticism when the user gave a calibrated
+  middle: a workable starting point, visible improvement areas, and a plan
+  to support the person. Preserve that balance unless the evidence or the
+  user explicitly says otherwise.
 - General shape that works: short direct opener (who you are + why you're
   writing) → 2-4 topics, bulleted if there's more than one → one sentence
   on why the input matters/what it's for → no closing meta-ask unless

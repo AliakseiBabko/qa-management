@@ -47,6 +47,20 @@ class ProjectKnowledgeRolesQualityRuleTests(unittest.TestCase):
         self.assertIn("source-local", self.text)
         self.assertIn("durable and", self.text.replace("\n", " "))
 
+    def test_core_sections_must_be_extracted_before_unknown(self):
+        normalized = " ".join(self.text.split())
+        self.assertIn("core-section extraction before writing \"unknown\"", normalized)
+        for phrase in (
+            "Business Goals",
+            "System/Architecture",
+            "Core Workflows",
+            "Data/Integrations",
+            "QA Scope",
+            "linked sidecar evidence",
+            "not described by sources",
+        ):
+            self.assertIn(phrase, normalized, f"missing phrase: {phrase!r}")
+
 
 class ProjectKnowledgeIntakeQualityGateTests(unittest.TestCase):
     def setUp(self):
@@ -54,6 +68,21 @@ class ProjectKnowledgeIntakeQualityGateTests(unittest.TestCase):
 
     def test_mandatory_closing_quality_gate_present(self):
         self.assertIn("closing quality gate (mandatory)", self.text)
+
+    def test_gate_requires_core_section_extraction_before_unknown(self):
+        normalized = " ".join(self.text.split())
+        self.assertIn("core-section extraction check", normalized)
+        for phrase in (
+            "Business Goals",
+            "System/Architecture",
+            "Core Workflows",
+            "Data/Integrations",
+            "QA Scope",
+            "sidecar evidence",
+            "Do not leave \"not described by sources\"",
+            "specific Open Question",
+        ):
+            self.assertIn(phrase, normalized, f"missing phrase: {phrase!r}")
 
     def test_gate_checks_formulas_examples_syntax(self):
         for phrase in ("formulas", "worked examples", "configuration/string syntax", "thresholds"):

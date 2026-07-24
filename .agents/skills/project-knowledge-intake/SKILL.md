@@ -41,6 +41,16 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
 4. **Run the closing quality gate (mandatory) before finishing.** With
    `pk_summary` written and `pk_knowledge_base` updated, do one more pass
    comparing them before moving on:
+   - **Run a core-section extraction check before writing or keeping
+     "unknown".** Re-read the source and any linked sidecar evidence
+     section-by-section for Business Goals, System/Architecture, Core
+     Workflows, Data/Integrations, and QA Scope. A product walkthrough,
+     screen sequence, worked example, owner explanation, or automation
+     screenshot can answer one of these sections even when the source never
+     uses that section's exact heading. Do not leave "not described by
+     sources" / "unknown" / vague filler in these sections until this
+     targeted check has been done. If evidence is still absent, keep the
+     gap as a specific Open Question rather than a broad placeholder.
    - For every section of the `pk_summary` you just wrote, decide: has its
      durable content been promoted into `pk_knowledge_base`, or is it
      deliberately staying summary-only? If the latter, the reason should
