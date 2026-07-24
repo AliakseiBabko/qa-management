@@ -343,6 +343,19 @@ python .agents/scripts/check_operator_csv.py --sessions
 python .agents/scripts/check_operator_csv.py --sessions --diff-guard --session-run-id <session_run_id>
 ```
 
+**Multiple appends in one working tree, no commit needed between them.**
+The diff-guard compares the working tree against the last git commit
+(`HEAD` by default) and rejects any *removed or modified* row relative to
+it, plus requires the target row to actually be present - but it does not
+require the target row to be the *only* new row. Closing out several
+queue-backed runs (or several no-queue passes) in one session commonly
+means appending 2-3 rows to the same CSV before the next commit; each
+append's own diff-guard call still passes as long as nothing already-
+committed was deleted or changed. You do not need to commit after every
+single append just to keep the next one's guard call happy - commit
+whenever it's otherwise convenient (end of the pass, end of the session),
+not once per row.
+
 ## Rules
 
 1. `case_id`/`command_name` must come from the catalog in

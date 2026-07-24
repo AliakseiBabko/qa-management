@@ -46,6 +46,13 @@ REGISTRY_HEADER = [
 STATUS_ORDER = ["Негативный", "Смешанный", "Позитивный"]
 CONTRIBUTION_PREFIX = "Вклад в проект: "
 
+# Values that legitimately mean "no judgment yet" - never warned about, just
+# folded into the unknown bucket per the Registry Data-Gap Semantics rule
+# above (see m2-role-rules.md).
+MISSING_CONTRIBUTION_VALUES = {"", "Неизвестно"}
+
+PROJECT_STATUS_VALUES = {"Активен", "На паузе"}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -62,7 +69,22 @@ def dashboard_value(rows: list[list[str]], metric: str, default: str = "") -> st
     return default
 
 
-def contribution_summary(rows: list[list[str]]) -> tuple[str, list[str]]:
+def project_status_warning(project: str, status: str) -> str | None:
+    """Return a warning string if `status` ('Статус проекта') isn't one of
+    PROJECT_STATUS_VALUES, or None if it's canonical. `dashboard_value`'s
+    own default ("Активен") means `status` is never blank here - anything
+    else is a value that slipped past the manual-only Активен/На паузе
+    convention (see Templates/метрики_проекта_qa.md §1.0) and would
+    otherwise be copied into the registry unnoticed."""
+    if status in PROJECT_STATUS_VALUES:
+        return None
+    return (
+        f"{project}: 'Статус проекта' has a non-canonical value {status!r} "
+        f"(expected one of {sorted(PROJECT_STATUS_VALUES)}) - copied as-is, not normalized."
+    )
+
+
+def contribution_summary(rows: list[list[str]], project: str = "") -> tuple[str, list[str], list[str]]:
     # project_metrics is meant to hold at most one current "Вклад в
     # проект: <Имя>" row per person (see m2-role-rules.md, Cascading
     # Updates - update in place, don't append a new dated row per pass).
@@ -71,6 +93,18 @@ def contribution_summary(rows: list[list[str]]) -> tuple[str, list[str]]:
     # only the latest-dated row per person, so a duplicate never renders
     # as "<Имя>, <Имя>" in the registry even if project_metrics itself
     # temporarily has two rows for the same key.
+    #
+    # A value that isn't exactly one of STATUS_ORDER and isn't a
+    # recognized missing-data marker (blank / "Неизвестно") - e.g. a
+    # suffixed variant like "Позитивный (по самоотчёту)" - falls into the
+    # same `unknown` bucket as genuinely missing data below. That's the
+    # right *registry* behavior (never guess a verdict), but it silently
+    # hides a project_metrics value that doesn't match the documented
+    # enum (see метрики_проекта_qa.md) - a real one went unnoticed this
+    # way until a manual diff caught it. `warnings` surfaces that case
+    # for the operator without changing the aggregation itself; this
+    # function never normalizes a fuzzy value to a canonical one - that
+    # stays a human edit in project_metrics.
     latest_by_name: dict[str, tuple[str, str]] = {}  # name -> (date, status)
     order: list[str] = []
     for row in rows:
@@ -89,22 +123,31 @@ def contribution_summary(rows: list[list[str]]) -> tuple[str, list[str]]:
 
     known: dict[str, list[str]] = {status: [] for status in STATUS_ORDER}
     unknown: list[str] = []
+    warnings: list[str] = []
     for name in order:
         status = latest_by_name[name][1]
         if status in known:
             known[status].append(name)
         else:
             unknown.append(name)
+            if status not in MISSING_CONTRIBUTION_VALUES:
+                where = f"{project}: " if project else ""
+                warnings.append(
+                    f"{where}'Вклад в проект: {name}' has a non-canonical value {status!r} "
+                    f"(expected one of {STATUS_ORDER} or a missing-data marker "
+                    f"{sorted(MISSING_CONTRIBUTION_VALUES)!r}) - treated as unknown/missing data in "
+                    "the registry, not auto-normalized. Fix the value in project_metrics directly."
+                )
     people = [n for names in known.values() for n in names] + unknown
     worst = next((status for status in STATUS_ORDER if known[status]), None)
     if worst is None:
         if unknown:
-            return f"Неизвестно (данных недостаточно по {', '.join(unknown)})", people
-        return "", people
+            return f"Неизвестно (данных недостаточно по {', '.join(unknown)})", people, warnings
+        return "", people, warnings
     label = f"{worst} ({', '.join(known[worst])})"
     if unknown:
         label += f" — данных нет по {', '.join(unknown)}"
-    return label, people
+    return label, people, warnings
 
 
 def main() -> int:
@@ -142,10 +185,15 @@ def main() -> int:
             continue
         pm_rows = read_sheet_values(services, pm_sheet["id"])
         status = dashboard_value(pm_rows, "Статус проекта", default="Активен")
+        status_warning = project_status_warning(project, status)
+        if status_warning:
+            print(f"WARNING: {status_warning}")
         horizon = dashboard_value(pm_rows, "Горизонт совместной работы")
         biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента")
         qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
-        contribution, people = contribution_summary(pm_rows)
+        contribution, people, contribution_warnings = contribution_summary(pm_rows, project)
+        for warning in contribution_warnings:
+            print(f"WARNING: {warning}")
         rows.append([project, ", ".join(people), status, horizon, biz_risk, contribution, qa_quality])
         print(f"{project}: refreshed ({len(people)} people, status={status})")
 

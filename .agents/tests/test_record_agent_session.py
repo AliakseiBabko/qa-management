@@ -722,6 +722,14 @@ class NoQueuePassDocsTests(unittest.TestCase):
         self.assertIn("completed_run_review", text)
         self.assertIn("optional and only measures", text)
 
+    def test_telemetry_readme_documents_multi_append_without_commit(self):
+        text = (self.REPO_ROOT / ".agents" / "telemetry" / "README.md").read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+        self.assertIn(
+            "Multiple appends in one working tree, no commit needed between them.", normalized
+        )
+        self.assertIn("does not require the target row to be the", normalized)
+
 
 if __name__ == "__main__":
     unittest.main()

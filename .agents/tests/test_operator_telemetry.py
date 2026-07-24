@@ -153,6 +153,70 @@ class TestDiffGuard(unittest.TestCase):
                 self.assertFalse(ok2)
                 self.assertTrue(any("run-001" in v for v in violations2))
 
+    def test_diff_guard_allows_multiple_appends_without_a_commit_between_them(self):
+        # The friction case this guard used to force: several intended
+        # appends landing in the same working tree before the next commit
+        # (e.g. closing out multiple queue-backed runs in one session).
+        # Each append's own diff-guard call must still pass even though an
+        # earlier, still-uncommitted append's row is also new relative to
+        # HEAD.
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+
+            csv_path = repo / "operator-runs.csv"
+            with mock.patch.object(common, "CSV_PATH", csv_path):
+                common.append_row(_base_row(run_id="run-001"))
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=repo, check=True)
+
+                # First append, guarded, not committed.
+                common.append_row(_base_row(run_id="run-002"))
+                ok, violations = common.diff_guard_new_row_only("run-002", repo_root=repo)
+                self.assertTrue(ok, violations)
+
+                # Second append in the same still-uncommitted working tree -
+                # run-002 is now also "new relative to HEAD" alongside
+                # run-003, but that must not fail run-003's own guard call.
+                common.append_row(_base_row(run_id="run-003"))
+                ok2, violations2 = common.diff_guard_new_row_only("run-003", repo_root=repo)
+                self.assertTrue(ok2, violations2)
+
+                # Corruption of the original committed row is still caught.
+                header, rows = common.read_rows()
+                for r in rows:
+                    if r["run_id"] == "run-001":
+                        r["command_name"] = "tampered"
+                with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=header)
+                    writer.writeheader()
+                    writer.writerows(rows)
+                ok3, violations3 = common.diff_guard_new_row_only("run-003", repo_root=repo)
+                self.assertFalse(ok3)
+                self.assertTrue(any("run-001" in v for v in violations3))
+
+    def test_diff_guard_flags_missing_target_row(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+
+            csv_path = repo / "operator-runs.csv"
+            with mock.patch.object(common, "CSV_PATH", csv_path):
+                common.append_row(_base_row(run_id="run-001"))
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "baseline"], cwd=repo, check=True)
+
+                # Guard called for a target that was never actually appended.
+                ok, violations = common.diff_guard_new_row_only("run-999-never-appended", repo_root=repo)
+                self.assertFalse(ok)
+                self.assertTrue(any("run-999-never-appended" in v for v in violations))
+
 
 class TestMeasurement(unittest.TestCase):
     def test_result_count_extraction_from_list(self):

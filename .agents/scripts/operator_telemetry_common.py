@@ -344,11 +344,24 @@ def _append_csv_row(csv_path: Path, header: list[str], id_field: str, row: dict,
 def _diff_guard_new_row_only(csv_path: Path, id_field: str, target_id: str, read_fn,
                              ref: str = "HEAD", repo_root: Path | None = None) -> tuple[bool, list[str]]:
     """Compare the working-tree CSV against `ref` (default HEAD) and assert
-    that the only difference is the addition of `target_id`'s row (matched
-    on `id_field`). Any other added/removed/modified row, or a header
-    change, is a violation - the diff-guard pattern from the erp-web-tests
-    benchmark skill's check_csv.py, adapted for a pure-append (no in-place
-    row update) model. Returns (ok, violations)."""
+    that no row present at `ref` was removed or modified, and that
+    `target_id`'s row is actually present (matched on `id_field`) - the
+    diff-guard pattern from the erp-web-tests benchmark skill's
+    check_csv.py, adapted for a pure-append (no in-place row update) model.
+    Returns (ok, violations).
+
+    Any number of *other* new rows relative to `ref` are tolerated, not
+    just `target_id`'s own row - multiple intended appends commonly land in
+    the same working tree before the next commit (e.g. several completed
+    queue-backed intake runs closed out in one session), and forcing a
+    commit between every single append was pure friction with no added
+    safety: the actual risk this guard protects against is silent
+    corruption of *existing* history (a row deleted or mutated), which is
+    still caught unconditionally below regardless of how many new rows are
+    present. If a stray/unexpected new row is a real concern for a
+    specific caller, that caller should validate its own row content
+    up front (as append_row already does) rather than relying on this
+    guard to reject co-located, independently-valid appends."""
     root = repo_root or csv_path.parent.parent.parent
     try:
         rel = csv_path.resolve().relative_to(root.resolve()).as_posix()
@@ -380,9 +393,8 @@ def _diff_guard_new_row_only(csv_path: Path, id_field: str, target_id: str, read
         elif base_rows[rid] != work_rows[rid]:
             violations.append(f"Unrelated row '{rid}' was modified since {ref}.")
 
-    for rid in work_rows:
-        if rid not in base_rows and rid != target_id:
-            violations.append(f"Row added that is not the target: '{rid}'.")
+    if target_id not in work_rows:
+        violations.append(f"Expected new row for '{target_id}' not found in the working tree.")
 
     return (len(violations) == 0), violations
 

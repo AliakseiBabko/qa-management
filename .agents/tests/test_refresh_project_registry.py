@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from refresh_project_registry import contribution_summary
+from refresh_project_registry import contribution_summary, project_status_warning
 
 
 def contribution_row(date: str, name: str, status: str, explanation: str = "x") -> list[str]:
@@ -29,7 +29,7 @@ def contribution_row(date: str, name: str, status: str, explanation: str = "x") 
 class ContributionSummaryDedupeTests(unittest.TestCase):
     def test_single_row_per_person_unaffected(self) -> None:
         rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Позитивный (<Имя1>)")
         self.assertEqual(people, ["<Имя1>"])
 
@@ -41,7 +41,7 @@ class ContributionSummaryDedupeTests(unittest.TestCase):
             contribution_row("2026-07-09", "<Имя1>", "Смешанный", "older synthesis"),
             contribution_row("2026-07-20", "<Имя1>", "Смешанный", "newer synthesis"),
         ]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Смешанный (<Имя1>)")
         self.assertEqual(people, ["<Имя1>"], "duplicate must collapse to one name, not '<Имя1>, <Имя1>'")
 
@@ -50,7 +50,7 @@ class ContributionSummaryDedupeTests(unittest.TestCase):
             contribution_row("2026-01-01", "<Имя1>", "Негативный", "old"),
             contribution_row("2026-02-01", "<Имя1>", "Позитивный", "improved"),
         ]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Позитивный (<Имя1>)")
         self.assertEqual(people, ["<Имя1>"])
 
@@ -60,7 +60,7 @@ class ContributionSummaryDedupeTests(unittest.TestCase):
             contribution_row("2026-02-01", "<Имя1>", "Позитивный", "newer"),
             contribution_row("2026-01-01", "<Имя1>", "Негативный", "older"),
         ]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Позитивный (<Имя1>)")
 
     def test_multiple_distinct_people_each_kept_once(self) -> None:
@@ -69,7 +69,7 @@ class ContributionSummaryDedupeTests(unittest.TestCase):
             contribution_row("2026-01-01", "<Имя2>", "Негативный"),
             contribution_row("2026-02-01", "<Имя1>", "Позитивный"),
         ]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Негативный (<Имя2>)")
         self.assertEqual(sorted(people), ["<Имя1>", "<Имя2>"])
 
@@ -78,9 +78,83 @@ class ContributionSummaryDedupeTests(unittest.TestCase):
             contribution_row("2026-01-01", "<Имя1>", ""),
             contribution_row("2026-02-01", "<Имя1>", ""),
         ]
-        label, people = contribution_summary(rows)
+        label, people, warnings = contribution_summary(rows)
         self.assertEqual(label, "Неизвестно (данных недостаточно по <Имя1>)")
         self.assertEqual(people, ["<Имя1>"])
+        self.assertEqual(warnings, [], "a blank value is a recognized missing-data marker, not a warning case")
+
+
+class ContributionSummaryNonCanonicalValueWarningTests(unittest.TestCase):
+    """A real project once had 'Позитивный (по самоотчёту)' in project_metrics -
+    a suffixed variant of a canonical value. contribution_summary() correctly
+    treated it as unknown (never guess a verdict), but did so silently; that
+    silence is exactly what let the stale registry value go unnoticed until a
+    manual diff caught it. These tests guard the warning that now surfaces it."""
+
+    def test_canonical_values_produce_no_warnings(self) -> None:
+        for status in ("Позитивный", "Смешанный", "Негативный"):
+            with self.subTest(status=status):
+                rows = [contribution_row("2026-01-01", "<Имя1>", status)]
+                _, _, warnings = contribution_summary(rows, project="<Проект>")
+                self.assertEqual(warnings, [])
+
+    def test_non_canonical_suffixed_value_warns(self) -> None:
+        rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный (по самоотчёту)")]
+        label, people, warnings = contribution_summary(rows, project="<Проект>")
+        self.assertEqual(label, "Неизвестно (данных недостаточно по <Имя1>)")
+        self.assertEqual(len(warnings), 1)
+        warning = warnings[0]
+        self.assertIn("<Проект>", warning)
+        self.assertIn("<Имя1>", warning)
+        self.assertIn("Позитивный (по самоотчёту)", warning)
+        self.assertIn("not auto-normalized", warning)
+
+    def test_non_canonical_value_is_not_silently_remapped_to_canonical(self) -> None:
+        # The warning is the whole point - contribution_summary must never
+        # guess that "Позитивный (по самоотчёту)" means "Позитивный".
+        rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный (по самоотчёту)")]
+        label, _, _ = contribution_summary(rows, project="<Проект>")
+        self.assertNotIn("Позитивный (", label)
+        self.assertTrue(label.startswith("Неизвестно"))
+
+    def test_blank_value_does_not_warn(self) -> None:
+        rows = [contribution_row("2026-01-01", "<Имя1>", "")]
+        _, _, warnings = contribution_summary(rows, project="<Проект>")
+        self.assertEqual(warnings, [])
+
+    def test_neizvestno_marker_does_not_warn(self) -> None:
+        rows = [contribution_row("2026-01-01", "<Имя1>", "Неизвестно")]
+        _, _, warnings = contribution_summary(rows, project="<Проект>")
+        self.assertEqual(warnings, [])
+
+    def test_warning_omits_project_prefix_when_project_not_given(self) -> None:
+        rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный (typo)")]
+        _, _, warnings = contribution_summary(rows)
+        self.assertEqual(len(warnings), 1)
+        self.assertFalse(warnings[0].startswith(": "))
+
+    def test_multiple_non_canonical_values_each_produce_their_own_warning(self) -> None:
+        rows = [
+            contribution_row("2026-01-01", "<Имя1>", "Позитивный (по самоотчёту)"),
+            contribution_row("2026-01-01", "<Имя2>", "Негативный?"),
+        ]
+        _, _, warnings = contribution_summary(rows, project="<Проект>")
+        self.assertEqual(len(warnings), 2)
+
+
+class ProjectStatusWarningTests(unittest.TestCase):
+    def test_canonical_active_produces_no_warning(self) -> None:
+        self.assertIsNone(project_status_warning("<Проект>", "Активен"))
+
+    def test_canonical_paused_produces_no_warning(self) -> None:
+        self.assertIsNone(project_status_warning("<Проект>", "На паузе"))
+
+    def test_non_canonical_value_warns(self) -> None:
+        warning = project_status_warning("<Проект>", "Стоп")
+        self.assertIsNotNone(warning)
+        self.assertIn("<Проект>", warning)
+        self.assertIn("Стоп", warning)
+        self.assertIn("not normalized", warning)
 
 
 if __name__ == "__main__":
