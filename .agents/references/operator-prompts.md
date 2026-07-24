@@ -124,6 +124,16 @@ and never changes which rows are eligible. Use it to surface a source
 likely to be about a specific topic (e.g. `--focus performance,NFR`)
 without it silently widening or narrowing what's actually considered.
 
+## A note on `recommend-next`'s person-alias match
+
+Every `recommend-next` candidate is also checked against
+`_people_registry` names/aliases; a hit shows up as `person_alias_matches`
+and nudges `score` up slightly (`score_breakdown["person_alias_match"]`).
+This is a ranking hint only - it's a good reason to read that source
+sooner, not a project/person scope decision, and not proof the match is
+even the right person (a shared surname, a coincidental token overlap).
+Still read the source and run `classify` before `start`, same as always.
+
 ## Final closure is still the explicit workflow (for now)
 
 There is no `finish-run` shortcut yet (a later phase) - once a run's

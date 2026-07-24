@@ -3275,6 +3275,8 @@ RECOMMEND_NEXT_FOCUS_BONUS = 0.3
 RECOMMEND_NEXT_RECENCY_MAX_BONUS = 0.1
 RECOMMEND_NEXT_LARGE_FILE_BYTES = 5_000_000
 RECOMMEND_NEXT_SIZE_PENALTY = -0.05
+RECOMMEND_NEXT_PERSON_MATCH_BONUS = 0.15
+RECOMMEND_NEXT_PERSON_MATCH_ACTIVE_PROJECT_BONUS = 0.1
 
 
 def discovered_row_matches_project_path(row: dict, project: str) -> bool:
@@ -3313,6 +3315,101 @@ def compute_focus_match(source_path: str, preview_text: str, candidates: list[di
     return {"matched": bool(found), "keywords_found": found}
 
 
+RECOMMEND_NEXT_PERSON_TOKEN_MIN_LEN = 4  # skip initials/short common words - too noisy as a match signal
+
+
+def _person_name_tokens(text: str) -> set[str]:
+    """Casefolded tokens at least RECOMMEND_NEXT_PERSON_TOKEN_MIN_LEN
+    characters long, split on anything that isn't a letter/digit/
+    underscore. Short tokens (initials, common short words) are excluded
+    because they'd match too much incidental text to be a useful ranking
+    signal."""
+    if not text:
+        return set()
+    return {
+        tok.casefold()
+        for tok in re.split(r"[^\w]+", text, flags=re.UNICODE)
+        if len(tok) >= RECOMMEND_NEXT_PERSON_TOKEN_MIN_LEN
+    }
+
+
+def _person_alias_tokens(aliases_field: str) -> set[str]:
+    """`Aliases / spelling variants` is free text (e.g. 'Sergei Reginya
+    (email-based spelling)' or 'Andrew / Andrei (self-introduced as)') -
+    split on the separators actually used in that column (/, ;, ,) and
+    tokenize each segment the same way as a real name, so a parenthetical
+    note attached to one variant doesn't prevent matching the others."""
+    if not aliases_field:
+        return set()
+    tokens: set[str] = set()
+    for segment in re.split(r"[/;,]", aliases_field):
+        tokens |= _person_name_tokens(segment)
+    return tokens
+
+
+def match_person_registry(source_path: str, people_rows: list[list[str]]) -> list[dict]:
+    """Match a discovered source's filename against `_people_registry`
+    names and aliases - a ranking *hint* only (see recommend-next's own
+    guardrails, printed alongside every result). This never infers or
+    declares a project/person scope, never picks a route, and never
+    changes which candidates are eligible - it only ever feeds
+    score_breakdown's `person_alias_match` bonus. `discovered_row_matches_
+    project_path` (the actual project filter) runs independently of this
+    and is not informed by it.
+
+    Matching is token-based, not whole-string substring matching: a
+    shortened or transliterated first name alone (e.g. a common nickname
+    standing in for a formal given name) won't match on its own, but a
+    shared distinctive token (typically a surname) will, in either the
+    registry's Name (RU)/Name (EN) cells or its free-text Aliases column.
+    Deterministic: same inputs always produce the same
+    matches in the same order (people with a current Project(s) value
+    sort first per the "prefer active/current project people" rule, then
+    alphabetically by name - never by incidental registry row order).
+
+    `people_rows` must already be read (this function makes no API calls
+    of its own, so it's directly unit-testable with placeholder fixture
+    rows)."""
+    if not people_rows or len(people_rows) < 2:
+        return []
+    from pipeline_common import PR_ALIASES, PR_NAME_EN, PR_NAME_RU, PR_PROJECT
+
+    filename = Path(source_path).name if source_path else ""
+    haystack_tokens = _person_name_tokens(filename)
+    if not haystack_tokens:
+        return []
+
+    matches: list[dict] = []
+    for row in people_rows[1:]:
+        def cell(idx: int) -> str:
+            return row[idx].strip() if len(row) > idx and row[idx] else ""
+
+        name_ru = cell(PR_NAME_RU)
+        name_en = cell(PR_NAME_EN)
+        display_name = name_ru or name_en
+        if not display_name:
+            continue
+
+        name_hit = (_person_name_tokens(name_ru) | _person_name_tokens(name_en)) & haystack_tokens
+        alias_hit = _person_alias_tokens(cell(PR_ALIASES)) & haystack_tokens
+        if not name_hit and not alias_hit:
+            continue
+
+        matched_via = [label for label, hit in (("name", name_hit), ("alias", alias_hit)) if hit]
+        project = cell(PR_PROJECT)
+        matches.append({
+            "name": display_name,
+            "name_en": name_en,
+            "matched_via": matched_via,
+            "matched_tokens": sorted(name_hit | alias_hit),
+            "project": project,
+            "has_active_project": bool(project),
+        })
+
+    matches.sort(key=lambda m: (not m["has_active_project"], m["name"]))
+    return matches
+
+
 def compute_recency_bonus_by_run_id(discovered_by_run_id: dict[str, str]) -> dict[str, float]:
     """Relative-only recency ranking, bounded [0, RECENCY_MAX_BONUS]: the
     OLDEST Discovered timestamp among the current candidate set scores
@@ -3332,6 +3429,26 @@ def compute_recency_bonus_by_run_id(discovered_by_run_id: dict[str, str]) -> dic
     }
 
 
+def fetch_people_registry_rows(services: dict) -> list[list[str]]:
+    """Best-effort, read-only fetch of `_people_registry` for recommend-
+    next's person-alias ranking hint. Isolated into its own function
+    (rather than inlined try/except in cmd_recommend_next) so tests can
+    patch this one call directly instead of reasoning about how deep
+    mocked Drive/Sheets client chains behave - a plain function boundary
+    is a much more stable thing to mock than several layers of chained
+    MagicMock calls. Degrades to an empty list (no person-match signal at
+    all, never a crash) if the registry sheet can't be resolved for any
+    reason - this is a convenience ranking command, not something that
+    should hard-fail because a workspace-wide sheet is temporarily
+    unreachable."""
+    try:
+        from pipeline_common import get_people_registry_sheet
+        from sync_m2_source_docs_to_sheets import read_sheet_values
+        return read_sheet_values(services, get_people_registry_sheet(services)["id"])
+    except (Exception, SystemExit):
+        return []
+
+
 def cmd_recommend_next(args) -> CommandResult:
     """Read-only ranking of discovered/needs_scope 00_Inbox sources for one
     project - a convenience shortlist, never a decision. Reuses
@@ -3340,11 +3457,17 @@ def cmd_recommend_next(args) -> CommandResult:
     archive-source, complete, any Drive/Sheets write, mirror export, or
     telemetry append. `--lane`/`--focus` only narrow/rank the shortlist -
     they never infer or declare a project/person scope, and nothing here
-    ever starts a run."""
+    ever starts a run. Also reads `_people_registry` once per invocation
+    (read-only) and runs match_person_registry() against every candidate -
+    a ranking hint surfaced as `person_alias_matches`/score_breakdown's
+    `person_alias_match`, never a scope decision (see that function's own
+    docstring and the guardrails returned alongside every result)."""
     services = get_services_cached()
     sheet = find_queue(services)
     rows = read_queue(services, sheet) if sheet else []
     graph = load_graph()
+
+    people_rows = fetch_people_registry_rows(services)
 
     project = (args.project or "").strip()
     lane_filter = args.lane or ""
@@ -3395,6 +3518,12 @@ def cmd_recommend_next(args) -> CommandResult:
             result.get("source_path_used", ""), result.get("preview", ""),
             result["candidate_routes"], focus_keywords,
         )
+        person_alias_matches = match_person_registry(result.get("source_path_used", ""), people_rows)
+        person_bonus = 0.0
+        if person_alias_matches:
+            person_bonus = RECOMMEND_NEXT_PERSON_MATCH_BONUS
+            if any(m["has_active_project"] for m in person_alias_matches):
+                person_bonus += RECOMMEND_NEXT_PERSON_MATCH_ACTIVE_PROJECT_BONUS
         size_bytes = result.get("size_bytes") or 0
         breakdown = {
             "project_match": 1.0,
@@ -3402,8 +3531,13 @@ def cmd_recommend_next(args) -> CommandResult:
             "focus_match": RECOMMEND_NEXT_FOCUS_BONUS if focus_match["matched"] else 0.0,
             "recency": recency_bonus.get(run_id, 0.0),
             "size_penalty": RECOMMEND_NEXT_SIZE_PENALTY if size_bytes > RECOMMEND_NEXT_LARGE_FILE_BYTES else 0.0,
+            "person_alias_match": round(person_bonus, 4),
         }
-        score = round(breakdown["focus_match"] + breakdown["recency"] + breakdown["size_penalty"], 4)
+        score = round(
+            breakdown["focus_match"] + breakdown["recency"] + breakdown["size_penalty"]
+            + breakdown["person_alias_match"],
+            4,
+        )
         candidates_out.append({
             "run_id": run_id,
             "status": status,
@@ -3414,6 +3548,7 @@ def cmd_recommend_next(args) -> CommandResult:
             "candidate_routes": result.get("candidate_routes", []),
             "candidate_lanes": sorted(p["candidate_lanes"]),
             "focus_match": focus_match,
+            "person_alias_matches": person_alias_matches,
             "score": score,
             "score_breakdown": breakdown,
             "warnings": p["warnings"],
@@ -3429,10 +3564,16 @@ def cmd_recommend_next(args) -> CommandResult:
         "This is a ranked shortlist, not a classification or a recommendation to `start` - read the "
         "source and run `classify` before starting anything, same as always.",
         "score/score_breakdown are a convenience ranking only (project/lane are hard filters shown for "
-        "transparency at 1.0; focus/recency/size are the only components that actually move the score) "
-        "- a close second is common, don't trust rank order over reading the source.",
+        "transparency at 1.0; focus/recency/size/person_alias_match are the only components that "
+        "actually move the score) - a close second is common, don't trust rank order over reading the "
+        "source.",
         "--focus only re-ranks candidates already matched by --project/--lane; it never infers a "
         "project/person scope and never changes which rows are eligible.",
+        "person_alias_matches (and its score_breakdown bonus) is a _people_registry name/alias hint, "
+        "nothing more - it never declares a person or project scope, never infers a project from the "
+        "match, and is not a substitute for reading the source; a token match can be a false positive "
+        "(a common surname shared by two people, a coincidental substring) - verify against the actual "
+        "content before using it for anything beyond prioritization.",
         "recommend-next never starts a run, writes the queue, or touches Drive/mirror/telemetry - "
         "read the source and use `start` yourself once you've decided.",
     ]
@@ -3455,6 +3596,9 @@ def cmd_recommend_next(args) -> CommandResult:
     for c in candidates_out:
         lines.append(f"  - {c['run_id']}  score={c['score']}  ({c['status']}, {c['extension']}, "
                      f"{c['size_bytes']} bytes)  source={c['current_source']}")
+        if c["person_alias_matches"]:
+            names = ", ".join(m["name"] for m in c["person_alias_matches"])
+            lines.append(f"      possible person match (hint only, verify against content): {names}")
     lines.append("  guardrails:")
     lines += [f"    ! {g}" for g in guardrails]
 
@@ -4168,7 +4312,8 @@ def main() -> int:
 
     p = sub.add_parser("recommend-next", help="read-only ranked shortlist of discovered/needs_scope "
                                               "00_Inbox sources for one project - a convenience, "
-                                              "never a decision", parents=[parent])
+                                              "never a decision; surfaces possible _people_registry "
+                                              "name/alias matches as a ranking hint", parents=[parent])
     p.add_argument("--project", required=True, help="project to shortlist sources for")
     p.add_argument("--lane", default="", choices=sorted(RECOMMEND_NEXT_LANES) + [""],
                    help="only keep candidates whose classify candidate route maps to this lane")

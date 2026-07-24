@@ -629,11 +629,20 @@ These are what actually runs day to day, once a project's folder already exists:
   re-deriving candidates. `--focus` is a ranking hint only (matches
   filename/preview/candidate-reason text) — it never infers a project/
   person scope and never changes which rows are eligible, only their
-  order. Every candidate's `score_breakdown` is returned alongside the
-  score so the ranking is never a black box; see the guardrails in its own
-  JSON output and `.agents/references/operator-prompts.md` for ready-made
-  prompts. Never calls `write_queue`, `start`, `archive-source`,
-  `complete`, any Drive/Sheets write, mirror export, or telemetry append.
+  order. Also cross-references each candidate's filename against
+  `_people_registry` names and aliases (`match_person_registry()`) and
+  surfaces any hits as `person_alias_matches` plus a small
+  `score_breakdown["person_alias_match"]` bonus — again a ranking hint
+  only, never a scope inference: it never sets or implies a project/person
+  for the row, and matching is token-based (a shared distinctive word,
+  typically a surname) rather than fuzzy, so it won't catch a shortened or
+  transliterated first name alone (e.g. a nickname standing in for a
+  formal given name) without a shared token elsewhere. Every candidate's `score_breakdown` is returned
+  alongside the score so the ranking is never a black box; see the
+  guardrails in its own JSON output and
+  `.agents/references/operator-prompts.md` for ready-made prompts. Never
+  calls `write_queue`, `start`, `archive-source`, `complete`, any
+  Drive/Sheets write, mirror export, or telemetry append.
   Handing a run off to another agent
   session, or resuming one cold? **`pack <run-id>`** (`--max-preview-chars
   N`, same default) is one compact read-only handoff packet: identity

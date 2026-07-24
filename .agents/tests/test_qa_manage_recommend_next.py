@@ -96,6 +96,25 @@ def row(run_id, **extra) -> dict:
     return base
 
 
+PEOPLE_REGISTRY_HEADER = [
+    "Name (RU)", "Name (EN)", "Email", "Side", "Worker ID", "M1",
+    "Role", "Internal rank", "Project(s)", "Дата трудоустройства",
+    "Дата последнего PR", "Первый коммерческий проект", "Aliases / spelling variants", "Notes",
+]
+
+
+def people_row(name_ru="", name_en="", project="", aliases="") -> list[str]:
+    """One `_people_registry` row, placeholder-only, matching the real
+    14-column schema (see pipeline_common.PEOPLE_REGISTRY_HEADER) - only
+    the columns match_person_registry() actually reads (Name (RU)/(EN),
+    Project(s), Aliases) are ever non-blank in these fixtures."""
+    return [name_ru, name_en, "", "", "", "", "", "", project, "", "", "", aliases, ""]
+
+
+def people_rows(*rows: list[str]) -> list[list[str]]:
+    return [PEOPLE_REGISTRY_HEADER, *rows]
+
+
 def write_file(root: Path, relative_path: str, content: str) -> None:
     full = root / relative_path
     full.parent.mkdir(parents=True, exist_ok=True)
@@ -112,14 +131,23 @@ class Args:
         self.limit = limit
 
 
-def run_recommend_next(rows, data_root, **kwargs):
+def run_recommend_next(rows, data_root, people_rows=None, **kwargs):
     mock_drive = MagicMock()
     mock_services = {"drive": mock_drive, "sheets": MagicMock()}
+    # fetch_people_registry_rows is patched directly (not left to fall
+    # through to the real Drive-backed lookup) because the real path pages
+    # through drive.files().list() results via a nextPageToken loop - a
+    # bare MagicMock's .get("nextPageToken") never returns a falsy value,
+    # so that loop never terminates against these fixtures. Tests that
+    # care about the person-alias signal pass `people_rows` explicitly;
+    # everything else gets [] (no signal), matching prior behavior before
+    # this fetch existed.
     with patch("qa_manage.get_services_cached", return_value=mock_services), \
          patch("qa_manage.find_queue", return_value={"id": "sheet_id"}), \
          patch("qa_manage.read_queue", return_value=rows), \
          patch("qa_manage.write_queue") as write_queue_mock, \
          patch("qa_manage.load_graph", return_value=GRAPH), \
+         patch("qa_manage.fetch_people_registry_rows", return_value=people_rows or []), \
          patch("qa_manage.DATA_ROOT", data_root):
         res = qa_manage.cmd_recommend_next(Args(**kwargs))
     return res, mock_services, write_queue_mock
@@ -249,6 +277,161 @@ class RecencyBonusTests(unittest.TestCase):
         })
         self.assertEqual(bonus_a["old"], bonus_b["old"])
         self.assertEqual(bonus_a["new"], bonus_b["new"])
+
+
+class PersonRegistryMatchTests(unittest.TestCase):
+    """match_person_registry() is a ranking *hint* only - never a scope
+    decision (see its own docstring and recommend-next's guardrails). All
+    fixtures use placeholder names, matching this file's own convention."""
+
+    def test_exact_name_match(self):
+        rows = people_rows(
+            people_row(name_ru="<Имя1> <Фамилия1>", name_en="<Name1> <Surname1>", project="<Project1>"),
+        )
+        matches = qa_manage.match_person_registry("00_Inbox/<Name1> <Surname1> case.txt", rows)
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["name"], "<Имя1> <Фамилия1>")
+        self.assertIn("name", matches[0]["matched_via"])
+
+    def test_alias_transliteration_match(self):
+        # Filename uses ONLY the alias's own distinctive token ("Kolesny"),
+        # never the tokens shared with the real Name (RU)/(EN) cells
+        # ("Person2"/"Kalesny") - isolates the match to the Aliases column
+        # specifically, not just an incidental overlap with the real name.
+        rows = people_rows(
+            people_row(
+                name_ru="<Имя2> <Фамилия2>", name_en="Person2 Kalesny",
+                aliases="Person2X Kolesny (transliteration variant used in one recording)",
+            ),
+        )
+        matches = qa_manage.match_person_registry("00_Inbox/Kolesny notes.txt", rows)
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["matched_via"], ["alias"])
+        self.assertIn("kolesny", matches[0]["matched_tokens"])
+
+    def test_no_match(self):
+        rows = people_rows(
+            people_row(name_ru="<Имя3> <Фамилия3>", name_en="<Name3> <Surname3>", project="<Project1>"),
+        )
+        matches = qa_manage.match_person_registry("00_Inbox/completely-unrelated-file.txt", rows)
+        self.assertEqual(matches, [])
+
+    def test_no_match_on_empty_registry(self):
+        self.assertEqual(qa_manage.match_person_registry("00_Inbox/<Name1>.txt", people_rows()), [])
+        self.assertEqual(qa_manage.match_person_registry("00_Inbox/<Name1>.txt", []), [])
+
+    def test_multiple_possible_matches(self):
+        rows = people_rows(
+            people_row(name_ru="<Имя1> <Фамилия1>", name_en="<Name1> <Surname1>", project="<Project1>"),
+            people_row(name_ru="<Имя4> <Фамилия4>", name_en="<Name4> <Surname1>", project=""),
+        )
+        # Filename token "Surname1" is shared by both registry rows (a
+        # deliberately ambiguous fixture - a shared/common surname).
+        matches = qa_manage.match_person_registry("00_Inbox/<Surname1> family case.txt", rows)
+        self.assertEqual(len(matches), 2)
+        names = {m["name"] for m in matches}
+        self.assertEqual(names, {"<Имя1> <Фамилия1>", "<Имя4> <Фамилия4>"})
+
+    def test_active_project_person_sorts_first_among_multiple_matches(self):
+        rows = people_rows(
+            # Row without a current Project(s) association comes first in
+            # the input to prove sorting isn't just input order.
+            people_row(name_ru="<Имя4> <Фамилия4>", name_en="<Name4> <Surname1>", project=""),
+            people_row(name_ru="<Имя1> <Фамилия1>", name_en="<Name1> <Surname1>", project="<Project1>"),
+        )
+        matches = qa_manage.match_person_registry("00_Inbox/<Surname1> family case.txt", rows)
+        self.assertEqual(matches[0]["name"], "<Имя1> <Фамилия1>")
+        self.assertTrue(matches[0]["has_active_project"])
+        self.assertFalse(matches[1]["has_active_project"])
+
+    def test_short_tokens_are_not_matched(self):
+        # A short/common token (below RECOMMEND_NEXT_PERSON_TOKEN_MIN_LEN)
+        # must not produce a match on its own - it would false-positive on
+        # too much incidental text otherwise.
+        rows = people_rows(people_row(name_ru="<Аб>", name_en="Al"))
+        matches = qa_manage.match_person_registry("00_Inbox/Al report.txt", rows)
+        self.assertEqual(matches, [])
+
+    def test_transliterated_first_name_alone_does_not_match(self):
+        # A nickname sharing no distinctive token with the formal given
+        # name on record is exactly the case this function does NOT claim
+        # to solve - a shared surname token is required, not a fuzzy
+        # first-name guess.
+        rows = people_rows(people_row(name_ru="<Имя5>", name_en="Formalname5 <Surname5>"))
+        matches = qa_manage.match_person_registry("00_Inbox/Nickname5 case.txt", rows)
+        self.assertEqual(matches, [])
+
+    def test_does_not_call_any_drive_api(self):
+        # Pure function - takes already-read rows, makes no API calls of
+        # its own (a prerequisite for it being safely unit-testable).
+        import inspect
+        source = inspect.getsource(qa_manage.match_person_registry)
+        for forbidden in ("drive.", ".execute(", "read_sheet_values", "get_people_registry_sheet"):
+            self.assertNotIn(forbidden, source)
+
+
+class PersonMatchRankingIntegrationTests(unittest.TestCase):
+    """Integration-level: the person-alias signal moves score_breakdown/
+    score but never touches project filtering, scope fields, or which
+    candidates are eligible."""
+
+    def test_match_increases_score_but_never_mutates_project_or_scope(self):
+        # Filenames/paths below are plain identifiers (no angle brackets) -
+        # unlike this file's transcript-content placeholders, these become
+        # real files on disk (write_file), and '<'/'>' are illegal in
+        # Windows filenames.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_file(root, "00_Inbox/Project1/Name1 Surname1 case.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project1/unrelated.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [
+                row("r1", Discovered="2026-01-01 00:00",
+                   **{"Current source": "00_Inbox/Project1/Name1 Surname1 case.txt"}),
+                row("r2", Discovered="2026-01-01 00:00",
+                   **{"Current source": "00_Inbox/Project1/unrelated.txt"}),
+            ]
+            fixture_people = people_rows(
+                people_row(name_ru="<Имя1> <Фамилия1>", name_en="Name1 Surname1", project="Project1"),
+            )
+            # Force equal recency/size/focus so the person-match bonus is
+            # the only thing that can break the tie between r1 and r2.
+            with patch("qa_manage.compute_recency_bonus_by_run_id", return_value={"r1": 0.0, "r2": 0.0}):
+                res, _, write_mock = run_recommend_next(
+                    rows, root, people_rows=fixture_people, project="Project1")
+
+            by_id = {c["run_id"]: c for c in res.data["candidates"]}
+            self.assertTrue(by_id["r1"]["person_alias_matches"])
+            self.assertFalse(by_id["r2"]["person_alias_matches"])
+            self.assertGreater(by_id["r1"]["score"], by_id["r2"]["score"])
+            self.assertEqual(res.data["recommended"], "r1")
+            self.assertGreater(
+                by_id["r1"]["score_breakdown"]["person_alias_match"],
+                by_id["r2"]["score_breakdown"]["person_alias_match"],
+            )
+
+            # The signal never mutates project/scope: the command's own
+            # declared project is exactly what was passed in, still a hard
+            # filter (both candidates matched it independently of the
+            # person hint), and nothing writes to the queue.
+            self.assertEqual(res.data["project"], "Project1")
+            write_mock.assert_not_called()
+
+    def test_no_registry_rows_means_no_signal_and_no_crash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_file(root, "00_Inbox/Project1/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project1/a.txt"})]
+            res, _, _ = run_recommend_next(rows, root, people_rows=[], project="Project1")
+            self.assertTrue(res.ok)
+            self.assertEqual(res.data["candidates"][0]["person_alias_matches"], [])
+            self.assertEqual(res.data["candidates"][0]["score_breakdown"]["person_alias_match"], 0.0)
+
+    def test_fetch_people_registry_rows_failure_degrades_gracefully(self):
+        # fetch_people_registry_rows() itself (not the recommend-next test
+        # helper's patch) must swallow a real lookup failure rather than
+        # propagating it - simulate that failure directly.
+        with patch("pipeline_common.get_people_registry_sheet", side_effect=SystemExit("not found")):
+            self.assertEqual(qa_manage.fetch_people_registry_rows({"drive": MagicMock()}), [])
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +716,27 @@ class JsonEnvelopeTests(unittest.TestCase):
             joined = " ".join(res.data["guardrails"]).lower()
             self.assertIn("ranked", joined)
             self.assertIn("never", joined)
+
+    def test_guardrails_warn_person_alias_match_is_a_hint_not_a_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            res, _, _ = run_recommend_next([], root, project="<Project>")
+            joined = " ".join(res.data["guardrails"])
+            self.assertIn("person_alias_matches", joined)
+            self.assertIn("never declares a person or project scope", joined)
+
+
+class RecommendNextDocsTests(unittest.TestCase):
+    """The person-alias-match feature must be discoverable from README.md,
+    not just the command's own JSON output."""
+
+    def test_readme_documents_person_alias_match(self):
+        readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+        normalized = " ".join(readme.split())
+        self.assertIn("person_alias_matches", normalized)
+        self.assertIn("match_person_registry()", normalized)
+        self.assertIn("score_breakdown[\"person_alias_match\"]", normalized)
+        self.assertIn("never a scope inference", normalized)
 
 
 if __name__ == "__main__":
