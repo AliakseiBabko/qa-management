@@ -195,13 +195,27 @@ here — §3 is `_project_registry`, not this catalog).
   15+ rows per project, most permanently blank, which real project
   feedback (<Project>, see `Templates\метрики_проекта_qa.md` §2 History)
   showed teams can't realistically fill):
-  - **Core (5 metrics)** — always a row on every project, same
+  - **Core (6 metrics)** — always a row on every project, same
     blank-with-reason discipline as everything else under Template
     Consistency (see `m2-role-rules.md`). Full list and collection method:
-    `Templates\метрики_проекта_qa.md` §2 Core. Two of the five are
+    `Templates\метрики_проекта_qa.md` §2 Core. Two of the six are
     collected by the QA engineer running `Templates\qa_repo_metrics_prompt.md`
     against their own project's test repo with whatever coding agent
-    they have access to — not a manual count.
+    they have access to — not a manual count. One of the six —
+    **Production bug leakage (Баги, утекшие в прод)** — is separate from
+    the "known open bugs" snapshot row: it captures defects found
+    after release/in production/by users/client/business/product owner,
+    not the current defect count. Classify each finding where possible
+    (QA leakage / requirement-or-product gap / environment-data-config
+    issue / known accepted risk / unclear-needs-triage) and record a
+    qualitative value with evidence when an exact count isn't known: no
+    data / no confirmed leakage / confirmed cases exist, count unknown /
+    N confirmed cases. It rolls up into `project_metrics`'s `Качество
+    QA-процесса` and `_project_registry` the same as any other Core
+    metric — it does not become an `individual_metrics` row unless the
+    source directly attributes responsibility to a named person and that
+    attribution is evidence-backed (see `m2-role-rules.md`, Production Bug
+    Leakage Attribution).
   - **Extended catalog** — optional, menu not checklist. Add a row only
     when the project **already has** a working data source for that
     specific metric (a configured TMS, a CI dashboard, a prod/pre-release

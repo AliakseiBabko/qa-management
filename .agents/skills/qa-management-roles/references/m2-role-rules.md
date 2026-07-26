@@ -302,6 +302,33 @@ autonomy maintaining the framework — never the coverage number, the
 framework/code-quality verdict, pass rate, flaky status, or CI/CD state
 itself, even when that person is the framework's sole owner.
 
+## Production Bug Leakage Attribution
+
+Production bug leakage — defects found after release, in production, or by
+users/client/business/product owner, as distinct from the "known open
+bugs" current-defect snapshot — is a project/team QA-process metric,
+tracked in `qa_process_metrics` and rolling up through `project_metrics`
+(`Качество QA-процесса`) to `_project_registry`, the same as any other
+Core `qa_process_metrics` metric.
+
+Leakage is a strong QA-process signal, but it is not automatically personal
+underperformance. Classify each finding where possible: QA leakage (should
+reasonably have been caught), requirement/product gap, environment/data/
+config issue, known accepted risk, or unclear/needs triage — only the
+first of these is actually about QA's own catch rate. When an exact count
+is unknown, record a qualitative value backed by evidence rather than
+guessing a number: no data, no confirmed leakage, confirmed cases exist
+but count unknown, or N confirmed cases.
+
+Do not add a leakage finding as an `individual_metrics` row by default —
+being the only QA on a project is not the same as evidence-backed
+attribution. It becomes an `individual_metrics` row only when the source
+directly attributes responsibility to a named person and that attribution
+is evidence-backed (a traceable claim — e.g. a DC/QA Lead naming who owned
+the affected area/task — not an assumption or "someone on QA"), and even
+then `qa_process_metrics`/`project_metrics`/`_project_registry` are updated
+first, same as any other source that touches this metric.
+
 ## Вклад в проект Calibration
 
 Don't default to Смешанный as a safe middle answer when the evidence is

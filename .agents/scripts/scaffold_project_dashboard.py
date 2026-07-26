@@ -43,12 +43,12 @@ QA_HEADER = ["Проект", "Период", "Метрика", "Показате
 INTERNAL_HEADER = ["Проект", "Сотрудник", "Дата", "Сторона", "Метрика", "Показатель", "Пояснение", "Тренд"]
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 
-# Core 5 only (2026-07-17) - the old 16-metric full catalog was scaffolded
-# onto every new project by default, which is exactly the unrealistic-ask
-# problem that prompted the Core/Extended split (see
-# Templates\метрики_проекта_qa.md §2 History). Extended-catalog metrics are
-# still valid but only get added by hand once a project actually has the
-# supporting tooling - never scaffolded blank.
+# Core 6 only (2026-07-17, extended 2026-07-26 with production bug leakage)
+# - the old 16-metric full catalog was scaffolded onto every new project by
+# default, which is exactly the unrealistic-ask problem that prompted the
+# Core/Extended split (see Templates\метрики_проекта_qa.md §2 History).
+# Extended-catalog metrics are still valid but only get added by hand once
+# a project actually has the supporting tooling - never scaffolded blank.
 QA_METRICS_TEMPLATE = [
     ("Покрытие (грубая оценка)",
      "(число автотестов) / (грубая оценка функциональной поверхности - страницы/компоненты/эндпоинты, что "
@@ -67,6 +67,13 @@ QA_METRICS_TEMPLATE = [
     ("Снимок открытых/известных багов",
      "Сырое число, если трекер (Jira и т.п.) доступен; если недоступен или баги не тегируются системно - "
      "оставь пустым с причиной (\"нет доступа к трекеру\" и т.п.) - это тоже валидный результат."),
+    ("Production bug leakage (Баги, утекшие в прод)",
+     "Отдельно от снимка открытых багов выше - дефекты, найденные ПОСЛЕ релиза/в проде/пользователями/"
+     "клиентом/бизнесом/продакт-оунером, не найденные QA до релиза. Где возможно, классифицируй каждый "
+     "случай: пропуск QA / пробел в требованиях-продукте / проблема окружения-данных-конфигурации / "
+     "известный принятый риск / неясно-требует триажа. Если точное число неизвестно - качественное "
+     "значение с опорой на свидетельства: \"нет данных\" / \"утечек не подтверждено\" / \"подтверждённые "
+     "случаи есть, число неизвестно\" / \"N подтверждённых случаев\"."),
 ]
 
 
