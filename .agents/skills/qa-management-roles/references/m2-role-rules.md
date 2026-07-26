@@ -282,6 +282,26 @@ as the skill that adds it). The script only computes *which* documents to
 visit; whether each one changes, and what to write, remains this file's
 judgment rules.
 
+## Automation Metric Layering
+
+Automation coverage percentage, automation framework/code-quality
+assessment, pass rate, flaky-test status, and CI/CD state are project/team
+QA-process metrics, not individual performance metrics — even when only one
+QA engineer currently owns or maintains the framework. They describe the
+project/team QA-process asset, not a personal performance metric for
+whoever happens to maintain it.
+
+A source that reports these facts updates the chain in this order:
+`qa_process_metrics` first, then `project_metrics`, then `_project_registry`
+— the same cascading discipline as any other change (see Cascading Updates
+above), applied specifically to automation facts. `individual_metrics`
+reflects only the person's contribution, ownership, or behavior around that
+automation — owns the automation framework, contributes tests, improves
+visibility/reporting, needs support to present automation progress, lacks
+autonomy maintaining the framework — never the coverage number, the
+framework/code-quality verdict, pass rate, flaky status, or CI/CD state
+itself, even when that person is the framework's sole owner.
+
 ## Вклад в проект Calibration
 
 Don't default to Смешанный as a safe middle answer when the evidence is

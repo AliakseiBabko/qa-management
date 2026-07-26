@@ -189,7 +189,7 @@ def main() -> int:
         if status_warning:
             print(f"WARNING: {status_warning}")
         horizon = dashboard_value(pm_rows, "Горизонт совместной работы")
-        biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента")
+        biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента (оценка M2)")
         qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
         contribution, people, contribution_warnings = contribution_summary(pm_rows, project)
         for warning in contribution_warnings:

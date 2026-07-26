@@ -63,6 +63,31 @@ qualitative 3-level definition).
   `Фокус развития` sections instead — this table only records what the
   metric is and what it currently shows.
 
+## Automation Metric Layering
+
+Automation coverage percentage and automation framework/code quality are
+project/team QA-process metrics, not individual metrics — this applies even
+when only one QA engineer currently owns or maintains the framework. They
+describe the project/team QA-process asset, not this person's personal
+performance, and belong in `qa_process_metrics`, rolling up through
+`project_metrics` to `_project_registry` (see `m2-project-qa-metrics-report`'s
+document-contract and `m2-role-rules.md`, Automation Metric Layering).
+
+`individual_metrics` may mention automation only as this person's
+contribution, ownership, or behavior. Examples of allowed individual
+framing: owns the automation framework, contributes tests, improves
+visibility/reporting, needs support to present automation progress, lacks
+autonomy maintaining the framework. Do not store the automation coverage
+percentage, a framework/code-quality assessment, pass rate, flaky-test
+status, or CI/CD state as an `individual_metrics` row, even when this person
+is the framework's sole owner.
+
+If a source contains automation coverage/code-quality facts, update
+`qa_process_metrics` first, then `project_metrics`, then `_project_registry`
+— use `individual_metrics` only for the person-specific contribution/
+ownership angle (see `Templates\метрики_qa_по_проекту.md`, Automation Metric
+Layering, for the catalog-level version of this rule).
+
 ## Expected Output
 
 One individual metrics-oriented report format.

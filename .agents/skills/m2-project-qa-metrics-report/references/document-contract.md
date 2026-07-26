@@ -237,6 +237,18 @@ blank placeholder. Full definitions and "where to find it" guidance:
 
 ### Automation
 
+Automation coverage, automation framework/code-quality assessment, pass
+rate, flaky-test status, and CI/CD state are project/team QA-process facts,
+not individual performance metrics — this holds even when only one QA
+engineer currently owns or maintains the automation framework. When a
+source contains these facts, update `qa_process_metrics` first, then
+`project_metrics`, then `_project_registry` — `individual_metrics` is used
+only for the person-specific contribution/ownership angle (owns the
+framework, contributes tests, improves visibility/reporting, needs support
+presenting progress, lacks autonomy maintaining the framework — see
+`m2-individual-qa-metrics-report`'s document-contract, Automation Metric
+Layering).
+
 - Automation coverage by critical flow/module.
 - Number of automated tests added or maintained.
 - Automation execution time.
