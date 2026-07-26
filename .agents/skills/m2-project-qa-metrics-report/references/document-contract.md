@@ -28,6 +28,11 @@ owners and different audiences — never merge them into one file.
   `90_Storage\Reference\Source_Documents\M2_project_development_plan` and real project content.
 - `<repo-root>\Templates\метрики_qa_по_проекту.csv` / `.md`
   For individual QA metrics inside the project scope.
+- `qa-management-roles\references\qa-metrics-catalog.md` — cross-cutting
+  map of all three metric tiers (Core project QA-process, optional
+  project/release quality, optional individual contribution) and the
+  signals-not-verdicts principle they share; points back here for actual
+  definitions rather than duplicating them.
 
 ## Expected Output
 

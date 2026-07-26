@@ -199,13 +199,13 @@ class RoleRulesLeakageAttributionTests(unittest.TestCase):
     def test_rejects_sole_qa_as_automatic_attribution(self):
         self.assertIn(
             "being the only QA on a project is not the same as "
-            "evidence-backed attribution",
+            "RCA-backed attribution",
             self.text,
         )
 
     def test_states_cascade_order_still_first(self):
         self.assertIn(
-            "even then `qa_process_metrics`/`project_metrics`/"
+            "and even then `qa_process_metrics`/`project_metrics`/ "
             "`_project_registry` are updated first",
             self.text,
         )

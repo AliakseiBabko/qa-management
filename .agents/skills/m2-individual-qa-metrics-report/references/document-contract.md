@@ -22,6 +22,12 @@ Use this reference for the individual QA metrics document family.
 individual metrics and how to measure each one (quantitative formula or
 qualitative 3-level definition).
 
+`qa-management-roles\references\qa-metrics-catalog.md` — cross-cutting map
+of all three metric tiers (Core project QA-process, optional
+project/release quality, optional individual contribution) and the
+signals-not-verdicts principle they share; points back here for the
+individual-tier definitions rather than duplicating them.
+
 ## Choosing metrics from the catalog
 
 - Every Core metric from the catalog is always a row for every person, on

@@ -53,6 +53,33 @@ Do not confuse:
 - quality metric with business/project metric
 - completed work report with success criteria
 
+## Metrics Are Signals, Not Verdicts
+
+Metrics — Core or optional, project-level or individual — are diagnostic
+signals for M2 review, 1:1s, retrospectives, and project-risk decisions.
+They are inputs to a judgment M2 makes, not automatic performance
+verdicts that read themselves. A number moving the wrong way is a prompt
+to investigate (talk to the person, check project/system constraints,
+look for a data-quality problem) before it becomes a conclusion about
+anyone's performance or a project's health.
+
+Do not add an optional metric to every project by default. Add one only
+when the project already has a recurring data source for it and there is
+a concrete management question it answers — never as a placeholder "in
+case a tool gets set up later" (see Template Consistency below for how
+this differs from a Core metric's blank-with-reason row, which always
+exists regardless of data).
+
+If data is missing, record the gap explicitly (what's missing and why)
+instead of fabricating a value or estimating one without saying so. A
+stated gap is a legible, useful fact; a guessed number is not.
+
+See `references/qa-metrics-catalog.md` for the full tiered catalog (Core
+project QA-process metrics, optional project/release quality metrics,
+optional individual contribution metrics) built on this principle, and
+`Templates\метрики_проекта_qa.md` / `Templates\метрики_qa_по_проекту.md`
+for the schema-owning definitions each catalog tier links back to.
+
 ## Metric Rules
 
 Use a small balanced metric set. Cover different perspectives:
@@ -320,14 +347,22 @@ is unknown, record a qualitative value backed by evidence rather than
 guessing a number: no data, no confirmed leakage, confirmed cases exist
 but count unknown, or N confirmed cases.
 
-Do not add a leakage finding as an `individual_metrics` row by default —
-being the only QA on a project is not the same as evidence-backed
-attribution. It becomes an `individual_metrics` row only when the source
-directly attributes responsibility to a named person and that attribution
-is evidence-backed (a traceable claim — e.g. a DC/QA Lead naming who owned
-the affected area/task — not an assumption or "someone on QA"), and even
-then `qa_process_metrics`/`project_metrics`/`_project_registry` are updated
-first, same as any other source that touches this metric.
+**RCA (root cause analysis) is required before attributing a leaked defect
+to a person** — not just "a source mentioned a name." Classifying a finding
+as QA leakage specifically, and naming who is responsible for it, both
+depend on having actually traced the defect back to its cause; without
+that, the finding stays at "unclear/needs triage" or one of the other
+non-personal categories above, not a personal attribution. Do not add a
+leakage finding as an `individual_metrics` row by default — being the only
+QA on a project is not the same as RCA-backed attribution. It becomes an
+`individual_metrics` row (see `Templates\метрики_qa_по_проекту.md`,
+"Prod leakage attributable after RCA") only when an RCA has actually been
+done and it directly attributes responsibility to a named person with
+evidence (a traceable claim — e.g. a DC/QA Lead naming who owned the
+affected area/task after tracing the cause — not an assumption or
+"someone on QA"), and even then `qa_process_metrics`/`project_metrics`/
+`_project_registry` are updated first, same as any other source that
+touches this metric.
 
 ## Вклад в проект Calibration
 
