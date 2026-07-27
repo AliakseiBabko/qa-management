@@ -144,14 +144,14 @@ class VisualEvidenceIntakeMirrorSyncTests(unittest.TestCase):
         self.assertIn("_Visual_Drop", text)
 
 
-class NoRealNamesOrPathsTests(unittest.TestCase):
-    """Only placeholders allowed - no real project/person names, and the
-    repo-wide sensitive-data rule applies to this new skill file too."""
+class PlaceholderTokenTests(unittest.TestCase):
+    """The skill must illustrate its conventions with placeholder tokens.
 
-    def test_no_real_project_or_person_names(self):
-        text = SKILL_MD.read_text(encoding="utf-8")
-        for name in ("<Project>", "<Project>", "<Project>", "<Project>", "<Project>"):
-            self.assertNotIn(name, text)
+    Scanning for actual real-world names is deliberately not done here:
+    `check_sensitive_data.py` owns that check and builds its watch list
+    live from the Drive registries, so no real identifier has to be
+    written into this public repo to test for its absence.
+    """
 
     def test_only_placeholder_project_token(self):
         text = SKILL_MD.read_text(encoding="utf-8")

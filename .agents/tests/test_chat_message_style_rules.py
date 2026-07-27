@@ -38,10 +38,6 @@ class ChatMessageStyleRulesTests(unittest.TestCase):
         self.assertIn("visible improvement areas", self.normalized)
         self.assertIn("plan to support the person", self.normalized)
 
-    def test_no_real_project_or_person_names(self):
-        for forbidden in ("<Project>", "<Project>", "<Project>", "<Project>", "<Project>"):
-            self.assertNotIn(forbidden, self.text)
-
 
 if __name__ == "__main__":
     unittest.main()

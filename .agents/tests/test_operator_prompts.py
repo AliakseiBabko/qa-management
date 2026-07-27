@@ -44,13 +44,6 @@ class OperatorPromptsTests(unittest.TestCase):
         self.assertIn("ranking hint only", normalized)
         self.assertIn("not a project/person scope decision", normalized)
 
-    def test_prompt_cookbook_uses_placeholders_not_real_values(self) -> None:
-        text = PROMPTS.read_text(encoding="utf-8")
-
-        forbidden = ["<Project>", "@", "<Project>"]
-        for value in forbidden:
-            self.assertNotIn(value, text)
-
 
 if __name__ == "__main__":
     unittest.main()

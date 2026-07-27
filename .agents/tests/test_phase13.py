@@ -437,16 +437,6 @@ class TemplateHeadingTests(unittest.TestCase):
                         "Reporting/Metrics", "Risks", "Open Questions"):
             self.assertIn(heading, text)
 
-    def test_templates_have_no_real_names(self):
-        # These templates must stay abstract - only placeholder-style
-        # <Project> tokens, no concrete example content.
-        for name in ("pk_knowledge_base.md", "pk_summary.md", "performance_test_plan.md",
-                     "test_plan.md", "test_strategy.md"):
-            text = self._read(name)
-            self.assertNotIn("<Project>", text)
-            self.assertNotIn("<Project>", text)
-            self.assertNotIn("<Project>", text)
-
 
 # ---------------------------------------------------------------------------
 # No real names/projects in this test module's own fixtures

@@ -314,18 +314,5 @@ class TestJsonEnvelopeIsStrict(unittest.TestCase):
         self.assertEqual(set(envelope.keys()), self.EXPECTED_KEYS)
 
 
-class TestNoRealNamesInFixtures(unittest.TestCase):
-    """The fixture constants above must stay generic/public-safe - the
-    same discipline the underlying scripts' own leak guards enforce on
-    real telemetry rows."""
-
-    def test_generic_objective_has_no_real_project_or_person(self):
-        self.assertNotIn("@", closeout.GENERIC_OBJECTIVE)
-        forbidden = ["<Project>", "<Project>"]
-        for value in forbidden:
-            self.assertNotIn(value, closeout.GENERIC_OBJECTIVE)
-            self.assertNotIn(value, closeout.GENERIC_COMMIT_MESSAGE)
-
-
 if __name__ == "__main__":
     unittest.main()

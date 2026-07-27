@@ -232,22 +232,5 @@ class ScaffoldScriptLeakageTests(unittest.TestCase):
         self.assertIn("Production bug leakage (Баги, утекшие в прод)", metrics)
 
 
-class NoRealNamesInEditedFilesTests(unittest.TestCase):
-    def test_no_real_project_or_person_names(self):
-        for path in (
-            SKILLS_DIR
-            / "m2-project-qa-metrics-report"
-            / "references"
-            / "document-contract.md",
-            SKILLS_DIR / "qa-management-roles" / "references" / "m2-role-rules.md",
-            TEMPLATES_DIR / "метрики_qa_по_проекту.md",
-            TEMPLATES_DIR / "метрики_проекта_qa.md",
-            SCRIPTS_DIR / "scaffold_project_dashboard.py",
-        ):
-            text = _read(path)
-            for name in ("<Project>", "<Project>", "<Project>", "<Project>", "<Project>", "<Person>"):
-                self.assertNotIn(name, text)
-
-
 if __name__ == "__main__":
     unittest.main()

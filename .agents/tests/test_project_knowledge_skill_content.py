@@ -144,16 +144,5 @@ class OpenQuestionsCrossCheckRuleTests(unittest.TestCase):
         self.assertIn("Never duplicate a contradictory open question", self.normalized)
 
 
-class NoRealNamesInEditedSkillsTests(unittest.TestCase):
-    def test_no_real_project_or_person_names(self):
-        for relative_path in (
-            "project-knowledge-roles/SKILL.md",
-            "project-knowledge-intake/SKILL.md",
-        ):
-            text = _read(relative_path)
-            for name in ("<Project>", "<Project>", "<Project>", "<Project>"):
-                self.assertNotIn(name, text)
-
-
 if __name__ == "__main__":
     unittest.main()

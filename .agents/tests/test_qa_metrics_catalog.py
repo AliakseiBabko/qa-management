@@ -223,20 +223,5 @@ class DocumentContractsCrossReferenceCatalogTests(unittest.TestCase):
         self.assertIn("qa-metrics-catalog.md", text)
 
 
-class NoRealNamesInEditedFilesTests(unittest.TestCase):
-    def test_no_real_project_or_person_names(self):
-        for path in (
-            CATALOG_PATH,
-            ROLE_RULES_PATH,
-            PROJECT_CATALOG_PATH,
-            INDIVIDUAL_CATALOG_PATH,
-            PROJECT_CONTRACT_PATH,
-            INDIVIDUAL_CONTRACT_PATH,
-        ):
-            text = _read(path)
-            for name in ("<Project>", "<Project>", "<Project>", "<Project>", "<Project>", "<Person>"):
-                self.assertNotIn(name, text)
-
-
 if __name__ == "__main__":
     unittest.main()

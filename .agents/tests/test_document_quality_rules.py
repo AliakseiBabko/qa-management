@@ -144,20 +144,5 @@ class ActionItemsDueDateRuleTests(unittest.TestCase):
         )
 
 
-class NoRealNamesInEditedFilesTests(unittest.TestCase):
-    def test_no_real_project_or_person_names(self):
-        for relative_path in (
-            "m2-individual-qa-metrics-report/references/document-contract.md",
-            "project-knowledge-roles/SKILL.md",
-            "project-knowledge-intake/SKILL.md",
-            "qa-management-roles/references/m2-role-rules.md",
-            "m2-timeline/references/document-contract.md",
-            "m2-timeline/SKILL.md",
-        ):
-            text = _read(relative_path)
-            for name in ("<Project>", "<Project>", "<Project>", "<Project>", "<Project>"):
-                self.assertNotIn(name, text)
-
-
 if __name__ == "__main__":
     unittest.main()
