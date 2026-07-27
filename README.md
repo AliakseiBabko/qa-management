@@ -999,6 +999,23 @@ These are what actually runs day to day, once a project's folder already exists:
   Reports telemetry health checks: cumulative snapshot groups, blank token fields,
   legacy runtime aliases (`claude-code`), missing model labels or timestamps, and
   confidence breakdowns. Supports `--json`, `--runtime`, `--include-snapshots`, and `--verbose`.
+- `setup_agent_adapters.py` — creates the machine-local skill-discovery
+  adapter for Claude Code. `.agents/skills/` remains the single canonical
+  skill source; Codex and Antigravity read it directly and need no adapter.
+  Claude Code looks under `.claude/skills/`, so this script creates
+  `.claude/skills` as a **link** to `.agents/skills` — a directory junction
+  on Windows (no Administrator rights needed; a symlink would require
+  elevation or Developer Mode) and a relative `../.agents/skills` symlink on
+  POSIX. Nothing is copied or mirrored, so there is only ever one copy of a
+  skill to edit. `python .agents/scripts/setup_agent_adapters.py` sets it up
+  and is idempotent (an already-correct adapter is left alone);
+  `--check` verifies it read-only and exits nonzero when the adapter is
+  missing, dangling, misdirected, or a real directory/file. Setup never
+  deletes, replaces, or overwrites an unexpected path — it refuses with the
+  remediation to perform by hand. The adapter is machine-local and
+  intentionally untracked (`.gitignore`), so a clean clone has no
+  `.claude/skills` and `validate_repo.py` does not require one; run the setup
+  script once per working copy that uses Claude Code.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
