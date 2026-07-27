@@ -27,6 +27,10 @@ Checks (FAIL = exit 1):
 - every canonical source_type appears (backticked) in
   google-workspace/operational-registries.md
 - every `Templates/<file>` referenced in skills/AGENTS/README exists
+- .agents/reference_bundles.yaml parses; every bundle's `modules` resolve
+  under .agents/skills/, includes api-sharing-editing.md, every `used_by`
+  name is a real skill, and every one of those skills has every module of
+  its bundle as a mandatory (non-conditional) Required Start read
 
 Warnings (reported, exit 0):
 - canonical source_types with no `sources:` route in the graph
@@ -53,11 +57,13 @@ REPO = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO / ".agents" / "skills"
 SCRIPTS_DIR = REPO / ".agents" / "scripts"
 GRAPH = REPO / ".agents" / "document_graph.yaml"
+BUNDLES = REPO / ".agents" / "reference_bundles.yaml"
 RULES = (
     SKILLS_DIR / "qa-management-roles" / "references" / "google-workspace"
     / "operational-registries.md"
 )
 VALID_KINDS = {"direct", "gated", "judgment", "script"}
+CONDITIONAL_WORD = re.compile(r"\b(when|if)\b", re.IGNORECASE)
 
 failures: list[str] = []
 warnings: list[str] = []
@@ -273,6 +279,105 @@ def check_templates() -> None:
         warn(f"Templates/{t} is referenced by no skill/AGENTS/README text")
 
 
+def _required_start_read_steps(text: str) -> list[str]:
+    """Split a SKILL.md's Required Start section into whole numbered
+    "N. Read ..." step spans (the numbered line plus every indented
+    continuation line beneath it) - a step can name its module(s) across
+    several lines, and a bundle check must see the whole step, not just
+    the first line."""
+    m = re.search(r"## Required Start\n(.*?)(\n## |\Z)", text, re.S)
+    if not m:
+        return []
+    section = m.group(1)
+    steps: list[str] = []
+    current: list[str] = []
+    in_step = False
+    for line in section.splitlines():
+        stripped = line.strip()
+        if re.match(r"^\d+\.\s*Read", stripped):
+            if current:
+                steps.append("\n".join(current))
+            current = [line]
+            in_step = True
+        elif in_step and line.startswith((" ", "\t")) and stripped:
+            current.append(line)
+        else:
+            if current:
+                steps.append("\n".join(current))
+            current = []
+            in_step = False
+    if current:
+        steps.append("\n".join(current))
+    return steps
+
+
+def _mandatory_read_paths(text: str) -> set[str]:
+    """Every file path named on a non-conditional Required Start "N. Read
+    ..." step. A step containing "when"/"if" anywhere in its span is
+    situational, not mandatory, and its paths are excluded - a conditional
+    read must never satisfy a bundle's mandatory-module requirement."""
+    path_pat = re.compile(r"[`\"]((?:\.\./)*[A-Za-z0-9_./Ѐ-ӿ-]+\.md)[`\"]")
+    mandatory: set[str] = set()
+    for step in _required_start_read_steps(text):
+        if CONDITIONAL_WORD.search(step):
+            continue
+        mandatory.update(path_pat.findall(step))
+    return mandatory
+
+
+def check_reference_bundles() -> None:
+    """.agents/reference_bundles.yaml is a drift-prevention registry for
+    Required Start module bundles repeated across report-writer skills -
+    not a mechanism skills read from. Required Start prose must keep
+    spelling out every path explicitly; this only checks that prose stays
+    in sync with the declared bundle."""
+    if not BUNDLES.is_file():
+        fail("reference_bundles.yaml does not exist")
+        return
+    try:
+        registry = yaml.safe_load(BUNDLES.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        fail(f"reference_bundles.yaml does not parse: {exc}")
+        return
+    bundles = (registry or {}).get("bundles") or {}
+    if not bundles:
+        fail("reference_bundles.yaml has no non-empty 'bundles' key")
+        return
+
+    for bundle_name, spec in bundles.items():
+        spec = spec or {}
+        modules = spec.get("modules") or []
+        used_by = spec.get("used_by") or []
+        if not modules:
+            fail(f"bundle {bundle_name!r} has no 'modules'")
+            continue
+        if not used_by:
+            fail(f"bundle {bundle_name!r} has no 'used_by'")
+            continue
+
+        module_suffixes = []
+        for rel in modules:
+            p = SKILLS_DIR / rel
+            if not p.is_file():
+                fail(f"bundle {bundle_name!r} module {rel!r} does not exist under .agents/skills/")
+            module_suffixes.append((rel, rel.replace("\\", "/")))
+
+        if not any(suffix.endswith("api-sharing-editing.md") for _, suffix in module_suffixes):
+            fail(f"bundle {bundle_name!r} does not include api-sharing-editing.md - every bundle must")
+
+        for skill in used_by:
+            skill_md = SKILLS_DIR / skill / "SKILL.md"
+            if not skill_md.is_file():
+                fail(f"bundle {bundle_name!r} used_by names missing skill {skill!r}")
+                continue
+            text = skill_md.read_text(encoding="utf-8")
+            mandatory = {p.replace("\\", "/") for p in _mandatory_read_paths(text)}
+            for rel, suffix in module_suffixes:
+                if not any(m.endswith(suffix) for m in mandatory):
+                    fail(f"skill {skill!r} is in bundle {bundle_name!r} used_by but does not "
+                         f"mandatorily (non-conditionally) read {rel!r} in Required Start")
+
+
 def main() -> int:
     source_types = load_source_types()
     check_skills()
@@ -282,6 +387,7 @@ def main() -> int:
     check_source_type_literals(source_types)
     check_format_drift()
     check_templates()
+    check_reference_bundles()
 
     for w in warnings:
         print(f"WARN  {w}")

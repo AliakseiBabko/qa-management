@@ -42,6 +42,11 @@ adding anything to it.
   pipeline script) - update the relevant README section in the same
   commit. Not every skill needs a README change; a routing/prep skill
   with no new output document usually doesn't.
+- If it is an M1/M2 report-writing skill matching a bundle declared in
+  `.agents/reference_bundles.yaml` (`m2-report-writer`/`m1-report-writer`):
+  copy that bundle's module list verbatim into Required Start and add the
+  skill to the bundle's `used_by` in the same commit -
+  `validate_repo.py`'s `check_reference_bundles()` fails otherwise.
 
 **New or changed document type / dependency between documents**
 - `document_graph.yaml`: add the node with its `downstream` edges

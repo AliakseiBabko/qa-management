@@ -1,0 +1,59 @@
+# Named Required Start module bundles for repeated Google Workspace reads
+# across report-writing skills - a drift-prevention registry, not a
+# context-reduction mechanism. SKILL.md Required Start sections still spell
+# out every module path explicitly; this file is checked *against* that
+# prose by validate_repo.py's check_reference_bundles(), it never replaces
+# it. Do not turn a bundle name into something a skill reads instead of the
+# real paths - Required Start must stay literal so an agent always sees
+# which layout module (M1 vs M2) and safety file it is reading.
+#
+# A module belongs in a bundle only if every one of that bundle's used_by
+# skills needs it unconditionally, every time. A module some but not all
+# consumers need (people-registry.md for M1, search-source-extraction.md
+# for M2) stays a per-skill addition, not bundle content - see the Phase
+# 6 design audit. Every bundle must include api-sharing-editing.md;
+# validate_repo.py fails if a bundle omits it.
+#
+# This is unrelated to document_graph.yaml, which encodes document-cascade
+# routing (what to update downstream after a write), not Required Start
+# reading.
+#
+# Do not add a bundle for a pattern with fewer than 3 consumers - it adds
+# naming overhead without a real drift-prevention payoff yet.
+
+bundles:
+  m2-report-writer:
+    description: >-
+      M2 skills that write a Drive Doc/Sheet artifact under
+      20_M2_Project_Management.
+    modules:
+      - qa-management-roles/references/google-workspace/workspace-basics.md
+      - qa-management-roles/references/google-workspace/m2-layout.md
+      - qa-management-roles/references/google-workspace/artifact-conventions.md
+      - qa-management-roles/references/google-workspace/api-sharing-editing.md
+    used_by:
+      - m2-individual-development-plan
+      - m2-individual-qa-metrics-report
+      - m2-people-1to1-file
+      - m2-project-development-plan
+      - m2-project-process-checklist
+      - m2-project-risk-report
+      - m2-timeline
+      - m2-project-qa-metrics-report
+      - m2-project-status-report
+
+  m1-report-writer:
+    description: >-
+      M1 skills that write a Drive Doc/Sheet artifact under
+      10_M1_People_Management.
+    modules:
+      - qa-management-roles/references/google-workspace/workspace-basics.md
+      - qa-management-roles/references/google-workspace/m1-layout.md
+      - qa-management-roles/references/google-workspace/artifact-conventions.md
+      - qa-management-roles/references/google-workspace/api-sharing-editing.md
+    used_by:
+      - m1-individual-development-plan
+      - m1-monthly-report
+      - m1-people-1to1-file
+      - m1-people-risk-report
+      - m1-timeline
