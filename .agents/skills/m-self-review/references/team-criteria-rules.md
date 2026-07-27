@@ -110,7 +110,7 @@ Each entry: metric, scoring bands, collection method, who collects, window
   starting point, not a substitute for the user confirming the number:
   - **Metric 4** (project feedback): read `project_metrics`'s `Вклад в
     проект: <Имя>` rows (see `qa-management-roles/references/
-    google-workspace-rules.md`, M2 Project-Based Layout) for each team
+    google-workspace/m2-layout.md`) for each team
     member's tracked project(s). A `Позитивный` row supports "positive," a
     `Смешанный` row is neutral, a `Негативный` row is negative — same
     3-level mapping already used elsewhere in this repo. Team members on

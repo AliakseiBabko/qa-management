@@ -2,8 +2,9 @@
 (10_M1_People_Management), per m1-people-risk-report's file-contract.
 
 Светофор рисков is a living document - one row per employee, updated in
-place, no dated snapshots (see google-workspace-rules.md, M1 Person-Based
-Layout, and m1-people-risk-report/references/file-contract.md). This
+place, no dated snapshots (see
+qa-management-roles/references/google-workspace/m1-layout.md, and
+m1-people-risk-report/references/file-contract.md). This
 script is the mechanical write path for that skill, the same role
 apply_person_card.py plays for _people_registry: it does not decide risk
 levels or write narrative - it takes already-decided field values and

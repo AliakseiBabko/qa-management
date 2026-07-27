@@ -24,7 +24,9 @@
 # `routed_to` and _skill_invocations `Documents touched`.
 
 # Keys are canonical source_type values (pipeline_common.
-# SKILL_INVOCATION_SOURCE_TYPES / google-workspace-rules.md) - validated by
+# SKILL_INVOCATION_SOURCE_TYPES /
+# qa-management-roles/references/google-workspace/operational-registries.md)
+# - validated by
 # validate_repo.py. `retro` deliberately has no route (it edits repo rules,
 # not workspace documents); the pre-classification types (`raw_transcript`,
 # `raw_chat`, `source_document`) have no route either - they only label

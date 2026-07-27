@@ -11,7 +11,7 @@ Use this skill for one output family only:
 
 ## Required Start
 
-1. Read `../qa-management-roles/references/google-workspace-rules.md`.
+1. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m1-layout.md`, `../qa-management-roles/references/google-workspace/people-registry.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 2. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 3. Read `../qa-management-roles/references/off-scope-stress-rules.md`.
 4. Read `references/file-contract.md`.

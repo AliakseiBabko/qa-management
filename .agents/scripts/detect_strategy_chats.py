@@ -3,8 +3,8 @@ message timestamps, log them to evidence_log, and write a review bundle for
 M2 to read.
 
 Scope, deliberately stopped at the same judgment boundary as
-prepare_intake_review.py (see m2-role-rules.md, Project-Level Rollups and
-Pipeline Architecture):
+prepare_intake_review.py (see m2-role-rules.md's Project-Level Rollups and
+qa-management-roles/references/google-workspace/pipeline-architecture.md):
 
 - scans 00_Inbox recursively for files matching
   "<project>_strategy*.txt" (case-insensitive) not already logged in that

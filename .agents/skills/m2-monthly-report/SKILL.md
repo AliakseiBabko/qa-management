@@ -16,7 +16,7 @@ Default source example:
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Identify the target M2 manager and reporting month.
 5. Treat `M2_monthly_report.xlsx` as an example/calculator unless the user explicitly says it is the real report for that manager/month.

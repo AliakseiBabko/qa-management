@@ -12,7 +12,7 @@ Use this skill for one output family only:
 ## Required Start
 
 1. Start from structured findings from `qa-1to1-analysis`, or analyze the transcript directly if needed.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m1-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `references/file-contract.md`.
 4. Read the existing person Sheet/file if it exists.
 

@@ -49,8 +49,10 @@ Current Drive layout:
 No raw video/multimedia is stored in Drive - only transcripts and
 documents. Folder moves use the Drive API so file IDs, links, revisions,
 and existing permissions are preserved. See
-`.agents/skills/qa-management-roles/references/google-workspace-rules.md`
-for the full folder-mapping and Sharing Safety notes.
+`.agents/skills/qa-management-roles/references/google-workspace/workspace-basics.md`
+for the full folder-mapping notes, and
+`.agents/skills/qa-management-roles/references/google-workspace/api-sharing-editing.md`
+for Sharing Safety.
 
 Final business outputs should prefer Google Sheets for tabular artifacts and Google Docs
 for narrative/status artifacts when Google API access is available. Local CSV/Markdown
@@ -61,8 +63,8 @@ files remain valid as fallback, staging, source-extraction, and export artifacts
 `05_People_Management/_people_registry` is the single workspace-wide people
 Sheet — one row per person (internal and client-side), covering everyone M1
 or M2 might need to look up: role/side, project(s), hire date, PR history,
-M1 manager, Worker ID, aliases, and notes. See `google-workspace-rules.md`
-for the full column list. Neither M1's nor M2's own outputs duplicate this
+M1 manager, Worker ID, aliases, and notes. See
+`google-workspace/people-registry.md` for the full column list. Neither M1's nor M2's own outputs duplicate this
 data — `_m1_pr_calendar`, `individual_metrics`, etc. all read from it.
 
 ## M1 Person Layout
@@ -88,8 +90,8 @@ Root-level files (risk snapshots, M1's monthly report, `_m1_timeline`,
 `_m1_pr_calendar`) stay
 at the root because they're workspace-wide or about M1 themselves, not
 about one team member — see
-`.agents/skills/qa-management-roles/references/google-workspace-rules.md`,
-M1 Person-Based Layout, for the full rule.
+`.agents/skills/qa-management-roles/references/google-workspace/m1-layout.md`
+for the full rule.
 
 ## M2 Project Layout
 
@@ -145,7 +147,7 @@ tree instead of a local copy that would go stale.
 team and only `people/<Person>/shared/` with that person. Never share the
 project root, `private/`, or `people/<Person>/`. `qa_process_metrics` is the
 team-editable factual input; its synthesized conclusion lives in the M2-only
-`private/project_metrics`. See `google-workspace-rules.md`, Sharing Safety.
+`private/project_metrics`. See `google-workspace/api-sharing-editing.md`, Sharing Safety.
 
 **Update chain**: `individual_metrics`/`individual_development_plan` (per
 person) → `project_metrics` (per project) → `_project_registry` (across
@@ -220,7 +222,7 @@ may generate slides from a reviewed brief; nothing does that yet).
 
 Four source types: `project_knowledge_transcript`, `project_knowledge_document`,
 `project_knowledge_chat`, `project_knowledge_notes` (see
-`google-workspace-rules.md` and `document_graph.yaml`'s `lanes:` mapping).
+`google-workspace/operational-registries.md` and `document_graph.yaml`'s `lanes:` mapping).
 Two skills: `project-knowledge-roles` (shared judgment rules — gradual
 accumulation, durable-vs-one-off distinction, open questions, the M1/M2
 boundary, QA docs as downstream-not-automatic products) and
@@ -431,7 +433,7 @@ These are what actually runs day to day, once a project's folder already exists:
   writes without calling this leaves stale, clipped row heights behind);
   `log_skill_invocation()` (appends a row to `_skill_invocations`, the
   workspace-wide log of which skill(s) actually handled a given source —
-  see `google-workspace-rules.md` — use this instead of a raw Sheets write
+  see `google-workspace/operational-registries.md` — use this instead of a raw Sheets write
   so `source_type` stays validated against the canonical list);
   `get_last_round_status()` (reads
   an m2_input Doc and reports the latest round's date and whether its
@@ -451,7 +453,7 @@ These are what actually runs day to day, once a project's folder already exists:
   AGENTS.md skill table ↔ `.agents/skills/`, README ↔ `.agents/scripts/`,
   `document_graph.yaml` node/alias/script/source integrity, source-type
   lists in sync between `pipeline_common.py` and
-  `google-workspace-rules.md`, and `Templates/` references resolving. Exit
+  `google-workspace/operational-registries.md`, and `Templates/` references resolving. Exit
   1 on drift; run before committing any structural change.
 - `refresh_all_timeline_views.py` — one command that rebuilds every
   derived timeline view after an `action_items`/`_m1_timeline` edit:
@@ -815,7 +817,7 @@ These are what actually runs day to day, once a project's folder already exists:
   becomes the next run's window start.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
-  Intake mapping in `google-workspace-rules.md`, looks up `_people_registry`
+  Intake mapping in `google-workspace/people-registry.md`, looks up `_people_registry`
   by email, and prints the computed Role/Internal rank/Notes plus a diff
   against any existing row. Dry-run by default; `--apply` adds a genuinely
   new row (an existing row's Name/Project(s) still need human judgment per
@@ -1044,7 +1046,7 @@ These are what actually runs day to day, once a project's folder already exists:
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
-`google-workspace-rules.md`, Pipeline Architecture.
+`google-workspace/pipeline-architecture.md`.
 
 ## Status Reports
 

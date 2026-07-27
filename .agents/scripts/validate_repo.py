@@ -2,7 +2,8 @@
 
 The `repo-maintenance` skill lists the mirrors that must stay in sync by
 hand (README <-> .agents/scripts/, document_graph.yaml <-> skills/scripts/
-aliases, source-type lists in pipeline_common <-> google-workspace-rules.md).
+aliases, source-type lists in pipeline_common <->
+google-workspace/operational-registries.md).
 This script is that checklist automated - the same move as
 check_cascade_closure.py for the data-side cascade. Run it before
 committing any structural change; exit 1 means drift.
@@ -24,7 +25,7 @@ Checks (FAIL = exit 1):
 - every graph `sources:` key is a canonical source_type from
   pipeline_common.SKILL_INVOCATION_SOURCE_TYPES
 - every canonical source_type appears (backticked) in
-  google-workspace-rules.md
+  google-workspace/operational-registries.md
 - every `Templates/<file>` referenced in skills/AGENTS/README exists
 
 Warnings (reported, exit 0):
@@ -52,7 +53,10 @@ REPO = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO / ".agents" / "skills"
 SCRIPTS_DIR = REPO / ".agents" / "scripts"
 GRAPH = REPO / ".agents" / "document_graph.yaml"
-RULES = SKILLS_DIR / "qa-management-roles" / "references" / "google-workspace-rules.md"
+RULES = (
+    SKILLS_DIR / "qa-management-roles" / "references" / "google-workspace"
+    / "operational-registries.md"
+)
 VALID_KINDS = {"direct", "gated", "judgment", "script"}
 
 failures: list[str] = []
@@ -221,7 +225,7 @@ def check_source_types_documented(source_types: set[str]) -> None:
     for stype in sorted(source_types):
         if f"`{stype}`" not in rules:
             fail(f"source_type {stype!r} is in pipeline_common but not documented "
-                 "in google-workspace-rules.md's canonical list")
+                 "in google-workspace/operational-registries.md's canonical list")
 
 
 def check_source_type_literals(source_types: set[str]) -> None:
@@ -234,7 +238,7 @@ def check_source_type_literals(source_types: set[str]) -> None:
         re.compile(r'`source_type`\s*=\s*`([a-z_]+)`'),       # markdown instruction
     ]
     files = [p for p in SCRIPTS_DIR.glob("*.py") if p.name != "validate_repo.py"]
-    files += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/*.md"))
+    files += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/**/*.md"))
     for f in files:
         content = f.read_text(encoding="utf-8")
         for pat in patterns:
@@ -257,7 +261,7 @@ def check_templates() -> None:
     templates = {p.name for p in (REPO / "Templates").iterdir() if p.is_file()}
     referenced: set[str] = set()
     texts = [(REPO / "AGENTS.md"), (REPO / "README.md")]
-    texts += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/*.md"))
+    texts += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/**/*.md"))
     for f in texts:
         content = f.read_text(encoding="utf-8")
         for m in re.findall(r"Templates[/\\]([^\s`\")\]]+)", content):

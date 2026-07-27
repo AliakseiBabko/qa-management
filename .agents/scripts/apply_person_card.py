@@ -1,7 +1,8 @@
 """Parse a person card (the structured HRM-style block M2 pastes in
 conversation - Job Title/M-level/Prof.Level/Mentor/DC) and apply the Person
-Card Intake field mapping (see google-workspace-rules.md, Person Card
-Intake) to _people_registry.
+Card Intake field mapping (see
+qa-management-roles/references/google-workspace/people-registry.md, Person
+Card Intake) to _people_registry.
 
 Scope, deliberately mechanical only (see m2-admin-note-intake SKILL.md):
 this script does the part that's the same every time - parse fields, find
@@ -75,7 +76,8 @@ LABELS = ["Job Title", "M-level", "Prof.Level", "Mentor", "DC"]
 OPTIONAL_LABELS = ["First commercial project"]
 LEVEL_KEYWORDS = ("Senior", "Middle", "Junior")
 
-# Set this to your own company's email domain (see google-workspace-rules.md,
+# Set this to your own company's email domain (see
+# qa-management-roles/references/google-workspace/people-registry.md,
 # _people_registry Columns, Side) - used to tell internal staff apart from
 # client-side people by email domain alone.
 COMPANY_EMAIL_DOMAIN = "example.com"
@@ -319,7 +321,8 @@ def main() -> int:
         print(f"Existing row found (matched by email): {existing}")
         print()
         print("This script does not auto-write over an existing row's Name/Project(s) - those need human")
-        print("judgment (see Person Card Intake, and the Project(s) rule in google-workspace-rules.md).")
+        print("judgment (see Person Card Intake, and the Project(s) rule in")
+        print("qa-management-roles/references/google-workspace/people-registry.md).")
         print("Review the computed Role/Internal rank/Notes above against the existing row and edit by hand,")
         print("or extend this script's --apply path if this becomes a common enough case to automate safely.")
         print()

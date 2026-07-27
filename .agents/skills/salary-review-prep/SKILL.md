@@ -20,8 +20,14 @@ prepare theirs, and when M1/M2 is preparing their own (alongside
 1. Read `references/document-contract.md`.
 2. Read `../qa-management-roles/references/salary-review-rules.md`.
 3. Read `../qa-management-roles/references/performance-review-rules.md` for PR cadence context.
-4. Identify the person and whether this is a team-member case (M1/M2 supporting a QA engineer) or a self case (M1/M2 preparing their own).
-5. Read the person's OKR Doc (`m1-individual-development-plan` / `m2-individual-development-plan` / `m-self-review`), their `_people_registry` row (grade, hire date), their `1to1` Sheet, and — if on a project — `project_metrics`'s `Вклад в проект` row.
+4. Read `../qa-management-roles/references/google-workspace/m1-layout.md`
+   and `../qa-management-roles/references/google-workspace/m2-layout.md`
+   (this Doc's target folder differs by whether the person is on the M1 or
+   M2 side - see document-contract.md), and
+   `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (this skill writes a Doc directly, sometimes into a shared folder).
+5. Identify the person and whether this is a team-member case (M1/M2 supporting a QA engineer) or a self case (M1/M2 preparing their own).
+6. Read the person's OKR Doc (`m1-individual-development-plan` / `m2-individual-development-plan` / `m-self-review`), their `_people_registry` row (grade, hire date), their `1to1` Sheet, and — if on a project — `project_metrics`'s `Вклад в проект` row.
 
 ## Workflow
 

@@ -182,7 +182,7 @@ nothing more:
 `individual_metrics_internal` is a second, separate Sheet per person —
 `private\people\<Person>\individual_metrics_internal`, separated from the
 employee-facing `individual_metrics` but never shared with that employee
-(see `google-workspace-rules.md` Sharing Safety). It exists because M2
+(see `google-workspace/api-sharing-editing.md`, Sharing Safety). It exists because M2
 sometimes has a real, evidence-based read that isn't ready — or isn't
 appropriate — to put in front of the employee: a subjective doubt about
 whether an improvement is durable, a concern surfaced by someone else (a

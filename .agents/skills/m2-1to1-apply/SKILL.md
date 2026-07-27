@@ -18,7 +18,11 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    people/project signal separation. Don't skip straight to routing.
 2. Read `../qa-management-roles/references/m2-role-rules.md`'s Cascading
    Updates and Project-Level Rollups sections.
-3. Run `.agents\scripts\show_project_state.py --project <Project>` to see
+3. Read `../qa-management-roles/references/google-workspace/m2-layout.md`
+   (person/project document locations), `../qa-management-roles/references/google-workspace/operational-registries.md`
+   (`evidence_log` discipline), and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (this skill writes and shares Drive artifacts directly - see Workflow).
+4. Run `.agents\scripts\show_project_state.py --project <Project>` to see
    current state before editing anything — a transcript often corroborates
    or resolves something already recorded, not just adds new content.
 

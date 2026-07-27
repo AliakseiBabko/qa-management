@@ -12,7 +12,7 @@ Use this skill for one output family only:
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, `../qa-management-roles/references/google-workspace/search-source-extraction.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Identify the target project and reporting period.
 5. For DOCX/XLSX sources, first check whether an extracted copy already exists under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\...`.

@@ -18,8 +18,7 @@ Local CSV fallback: `G:\My Drive\QA_Management\10_M1_People_Management\Свет�
 
 This stays at the `10_M1_People_Management` root — it's a workspace-wide,
 cross-person document, not per-person content, so it does not move into
-any `<Person>\` subfolder (see `google-workspace-rules.md`, M1
-Person-Based Layout).
+any `<Person>\` subfolder (see `google-workspace/m1-layout.md`).
 
 ## Source Inputs
 

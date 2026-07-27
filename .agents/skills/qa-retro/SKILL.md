@@ -23,7 +23,7 @@ repeated yet, nothing to change."
    `feedback:` notes), and lists repo commits over the same window. No
    rows since last retro and no feedback = say so and stop; don't
    manufacture findings.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`'s
+2. Read `../qa-management-roles/references/google-workspace/operational-registries.md`'s
    `_skill_invocations` section for the `feedback:` note convention this
    pass consumes.
 

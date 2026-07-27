@@ -14,7 +14,7 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Identify the target person and project scope.
 5. Read individual metrics first, then source workbook rows, project context, and transcript-derived findings.

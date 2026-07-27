@@ -8,7 +8,9 @@ description: Consistency checklist for any structural change to this repository 
 Several files in this repo mirror each other by convention, not by
 tooling: README's script section mirrors `.agents/scripts/`,
 `document_graph.yaml` mirrors the cascade prose in the skills, and
-`SKILL_INVOCATION_SOURCE_TYPES` mirrors `google-workspace-rules.md`. A
+`SKILL_INVOCATION_SOURCE_TYPES` mirrors
+`qa-management-roles/references/google-workspace/operational-registries.md`'s
+canonical `source_type` list. A
 change that updates one side and not the other creates exactly the
 silent drift the graph/closure work exists to prevent. This skill is the
 checklist that keeps the mirrors in sync - run through it for **every**
@@ -66,8 +68,9 @@ adding anything to it.
 
 **New source shape (a kind of input no skill processes yet)**
 - Add the `source_type` value to `SKILL_INVOCATION_SOURCE_TYPES` in
-  `pipeline_common.py` **and** to `google-workspace-rules.md`'s canonical
-  list - both together, never one side.
+  `pipeline_common.py` **and** to
+  `qa-management-roles/references/google-workspace/operational-registries.md`'s
+  canonical list - both together, never one side.
 - Add it under `sources:` in `document_graph.yaml` with its entry
   documents.
 

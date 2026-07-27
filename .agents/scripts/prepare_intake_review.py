@@ -1,8 +1,9 @@
 """Intake assistant: find new/changed source files, extract and classify them,
 log them to evidence_log, and produce a review bundle for M2 to read.
 
-Scope, deliberately stopped short of judgment (see m2-role-rules.md,
-Project-Level Rollups and Pipeline Architecture):
+Scope, deliberately stopped short of judgment (see m2-role-rules.md's
+Project-Level Rollups and
+qa-management-roles/references/google-workspace/pipeline-architecture.md):
 
 - scans 00_Inbox recursively for files not yet seen
 - reuses an existing extraction by sha256 (checks every

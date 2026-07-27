@@ -1,7 +1,8 @@
 """Refresh `_project_registry` from each project's already-curated `project_metrics`.
 
-This is the mechanical step referenced in google-workspace-rules.md,
-Pipeline Architecture: it copies dashboard values across with no
+This is the mechanical step referenced in
+qa-management-roles/references/google-workspace/pipeline-architecture.md:
+it copies dashboard values across with no
 interpretation of its own — it does not compute Статус, Вклад в проект,
 Горизонт, Бизнес-риск, or Качество QA-процесса, only aggregates what
 `project_metrics` already says. Writing those values in `project_metrics`

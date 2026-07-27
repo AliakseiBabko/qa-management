@@ -18,6 +18,10 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    intake skill).
 3. Read the project's current `pk_knowledge_base` (if it exists) so new
    content can be judged against what's already captured.
+4. Read `../qa-management-roles/references/google-workspace/operational-registries.md`
+   (the `_skill_invocations` conventions step 6 writes into) and
+   `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (this skill writes Docs/Sheets directly).
 
 ## Workflow
 

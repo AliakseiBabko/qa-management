@@ -14,7 +14,8 @@ content (that's still a judgment/drafting step - see m1-timeline SKILL.md,
   surfaced as a Performance Review event; a person with no OKR Doc at all
   is surfaced as its own "missing OKR" candidate.
 - PR cadence cross-check: `_people_registry` (under 05_People_Management,
-  see google-workspace-rules.md) holds `Дата трудоустройства` and `Дата
+  see qa-management-roles/references/google-workspace/people-registry.md)
+  holds `Дата трудоустройства` and `Дата
   последнего PR` per person. This script computes the expected next PR
   WINDOW from those two fields per the real cadence rules in
   qa-management-roles/references/performance-review-rules.md (opens at last
@@ -177,7 +178,7 @@ def load_m1_people_registry(services: dict[str, Any], drive: Any) -> dict[str, d
 
 def find_person_roster(drive: Any, m1_root_id: str) -> list[str]:
     """Roster = every per-person subfolder directly under 10_M1_People_Management
-    (see google-workspace-rules.md, M1 Person-Based Layout). Leading-underscore
+    (see qa-management-roles/references/google-workspace/m1-layout.md). Leading-underscore
     folders (_self_review, and any future _-prefixed workspace-wide folder) are
     system folders, not people, and are excluded."""
     folders = drive_query(

@@ -38,7 +38,7 @@ read-only downstream consumer, same as the two above.
 1. Read `references/document-contract.md`.
 2. Read `references/okr-process-rules.md`.
 3. Read `../qa-management-roles/references/performance-review-rules.md` for the real PR cadence (used to compute the Doc title date, see Workflow step 4).
-4. Read `../qa-management-roles/references/google-workspace-rules.md`.
+4. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m1-layout.md`, `../qa-management-roles/references/google-workspace/people-registry.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 5. Read `../qa-management-roles/references/m1-role-rules.md`.
 6. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 7. Identify the target person, their current project (or bench status), and the Performance Review date this OKR is for.

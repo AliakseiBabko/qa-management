@@ -77,7 +77,8 @@ MAX_RETRIES = 5
 def call_with_retry(request: Callable[[], Any]) -> Any:
     """Run a googleapiclient request's .execute() with backoff on 429 (rate limit).
 
-    The Sheets API read-request quota (60/min/user, see google-workspace-rules.md
+    The Sheets API read-request quota (60/min/user, see
+    qa-management-roles/references/google-workspace/api-sharing-editing.md,
     API Safety) is easy to exceed here since every sheet costs 2 read calls
     (spreadsheets().get + values().get) and this script iterates every Sheet in
     the workspace in one run. A 429 is a rate limit, not a real failure - back

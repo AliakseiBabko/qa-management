@@ -20,7 +20,7 @@ status now is also writing next month's raw material for that skill.
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, `../qa-management-roles/references/google-workspace/search-source-extraction.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role-rules.md`.
 4. Read `../qa-management-roles/references/presale-upsell-rules.md` when the project has any expansion/upsell signal to report (see Content Rules, Расширение / Upsell).
 5. Identify project, audience, report type, and period:

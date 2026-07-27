@@ -6,7 +6,8 @@ description: Analyze a project-level M2 strategy chat export (filename ending "_
 # M2 Strategy Chat Analysis
 
 Use this skill for analysis only. It does not own final report-file creation — see
-`qa-management-roles/references/m2-role-rules.md` and `google-workspace-rules.md`
+`qa-management-roles/references/m2-role-rules.md` and
+`qa-management-roles/references/google-workspace/people-registry.md`
 for who updates what.
 
 ## What This Is, And Isn't
@@ -48,10 +49,14 @@ editing an already-logged file in place makes new content invisible to it.
    don't sample. If a file came back `UNCLASSIFIED`, confirm the project
    with the user and rename the file (`<Project>_strategy...txt`) before
    continuing.
-4. Read `../qa-management-roles/references/m2-role-rules.md` and
-   `../qa-management-roles/references/google-workspace-rules.md` before
-   writing anything — the routing/gating rules there (Cascading Updates,
-   Project-Level Rollups, registry role-conflict handling) apply directly.
+4. Read `../qa-management-roles/references/m2-role-rules.md`,
+   `../qa-management-roles/references/google-workspace/people-registry.md`,
+   `../qa-management-roles/references/google-workspace/operational-registries.md`,
+   and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   before writing anything — the routing/gating rules there (Cascading Updates,
+   Project-Level Rollups, registry role-conflict handling) apply directly, and
+   this skill does write direct corrections into `_people_registry` and
+   `individual_metrics`/`individual_development_plan` (see Workflow step 4).
 
 ## Workflow
 
@@ -132,6 +137,6 @@ editing an already-logged file in place makes new content invisible to it.
   `_people_registry`'s
   `Project(s)` column is staffing only; a cross-project management duty goes
   in `Notes`, naming which project(s) it covers (see
-  `google-workspace-rules.md`'s `Project(s)` definition). Someone can and
+  `google-workspace/people-registry.md`'s `Project(s)` definition). Someone can and
   often does wear more than one hat — capture each accurately, don't merge
   them into a single list that blurs which one is which.

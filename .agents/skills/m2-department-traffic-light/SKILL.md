@@ -39,18 +39,23 @@ then copy-pastes the result back into the shared table by hand.
 
 ## Required Start
 
-1. Read `../qa-management-roles/references/presale-upsell-rules.md`'s Rule
+1. Read `../qa-management-roles/references/google-workspace/m2-layout.md`
+   (`_project_registry` is this skill's source of truth for M2's project
+   list) and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (Sheets API safety - the rate-limit/scoped-query rules apply the same
+   way to this foreign Sheet as to any other).
+2. Read `../qa-management-roles/references/presale-upsell-rules.md`'s Rule
    before filling `Upsale opportunity`/`Upsale comment` for any row (see
    Workflow step 6) - a stricter bar than the general "leave blank rather
    than guessing" line applies specifically to these two columns.
-2. Confirm which file is M2's own editable copy before touching anything.
+3. Confirm which file is M2's own editable copy before touching anything.
    The department original and M2's copy often have near-identical names
    (e.g. `Auto staff. Светофор проектов` vs `Copy of Auto staff. Светофор
    проектов`) - resolve by checking the Drive `owners` field (must be M2
    themselves), not just a name match from search results. If genuinely
    unclear which file the user means, ask; do not guess on a spreadsheet
    this size with other people's data in it.
-3. In the sheet, find M2's own block: rows are grouped by manager, with the
+4. In the sheet, find M2's own block: rows are grouped by manager, with the
    `M2/DC` name only on the first row of each person's block and blank on
    the rows below it (matching each person's project count). Read a wide
    enough range to find the surrounding blocks and confirm the boundary

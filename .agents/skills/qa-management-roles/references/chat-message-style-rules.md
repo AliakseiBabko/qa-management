@@ -6,8 +6,8 @@ first-contact message — not for the longer analytical documents this
 workspace generates (development plans, risk reports, status reports),
 which have their own tone.
 
-See `google-workspace-rules.md`'s Language Rules for the em-dash rule,
-which applies here too.
+See `google-workspace/artifact-conventions.md`'s Language Rules for the
+em-dash rule, which applies here too.
 
 ## Rules
 

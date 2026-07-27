@@ -19,7 +19,7 @@ two-tier structure M2 needs to avoid one giant cross-project Sheet.
 ## Required Start
 
 1. Read `references/document-contract.md`.
-2. Read `../qa-management-roles/references/google-workspace-rules.md`.
+2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m1-layout.md`, `../qa-management-roles/references/google-workspace/people-registry.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/performance-review-rules.md` for the real PR cadence and its "Deriving Expected Next PR Date" formula.
 4. Read `../m1-individual-development-plan/references/okr-process-rules.md` for PR/OKR cadence rules.
 

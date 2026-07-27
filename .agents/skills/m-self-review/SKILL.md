@@ -23,9 +23,13 @@ though some of the same underlying data feeds both.
 1. Read `references/document-contract.md`.
 2. Read `references/team-criteria-rules.md`.
 3. Read `../qa-management-roles/references/performance-review-rules.md`.
-4. Identify whether the person is M1 or M2 (this decides the target root
+4. Read `../qa-management-roles/references/google-workspace/m1-layout.md`
+   (the `_self_review\<M1 name>\` folder convention) and
+   `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (this skill writes a Sheet directly).
+5. Identify whether the person is M1 or M2 (this decides the target root
    folder — see document-contract.md) and their team.
-5. Read their existing OKR Doc (`m1-individual-development-plan` /
+6. Read their existing OKR Doc (`m1-individual-development-plan` /
    `m2-individual-development-plan` — same Doc mechanics apply to an
    M-manager's own OKR, just stored under `_self_review`, see
    document-contract.md), their most recent `критерии_оценки_команды`

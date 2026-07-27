@@ -121,7 +121,8 @@ SKILL_INVOCATIONS_SHEET = "_skill_invocations"
 SKILL_INVOCATIONS_HEADER = [
     "Date", "Source", "Source type", "Project", "Person", "Skills applied", "Documents touched", "Notes",
 ]
-# Canonical source_type values - keep in sync with google-workspace-rules.md's
+# Canonical source_type values - keep in sync with
+# qa-management-roles/references/google-workspace/operational-registries.md's
 # evidence_log list; extend both together rather than picking an ad hoc value
 # silently at the point of use.
 SKILL_INVOCATION_SOURCE_TYPES = {
@@ -132,7 +133,7 @@ SKILL_INVOCATION_SOURCE_TYPES = {
     # keeps one of these only until it's classified into a type above.
     "raw_transcript", "raw_chat", "source_document",
     # Project Knowledge lane (30_Project_Knowledge) - see document_graph.yaml's
-    # `lanes:` mapping and google-workspace-rules.md.
+    # `lanes:` mapping and operational-registries.md.
     "project_knowledge_transcript", "project_knowledge_document",
     "project_knowledge_chat", "project_knowledge_notes",
 }
@@ -220,14 +221,15 @@ def log_skill_invocation(
     `routed_to` - list every skill actually applied, not just the first one
     that seems to fit. `source_type` should be one of
     SKILL_INVOCATION_SOURCE_TYPES; add a genuinely new shape to that set
-    (and to google-workspace-rules.md's list) rather than inventing an ad
+    (and to operational-registries.md's list) rather than inventing an ad
     hoc value here."""
     from sync_m2_source_docs_to_sheets import read_sheet_values
 
     if source_type not in SKILL_INVOCATION_SOURCE_TYPES:
         raise ValueError(
             f"Unrecognized source_type {source_type!r} - add it to SKILL_INVOCATION_SOURCE_TYPES "
-            "(and google-workspace-rules.md) if this is a genuinely new source shape."
+            "(and qa-management-roles/references/google-workspace/operational-registries.md) "
+            "if this is a genuinely new source shape."
         )
     for w in warn_unknown_documents_touched(documents_touched):
         print(f"Warning: {w}", file=sys.stderr)

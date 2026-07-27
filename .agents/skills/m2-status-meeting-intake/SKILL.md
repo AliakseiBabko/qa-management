@@ -21,6 +21,10 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
 2. Read `../qa-management-roles/references/m2-role-rules.md`'s
    Project-Level Rollups and Cascading Updates sections - the routing
    rules below apply directly.
+3. Read `../qa-management-roles/references/google-workspace/operational-registries.md`
+   (the `evidence_log`/`source_type` conventions this skill writes into)
+   and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   (API safety for the `m2_input`/`action_items`/`evidence_log` writes below).
 
 ## Workflow
 
@@ -36,8 +40,9 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
 4. Log concrete, datable next steps into that project's `action_items`;
    run `refresh_timeline_registry.py` after.
 5. Log one `evidence_log` row per affected project, `source_type =
-   meeting_transcript` (see `google-workspace-rules.md`'s canonical
-   `source_type` list).
+   meeting_transcript` (see
+   `../qa-management-roles/references/google-workspace/operational-registries.md`'s
+   canonical `source_type` list).
 6. Skip projects mentioned that belong to a different M2 - name-recognition
    only, per `aliases.md`.
 7. Per affected project, close the cascade: run

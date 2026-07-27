@@ -29,10 +29,10 @@ Ask directly.
   whichever is available first. Do not guess or leave it unrecorded.
 - Record the answer in `_people_registry`'s
   `Первый коммерческий проект` column (`Да` / `Нет`) — see
-  `google-workspace-rules.md`. Leave blank only while genuinely unconfirmed,
+  `google-workspace/people-registry.md`. Leave blank only while genuinely unconfirmed,
   and treat an unconfirmed value on someone newly staffed to a project as
   something to actively resolve, not a permanent gap.
-- A Person Card Intake (see `google-workspace-rules.md`, Person Card
+- A Person Card Intake (see `google-workspace/people-registry.md`, Person Card
   Intake) that states this fact maps directly into the same column; if it
   doesn't, ask rather than leaving the column blank once the person is
   actually staffed on a project.

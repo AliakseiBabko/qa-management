@@ -20,7 +20,7 @@
 
 `project_metrics` — M2-only — не показывай его QA-инженерам, чьи данные
 там упомянуты, даже после того как появится folder-level sharing для
-остального (см. Sharing Safety в `google-workspace-rules.md`).
+остального (см. Sharing Safety в `google-workspace/api-sharing-editing.md`).
 
 `rollup_individual_metrics_to_project.py` — deprecated, не пишет в
 `project_metrics` (см. docstring скрипта); не запускай его. Строк
@@ -54,7 +54,7 @@
   команды, пока проект не вернётся в `Активен`. См. §2 ниже.
 - `_project_registry` не убирает проект из списка — пауза это не "проект
   остановлен" в смысле правила об активных проектах (см.
-  `google-workspace-rules.md`). Убирать проект из реестра нужно только
+  `google-workspace/m2-layout.md`). Убирать проект из реестра нужно только
   когда он официально закрыт/отменён, не когда он на клиентской паузе.
 - Review-каденс (`Следующий review` в `project_risk`) не назначается на
   фиксированную дату — реактивация происходит по ручному сигналу M2, не

@@ -25,8 +25,7 @@ Suggested naming pattern:
 
 This stays at the `10_M1_People_Management` root — it's M1's own report
 about their own KPIs, not a per-person artifact, so it does not move into
-any `<Person>\` subfolder (see `google-workspace-rules.md`, M1
-Person-Based Layout).
+any `<Person>\` subfolder (see `google-workspace/m1-layout.md`).
 
 ## Versioning
 

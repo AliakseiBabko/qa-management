@@ -27,9 +27,13 @@ intake skills:
 
 ## Required Start
 
-1. Read `../qa-management-roles/references/google-workspace-rules.md`'s
-   `_people_registry` section, including **Person Card Intake** — the field
+1. Read `../qa-management-roles/references/google-workspace/people-registry.md`,
+   including its **Person Card Intake** section — the field
    mapping for person cards lives there, not duplicated here.
+   Read `../qa-management-roles/references/google-workspace/operational-registries.md`
+   for the `evidence_log`/`source_type` conventions this skill writes into.
+   Read `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+   before writing a registry row via `apply_person_card.py --apply`.
 2. Read `../qa-management-roles/references/m2-role-rules.md`'s Risk Rules
    (topology risk) and Communication and Visibility sections — a chat
    topology finding is often itself a risk signal, not just registry
@@ -63,8 +67,8 @@ intake skills:
    raw chat names map to which single canonical project.
 2. Cross-check against `_project_registry`/`_people_registry` — a topology
    note is exactly the kind of source that resolves (or reveals) exactly
-   the kind of ambiguity flagged in `google-workspace-rules.md`'s registry
-   rules (unclear role, unclear project mapping).
+   the kind of ambiguity flagged in `google-workspace/people-registry.md`'s
+   registry rules (unclear role, unclear project mapping).
 3. If the note reveals a real visibility/access gap (M2 or M3 missing from
    a project's own strategy chat, no M3 present at all, unclear who can
    grant access), treat it as a topology risk per `m2-role-rules.md` — add
@@ -80,7 +84,8 @@ intake skills:
    `evidence_log` entry is enough — no `m2_input` round needed.
 5. Log the conversation itself to `evidence_log` (`source_type` =
    `m2_conversation`), even though there's no source file — see
-   `google-workspace-rules.md`'s note on logging conversational updates.
+   `google-workspace/operational-registries.md`'s note on logging
+   conversational updates.
 
 ## Guardrails
 

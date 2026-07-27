@@ -98,7 +98,7 @@ one row per person with a computable window:
   in `OKR к Perfomance review DD.MM.YY` is the primary source for
   Performance Review events.
 - `_people_registry`'s `Дата трудоустройства`/`Дата последнего PR` columns
-  (see `google-workspace-rules.md`) — an independent, cadence-based way to
+  (see `google-workspace/people-registry.md`) — an independent, cadence-based way to
   compute the expected next PR window (`performance-review-rules.md`,
   "Deriving the Expected Next PR Window"), used both to track people before
   their first OKR Doc exists and to cross-check an existing Doc's title date.

@@ -20,7 +20,7 @@ a one-time onboarding form.
 
 1. Read `references/document-contract.md`.
 2. Read `references/outsource-operating-principles.md` — required before judging any gap, since a missing item is not automatically a risk on an outsource project.
-3. Read `../qa-management-roles/references/google-workspace-rules.md`.
+3. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 4. Read `../qa-management-roles/references/m2-role-rules.md`.
 5. Read the project's existing checklist Sheet if one exists, plus `project_risk` and `project_metrics` for context already on record.
 
@@ -66,4 +66,4 @@ a one-time onboarding form.
   judgment.
 - Do not create a new dated snapshot per review — update the one living
   Sheet in place, same as `project_metrics`'s living-file convention (see
-  `google-workspace-rules.md`, M2 Project-Based Layout).
+  `google-workspace/m2-layout.md`).
