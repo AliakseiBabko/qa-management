@@ -84,6 +84,74 @@ adding anything to it.
 - Existing generated documents keep their old schema unless the user
   asks for migration - note the coexistence in the skill if relevant.
 
+**Splitting a monolithic shared reference into a thin index + modules**
+- Only split when there's a real payoff: either several skills each need
+  a different subset (a thin `<name>-rules.md` index plus scoped modules
+  under `<name>/`, the pattern used for Google Workspace rules, M2 role
+  rules, and the M2 QA-metrics/project-report contracts), or one file has
+  a genuinely situational chunk worth gating separately (an "Extended
+  Catalog"/"Internal Variant"-style section not needed on every
+  invocation). Splitting a single-consumer file that has no situational
+  content doesn't reduce anything - it just adds header overhead. Don't
+  do it without one of these two payoffs.
+- Preserve every substantive line verbatim; only reword a cross-reference
+  when the moved content's new filename requires it. Verify with an
+  automated line-diff before finalizing, not by eyeballing.
+- Size targets: thin index <=4 KiB; each module <=12 KiB where practical,
+  <=16 KiB hard cap; combined index+modules within 95-110% of the
+  original file's size (some growth from repeated H1/Scope headers per
+  module is normal and expected).
+- Retarget every consumer's Required Start to the smallest module set it
+  actually needs - never make a skill read every module "just in case."
+  Retarget prose cross-references (other skills, Templates, README) to
+  the owning module too, except a genuinely generic "see also" pointer,
+  which may keep citing the parent file/index.
+- Audit and retarget any existing test that hardcodes the old monolith's
+  path before finalizing - splitting a file silently breaks a test that
+  reads it directly and asserts specific section text. When a moved
+  section is asserted by a test class that also asserts content from a
+  section that ends up in a *different* new module, split that test class
+  too so each one reads only its own module.
+- A genuinely duplicated rule (the same fact restated in two files, each
+  citing the other as if it were a separate authority) should be
+  consolidated into whichever file already owns it canonically, with the
+  other file trimmed to a short pointer plus only its own distinct,
+  non-duplicate framing - not left duplicated "for convenience." Don't
+  invent a new shared directory for this if an existing canonical module
+  already covers the concept; point there instead.
+- If a read should only happen for a specific section/scenario (not every
+  invocation), mark it conditional in Required Start prose using explicit
+  `when`/`if` language ("too when filling the Upsell section", "too if
+  also writing the internal variant") - this is what the continuation-
+  line-aware conditional detector in the loading-contract tests and
+  `validate_repo.py`'s bundle check actually look for. A conditional read
+  must never be phrased so it reads as unconditional (e.g. don't just
+  drop the file into a same-line list with the mandatory ones).
+
+**Repeated Required Start module bundle (3+ skills reading the identical
+module set)**
+- Declare it in `.agents/reference_bundles.yaml` with its `modules` list
+  and `used_by`; `validate_repo.py`'s `check_reference_bundles()` then
+  fails if any listed skill's Required Start stops matching. Don't declare
+  a bundle for fewer than 3 consumers - the naming overhead isn't worth it
+  yet.
+- A bundle is a drift-prevention registry only, never a mechanism a skill
+  reads instead of the real paths. Required Start must keep spelling out
+  every module path explicitly (never `- see the m2-report-writer bundle`
+  in place of the actual paths) - an agent must always see which layout
+  module (M1 vs M2) and which safety file it is reading, and this repo
+  has no runtime engine to expand an alias for it anyway.
+- Every bundle must include `api-sharing-editing.md` unconditionally -
+  never make it optional, situational, or omit it to shrink a bundle.
+- Only put a module in a bundle if literally every one of that bundle's
+  consumers needs it unconditionally. A module some but not all consumers
+  need (e.g. `people-registry.md` for 3 of 5 M1 report-writers,
+  `search-source-extraction.md` for 2 of 9 M2 report-writers) stays a
+  per-skill addition outside the bundle, not bundle content.
+- Never merge the M1 and M2 layout modules into one generic bundle name -
+  each bundle stays role-specific so the agent's Required Start always
+  names the correct, explicit layout file.
+
 ## Every Commit, Regardless Of Change Type
 
 - Run `.agents\scripts\validate_repo.py` - it is this checklist's
@@ -121,3 +189,17 @@ adding anything to it.
 - Don't grow this checklist speculatively; it earns a new line the same
   way skills earn rules - a repeated, observed miss (route candidates
   through `qa-retro`).
+- Don't split a shared reference further just because it's large. A
+  single-topic reference with multiple consumers and no situational
+  subset (e.g. `people-registry.md`, `performance-review-rules.md`,
+  `newcomer-support-rules.md`) is already minimally scoped - fragmenting
+  a cohesive topic doesn't remove duplication, it only adds files. Split
+  again only when a new situational subset or a new genuinely duplicated
+  rule actually appears, not speculatively.
+- A skill sitting over any given size threshold is not by itself a reason
+  to split anything - check first whether the load is a repeated,
+  reducible bundle (declare/extend a `reference_bundles.yaml` entry) or a
+  genuinely necessary stack for that skill's own safety/role/schema
+  context (nothing to do). Don't chase a lower byte number for its own
+  sake once every reference a skill reads is already minimally scoped and
+  either mandatory-every-time or correctly gated conditional.
