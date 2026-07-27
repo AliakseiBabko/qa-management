@@ -12,7 +12,7 @@ Use this skill as shared context. It does not own a final report format.
 1. Identify whether the task is M1 people management, M2 project management, or mixed.
 2. Read the relevant reference:
    - `references/m1-role-rules.md`
-   - `references/m2-role-rules.md`
+   - `references/m2-role/m2-role-basics.md`
 3. Apply the role boundary before writing outputs or conclusions.
 
 ## Role Levels

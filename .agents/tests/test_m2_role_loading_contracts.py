@@ -50,6 +50,28 @@ def _all_skill_md_texts() -> dict[Path, str]:
     return {p: p.read_text(encoding="utf-8") for p in SKILLS_DIR.glob("*/SKILL.md")}
 
 
+def _mandates_reading_thin_index(text: str, pattern: re.Pattern) -> bool:
+    """A Required Start "N. Read ..." step can span a continuation bullet
+    on the following indented line(s) - e.g.:
+
+        2. Read the relevant reference:
+           - `references/m2-role-rules.md`
+
+    The thin index must not appear on the numbered line itself, nor on any
+    indented continuation line directly under it, up until a blank line,
+    a new numbered step, or unindented text ends the step."""
+    in_read_step = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if re.match(r"^\d+\.\s*Read", stripped):
+            in_read_step = True
+        elif not line.startswith((" ", "\t")) or not stripped:
+            in_read_step = False
+        if in_read_step and pattern.search(line):
+            return True
+    return False
+
+
 class ThinIndexTests(unittest.TestCase):
     def test_index_is_at_most_4kib(self):
         size = INDEX.stat().st_size
@@ -174,9 +196,55 @@ class NoMandatoryWholeFileReadTests(unittest.TestCase):
     def test_no_skill_mandates_reading_the_thin_index(self):
         pattern = re.compile(r"references/m2-role-rules\.md")
         for path, text in _all_skill_md_texts().items():
-            for line in text.splitlines():
-                if pattern.search(line) and re.match(r"^\d+\.\s*Read", line.strip()):
-                    self.fail(f"{path} has a Required-Start mandatory read of the thin index")
+            if _mandates_reading_thin_index(text, pattern):
+                self.fail(f"{path} has a Required-Start mandatory read of the thin index")
+
+    def test_detector_catches_continuation_line_regression_fixture(self):
+        """Regression fixture for the actual pre-fix qa-management-roles/
+        SKILL.md shape: the thin-index path sat on an indented bullet under
+        a numbered "Read" step, not on the numbered line itself. A pattern
+        match scoped to only the numbered line would have missed this."""
+        pattern = re.compile(r"references/m2-role-rules\.md")
+        old_shape = (
+            "## Required Start\n\n"
+            "1. Identify whether the task is M1 people management, M2 "
+            "project management, or mixed.\n"
+            "2. Read the relevant reference:\n"
+            "   - `references/m1-role-rules.md`\n"
+            "   - `references/m2-role-rules.md`\n"
+            "3. Apply the role boundary before writing outputs or "
+            "conclusions.\n"
+        )
+        self.assertTrue(
+            _mandates_reading_thin_index(old_shape, pattern),
+            "detector failed to catch the old qa-management-roles/SKILL.md "
+            "continuation-line shape",
+        )
+
+        new_shape = (
+            "## Required Start\n\n"
+            "1. Identify whether the task is M1 people management, M2 "
+            "project management, or mixed.\n"
+            "2. Read the relevant reference:\n"
+            "   - `references/m1-role-rules.md`\n"
+            "   - `references/m2-role/m2-role-basics.md`\n"
+            "3. Apply the role boundary before writing outputs or "
+            "conclusions.\n"
+        )
+        self.assertFalse(
+            _mandates_reading_thin_index(new_shape, pattern),
+            "detector false-positived on the corrected module-scoped shape",
+        )
+
+        prose_only = (
+            "## Guardrails\n\n"
+            "- see `m2-role-rules.md` or a similar shared reference for "
+            "more.\n"
+        )
+        self.assertFalse(
+            _mandates_reading_thin_index(prose_only, pattern),
+            "detector should not flag a prose-only see-also mention",
+        )
 
     def test_every_referenced_module_path_exists(self):
         pattern = re.compile(r"m2-role/([a-z0-9-]+\.md)")
