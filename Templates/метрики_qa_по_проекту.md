@@ -2,7 +2,7 @@
 
 Список потенциальных метрик для колонки `Метрика` в `individual_metrics`, с
 тем, как каждую измерять. Для использования этого каталога и правил выбора
-метрик см. `.agents\skills\m2-individual-qa-metrics-report\references\document-contract.md`.
+метрик см. `.agents\skills\m2-individual-qa-metrics-report\references\individual-metrics-schema.md`.
 
 ## Core-метрики (собирать на каждом проекте, где только возможно)
 

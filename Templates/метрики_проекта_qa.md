@@ -3,7 +3,8 @@
 Каталог метрик для трёх артефактов — `project_metrics`, `qa_process_metrics`,
 `_project_registry` — с тем, как каждую измерять и откуда она берётся. Для
 правил выбора метрик и полной схемы см.
-`.agents\skills\m2-project-qa-metrics-report\references\document-contract.md`.
+`.agents\skills\m2-project-qa-metrics-report\references\document-contract.md`
+(routing index for `project-metrics-schema.md` / `qa-process-metrics-schema.md` / `extended-metrics-catalog.md`).
 
 **Вся цепочка снизу вверх**: `individual_metrics` (каждый QA-инженер) →
 `project_metrics` (дашборд M2 по проекту, единственное место для полной

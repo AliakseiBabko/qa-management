@@ -11,7 +11,11 @@ Use this skill for one output family only:
 
 ## Required Start
 
-1. Read `references/document-contract.md`.
+1. Read `references/project-metrics-schema.md` and
+   `references/qa-process-metrics-schema.md`. Read
+   `references/extended-metrics-catalog.md` too when adding an
+   Extended-tier `qa_process_metrics` row or extracting a raw DOCX/XLSX
+   source (steps 5-6 below).
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, `../qa-management-roles/references/google-workspace/search-source-extraction.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-metrics-calibration.md`
    and `../qa-management-roles/references/m2-role/m2-metrics-attribution.md`

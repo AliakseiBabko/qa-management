@@ -42,10 +42,10 @@ METRICS_ATTRIBUTION_PATH = (
 PROJECT_CATALOG_PATH = TEMPLATES_DIR / "метрики_проекта_qa.md"
 INDIVIDUAL_CATALOG_PATH = TEMPLATES_DIR / "метрики_qa_по_проекту.md"
 PROJECT_CONTRACT_PATH = (
-    SKILLS_DIR / "m2-project-qa-metrics-report" / "references" / "document-contract.md"
+    SKILLS_DIR / "m2-project-qa-metrics-report" / "references" / "project-metrics-schema.md"
 )
 INDIVIDUAL_CONTRACT_PATH = (
-    SKILLS_DIR / "m2-individual-qa-metrics-report" / "references" / "document-contract.md"
+    SKILLS_DIR / "m2-individual-qa-metrics-report" / "references" / "individual-metrics-schema.md"
 )
 
 CORE_PROJECT_METRICS = (

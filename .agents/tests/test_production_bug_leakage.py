@@ -125,7 +125,7 @@ class ProjectDocumentContractLeakageTests(unittest.TestCase):
                 SKILLS_DIR
                 / "m2-project-qa-metrics-report"
                 / "references"
-                / "document-contract.md"
+                / "qa-process-metrics-schema.md"
             )
         )
 

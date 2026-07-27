@@ -31,29 +31,19 @@ def _normalized(text: str) -> str:
 
 
 class IndividualDocumentContractLayeringTests(unittest.TestCase):
+    """The general project-vs-individual rule now lives only in
+    m2-role/m2-metrics-attribution.md (see RoleRulesAutomationLayeringTests
+    below) - this file keeps only the individual-schema-specific framing
+    that isn't restated anywhere else."""
+
     def setUp(self):
         self.text = _normalized(
             _read(
                 SKILLS_DIR
                 / "m2-individual-qa-metrics-report"
                 / "references"
-                / "document-contract.md"
+                / "individual-metrics-schema.md"
             )
-        )
-
-    def test_states_automation_facts_are_project_not_individual(self):
-        self.assertIn(
-            "Automation coverage percentage and automation framework/code "
-            "quality are project/team QA-process metrics, not individual "
-            "metrics",
-            self.text,
-        )
-
-    def test_applies_even_with_single_owner(self):
-        self.assertIn(
-            "this applies even when only one QA engineer currently owns or "
-            "maintains the framework",
-            self.text,
         )
 
     def test_lists_allowed_individual_framing_examples(self):
@@ -84,30 +74,19 @@ class IndividualDocumentContractLayeringTests(unittest.TestCase):
 
 
 class ProjectDocumentContractLayeringTests(unittest.TestCase):
+    """The general project-vs-individual rule now lives only in
+    m2-role/m2-metrics-attribution.md (see RoleRulesAutomationLayeringTests
+    below) - this file keeps only the update-order/scope statement specific
+    to the Extended qa_process_metrics catalog's Automation subsection."""
+
     def setUp(self):
         self.text = _normalized(
             _read(
                 SKILLS_DIR
                 / "m2-project-qa-metrics-report"
                 / "references"
-                / "document-contract.md"
+                / "extended-metrics-catalog.md"
             )
-        )
-
-    def test_states_automation_facts_are_project_not_individual(self):
-        self.assertIn(
-            "Automation coverage, automation framework/code-quality "
-            "assessment, pass rate, flaky-test status, and CI/CD state are "
-            "project/team QA-process facts, not individual performance "
-            "metrics",
-            self.text,
-        )
-
-    def test_applies_even_with_single_owner(self):
-        self.assertIn(
-            "this holds even when only one QA engineer currently owns or "
-            "maintains the automation framework",
-            self.text,
         )
 
     def test_states_update_order_and_individual_scope(self):

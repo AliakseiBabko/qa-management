@@ -37,7 +37,7 @@ def _normalized(text: str) -> str:
 class IndividualMetricsCurrentStateTests(unittest.TestCase):
     def setUp(self):
         self.text = _read(
-            "m2-individual-qa-metrics-report/references/document-contract.md"
+            "m2-individual-qa-metrics-report/references/individual-metrics-schema.md"
         )
         self.normalized = _normalized(self.text)
 
@@ -60,6 +60,14 @@ class IndividualMetricsCurrentStateTests(unittest.TestCase):
     def test_history_belongs_in_evidence_log_not_second_row(self):
         self.assertIn("second row", self.normalized)
         self.assertIn("evidence_log", self.normalized)
+
+
+class IndividualMetricsInternalVariantCurrentStateTests(unittest.TestCase):
+    def setUp(self):
+        self.text = _read(
+            "m2-individual-qa-metrics-report/references/internal-variant.md"
+        )
+        self.normalized = _normalized(self.text)
 
     def test_internal_variant_matches_current_state_model(self):
         self.assertIn("Same current-state/dedup mechanics", self.normalized)

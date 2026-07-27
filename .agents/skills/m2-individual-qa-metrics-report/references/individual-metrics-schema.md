@@ -1,0 +1,193 @@
+# M2 Individual Metrics Schema
+
+Scope: `individual_metrics` Sheet purpose, catalog-driven metric selection, the automation-metric boundary, expected output, versioning, scope, and row schema.
+
+Primary final output is a Google Sheet in
+`20_M2_Project_Management\<Project>\people\<Person>\shared`, with local CSV fallback.
+Preserve the CSV template columns as the Sheet schema.
+
+This table is deliberately short and self-explanatory: every row should be
+readable on its own, with no column whose meaning needs an explanation
+elsewhere. Anything that needs explaining — why a metric matters, what
+"attention" means for this person, what to do about a bad number, additional
+context — belongs in the individual development plan, not in this table.
+
+## Purpose
+
+Use this reference for the individual QA metrics document family.
+
+## Template
+
+`<repo-root>\Templates\метрики_qa_по_проекту.csv` — Sheet column schema.
+
+`<repo-root>\Templates\метрики_qa_по_проекту.md` — catalog of standard
+individual metrics and how to measure each one (quantitative formula or
+qualitative 3-level definition).
+
+`qa-management-roles\references\qa-metrics-catalog.md` — cross-cutting map
+of all three metric tiers (Core project QA-process, optional
+project/release quality, optional individual contribution) and the
+signals-not-verdicts principle they share; points back here for the
+individual-tier definitions rather than duplicating them.
+
+## Choosing metrics from the catalog
+
+- Every Core metric from the catalog is always a row for every person, on
+  every project, whether or not there's data for it yet — this is what
+  makes people and projects comparable, and what makes a blank cell mean
+  something rather than looking like an oversight (see `m2-role/m2-metrics-calibration.md`,
+  Template Consistency). Don't substitute a similar-but-different local
+  metric for a Core one without a real reason. If a Core metric genuinely
+  can't be collected right now, the row still exists: leave `Показатель`
+  blank and put the specific reason in `Пояснение` (e.g. "нет тега
+  production/pre-release в трекере") — never omit the row itself because
+  data is missing.
+- Additional (non-Core) metrics: pick from the catalog whatever the project
+  actually has data for. Unlike Core metrics, these are not a fixed set
+  that must always appear — do not invent a unique metric per person, and
+  do not add a blank-with-reason row for a non-Core metric the project
+  simply doesn't use.
+- Prefer what's already in the tracker/CI without extra manual bookkeeping —
+  a metric that needs manual counting every time will not get maintained.
+- For quantitative metrics, always state the formula/source in `Пояснение` —
+  a number with no explanation of where it came from is not usable.
+- Fix definitions up front and do not revise them after the fact (do not
+  drop flaky tests from the denominator, do not change the critical-flow
+  list retroactively) — otherwise the metric can be gamed.
+- Do not use metrics the catalog explicitly excludes: goals mislabeled as
+  metrics ("Готовность к следующему scope"), or things nobody could define
+  how to measure ("Технический рост", "Проактивность"/"Коммуникация" as a
+  bare number, raw test count with no coverage link, unanchored reaction
+  time). If one of these matters for the person, it belongs in
+  `Фокус развития` in the individual development plan, not as an
+  `individual_metrics` row.
+- Every row in this table is implicitly worth attention by virtue of being
+  here — there is no separate "importance" or "attention level" field, and
+  no "not important" metrics belong in this table in the first place. If a
+  metric needs a note about why it currently matters more or less, put that
+  in the individual development plan.
+- Do not put next steps, action items, or free-form commentary in this
+  table. Those go in the individual development plan's `План действий` /
+  `Фокус развития` sections instead — this table only records what the
+  metric is and what it currently shows.
+
+## Automation Metric Layering
+
+See `m2-role/m2-metrics-attribution.md`, Automation Metric Layering, for
+the cascade-layer rule and why these facts are never an `individual_metrics`
+row. If a source contains automation coverage/code-quality facts, update
+`qa_process_metrics` first, then `project_metrics`, then `_project_registry`
+— use `individual_metrics` only for the person-specific
+contribution/ownership angle.
+
+`individual_metrics` may mention automation only as this person's
+contribution, ownership, or behavior. Examples of allowed individual
+framing: owns the automation framework, contributes tests, improves
+visibility/reporting, needs support to present automation progress, lacks
+autonomy maintaining the framework. Do not store the automation coverage
+percentage, a framework/code-quality assessment, pass rate, flaky-test
+status, or CI/CD state as an `individual_metrics` row, even when this person
+is the framework's sole owner.
+
+## Expected Output
+
+One individual metrics-oriented report format.
+
+Suggested target folder:
+
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\people\<Person>\shared`
+
+Suggested naming pattern:
+
+`метрики_qa_<Project>_<Person>_YYYY-MM-DD.csv`
+
+## Versioning
+
+- `individual_metrics` is a current-state dashboard, same as
+  `project_metrics` — one row per (`Проект`, `Сотрудник`, `Метрика`). New
+  evidence updates that row in place (new `Дата`, new `Показатель`, new
+  `Пояснение`); it does not add a second row for a metric that already has
+  one. A real intake once appended a fresh dated row instead of updating
+  the existing one, which is exactly the duplicate-row failure this rule
+  exists to prevent — see `m2-role/m2-cascading-updates.md`, Cascading Updates, for the
+  same discipline applied to `project_metrics`.
+- Deduplicate on (`Проект`, `Сотрудник`, `Метрика`) — `Дата` is not part of
+  the key; it is the row's own "as of" field and gets overwritten along
+  with `Показатель`/`Пояснение`/`Тренд` when the row updates.
+- If a metric's evolution over time is itself worth keeping (not just its
+  current value), that belongs in `evidence_log` (already append-only) or
+  a dedicated history table — not as a second current row in this sheet.
+- Append source traceability to the project `evidence_log`.
+- If a predecessor's differently-structured metrics data already exists for
+  a person when this schema is first applied, preserve it as a same-folder
+  copy (e.g. `individual_metrics_predecessor_<date>`) rather than deleting
+  it or moving it to the archive — it stays as in-place historical
+  reference until there's a reason to archive it properly.
+- `generate_m2_outputs.py` (see README, "legacy first-pass tools") is not
+  template-aware: it mechanically copies whatever "Scorecard" metric labels
+  happen to exist in a person's own source docx/xlsx — which is exactly
+  where excluded metrics like `Delivery ownership`, `Технический рост`,
+  `Проактивность` come from when a predecessor's homework used them. Its
+  `individual_metrics` output is a raw source dump, not a compliant sheet —
+  never treat it as already following this schema. Re-derive each row from
+  the Core catalog and real evidence when applying this schema to a person
+  for the first time; do not rename its columns and call it done.
+
+## Scope
+
+- one QA engineer
+- inside one project or project-set context
+
+## Schema
+
+Use exactly the columns in `Templates\метрики_qa_по_проекту.csv` — 8 columns,
+nothing more:
+
+1. `Проект`
+2. `Сотрудник`
+3. `Дата` — date of this snapshot (a single date, not a range/period).
+4. `Роль / stream` — leave empty when the project has no streams; keep the
+   column so the schema stays usable across projects that do have them.
+5. `Метрика` — name from the catalog.
+6. `Показатель` — the actual fact/count/ratio (e.g. `24 завершённых задачи`,
+   `6 багов, 0 невалидных`), not a 1-5 rating.
+7. `Пояснение` — not just "where the number came from," but the achievement
+   and the gap: what's already working, and specifically what's missing to
+   reach a better value. This applies to qualitative Core metrics too, e.g.
+   `Соответствие ожиданиям клиента (грейд): Требует поддержки — уверенно
+   тестирует новые фичи, но пока не расследует production-инциденты без
+   помощи lead'а`. Do not put a raw source file path here; that
+   traceability already lives in `evidence_log`. For
+   `Соответствие ожиданиям клиента (грейд)` specifically, do not restate the
+   `Перформанс` number as the explanation — it's a volume/velocity number,
+   not seniority fit; use feedback and task-complexity/autonomy evidence
+   instead. For `Обратная связь клиента/команды`, name who the
+   feedback is actually from (client vs. team vs. self-report) — do not
+   default to "тимлид" on a project that has no team lead role.
+   `Вклад в проект` is not a row in this table — it lives in
+   `project_metrics` instead, since this Sheet is visible to the employee
+   it's about and that conclusion is M2's private judgment.
+8. `Тренд` — filled once there is a prior value to compare against (the
+   previous `Показатель` this row held, found via `evidence_log` if the
+   row itself was already overwritten in place); leave blank on the
+   first-ever value for a metric.
+
+## Source Priority
+
+1. Existing individual metrics workbook or extracted individual metrics Markdown.
+2. Project goals and expected role/value for the person.
+3. Person sheet from the project workbook.
+4. Individual development plan when it contains progress or capability evidence.
+5. Project-level context only for interpreting the person's role and constraints.
+
+## Normalization
+
+- Validate that the metric reflects the person's real project role and constraints.
+- Do not use closed tasks, moved tasks, story points, or sprint throughput as primary person-level metrics when scope, task size, estimates, or release cadence are unstable.
+- If the person is constrained by project context, such as vague requirements, missing process, overload, access limits, unclear QA ownership, or senior-level expectations for a junior QA, note that in the individual development plan (not in this table) and choose metrics that separate personal contribution from project constraints.
+- Core metrics feed the project-level `project_metrics` rollup automatically (see that skill's contract) precisely because they use a shared name and calculation method — this is the mechanism that connects individual and project metrics, so do not rename or redefine a Core metric locally even if a project-specific variant would read more naturally.
+- Keep person-level conclusions scoped to contribution and constraints. Do not imply project-level health from one person unless that person's role or stream materially affects the overall project picture.
+
+## Rule
+
+Use row-level evidence. If a person's work is constrained by project context, that context belongs in the individual development plan, not as a justification for lowering a metric value without support.

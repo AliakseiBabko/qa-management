@@ -41,7 +41,7 @@ Standard project folder shape:
 - `people\<Person>\shared\individual_metrics` Google Sheet, with CSV fallback
 - `private\people\<Person>\individual_metrics_internal` Google Sheet, with CSV
   fallback — M2-only, never shared with the employee (see
-  `m2-individual-qa-metrics-report` document-contract, Internal Variant).
+  `m2-individual-qa-metrics-report`'s references/internal-variant.md).
 - `private\m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
   own dated rounds of questions/answers ahead of each project-level
   rollup (see `m2-role/m2-project-rollups.md` Project-Level Rollups and
