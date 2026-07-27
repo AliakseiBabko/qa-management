@@ -8,7 +8,7 @@ import hashlib
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 TESTS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = TESTS_DIR.parent / "scripts"
@@ -59,8 +59,8 @@ class TestGoogleNativeIntake(unittest.TestCase):
 
             # Mock folder resolution
             services = {"drive": mock_drive}
-            with unittest.mock.patch("m2_workspace_layout.find_folder_path", return_value={"id": "folder_1"}), \
-                 unittest.mock.patch("m2_workspace_layout.list_children", return_value=[{"id": "drive_file_123", "name": "doc_test", "mimeType": "application/vnd.google-apps.document"}]):
+            with patch("m2_workspace_layout.find_folder_path", return_value={"id": "folder_1"}), \
+                 patch("m2_workspace_layout.list_children", return_value=[{"id": "drive_file_123", "name": "doc_test", "mimeType": "application/vnd.google-apps.document"}]):
                 h1 = compute_source_file_hash(tmp_file, "00_Inbox/doc_test.gdoc", services)
 
             # Change revision ID
@@ -75,8 +75,8 @@ class TestGoogleNativeIntake(unittest.TestCase):
 
             mock_drive.files().get.side_effect = mock_get_v2
 
-            with unittest.mock.patch("m2_workspace_layout.find_folder_path", return_value={"id": "folder_1"}), \
-                 unittest.mock.patch("m2_workspace_layout.list_children", return_value=[{"id": "drive_file_123", "name": "doc_test", "mimeType": "application/vnd.google-apps.document"}]):
+            with patch("m2_workspace_layout.find_folder_path", return_value={"id": "folder_1"}), \
+                 patch("m2_workspace_layout.list_children", return_value=[{"id": "drive_file_123", "name": "doc_test", "mimeType": "application/vnd.google-apps.document"}]):
                 h2 = compute_source_file_hash(tmp_file, "00_Inbox/doc_test.gdoc", services)
 
             # Verify hash changed when metadata revision changed
@@ -97,8 +97,8 @@ class TestGoogleNativeIntake(unittest.TestCase):
         children = [
             {"id": "item1", "name": "CBS NFR v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"}
         ]
-        with unittest.mock.patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
-             unittest.mock.patch("m2_workspace_layout.list_children", return_value=children):
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+             patch("m2_workspace_layout.list_children", return_value=children):
             found = find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/CBS NFR v0.2.gsheet")
             self.assertEqual(found["id"], "item1")
 
@@ -106,8 +106,8 @@ class TestGoogleNativeIntake(unittest.TestCase):
         children_non_native = [
             {"id": "item2", "name": "Report", "mimeType": "text/plain"}
         ]
-        with unittest.mock.patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
-             unittest.mock.patch("m2_workspace_layout.list_children", return_value=children_non_native):
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+             patch("m2_workspace_layout.list_children", return_value=children_non_native):
             with self.assertRaises(SystemExit):
                 find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/Report.txt")
 
@@ -116,8 +116,8 @@ class TestGoogleNativeIntake(unittest.TestCase):
             {"id": "item1", "name": "CBS NFR v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"},
             {"id": "item2", "name": "CBS NFR v0.2.gsheet", "mimeType": "application/vnd.google-apps.spreadsheet"}
         ]
-        with unittest.mock.patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
-             unittest.mock.patch("m2_workspace_layout.list_children", return_value=children_ambiguous):
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+             patch("m2_workspace_layout.list_children", return_value=children_ambiguous):
             with self.assertRaises(SystemExit) as cm:
                 find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/CBS NFR v0.2.gsheet")
             self.assertIn("Multiple Drive items match", str(cm.exception))

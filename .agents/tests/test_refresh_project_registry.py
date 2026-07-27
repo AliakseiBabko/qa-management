@@ -151,7 +151,7 @@ class ProjectStatusWarningTests(unittest.TestCase):
 
     def test_non_canonical_value_warns(self) -> None:
         warning = project_status_warning("<Проект>", "Стоп")
-        self.assertIsNotNone(warning)
+        assert warning is not None
         self.assertIn("<Проект>", warning)
         self.assertIn("Стоп", warning)
         self.assertIn("not normalized", warning)

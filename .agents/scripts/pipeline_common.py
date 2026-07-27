@@ -39,9 +39,10 @@ def execute_with_backoff(
         except Exception as exc:
             status = None
             headers = {}
-            if hasattr(exc, "resp") and exc.resp is not None:
-                status = getattr(exc.resp, "status", None)
-                headers = getattr(exc.resp, "headers", {}) or {}
+            exc_resp = getattr(exc, "resp", None)
+            if exc_resp is not None:
+                status = getattr(exc_resp, "status", None)
+                headers = getattr(exc_resp, "headers", {}) or {}
 
             if status is None and hasattr(exc, "status_code"):
                 status = getattr(exc, "status_code")

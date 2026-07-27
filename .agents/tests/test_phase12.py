@@ -273,6 +273,7 @@ class BuildGateRowTests(unittest.TestCase):
         summary = {"round_date": "2026-01-01", "pending": True, "addenda_count": 2,
                    "block_chars": 400, "first_heading": "Addendum (2026-01-05) - placeholder"}
         row = qa_manage.build_gate_row("<Project1>", summary, False, dt.date(2026, 1, 15))
+        assert row is not None
         self.assertEqual(row["project"], "<Project1>")
         self.assertEqual(row["age_days"], 14)
         self.assertEqual(row["addenda_count"], 2)
@@ -286,6 +287,7 @@ class BuildGateRowTests(unittest.TestCase):
         summary = {"round_date": "not-a-date", "pending": True, "addenda_count": 0,
                    "block_chars": 400, "first_heading": None}
         row = qa_manage.build_gate_row("<Project1>", summary, False, dt.date(2026, 1, 15))
+        assert row is not None
         self.assertIsNone(row["age_days"])
 
 

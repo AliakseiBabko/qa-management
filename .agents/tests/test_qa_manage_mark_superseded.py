@@ -109,7 +109,7 @@ class PureHelperTests(unittest.TestCase):
     def test_find_superseding_run_returns_completed_match(self):
         rows = [old_row(), new_row(status="completed")]
         found = qa_manage.find_superseding_run(rows, rows[0])
-        self.assertIsNotNone(found)
+        assert found is not None
         self.assertEqual(found["Run ID"], "new-run")
 
     def test_find_superseding_run_none_when_not_completed(self):

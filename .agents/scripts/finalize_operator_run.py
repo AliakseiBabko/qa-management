@@ -110,6 +110,8 @@ def compute_total_tokens(row: dict) -> str:
         return ""
     total = 0
     for v in values:
+        if v is None:
+            continue
         try:
             total += int(v)
         except (TypeError, ValueError):

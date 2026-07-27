@@ -310,7 +310,7 @@ class DetectSourceHashMismatchTests(unittest.TestCase):
             r = row("r1", **{"Source hash": "0000000000000000"})
             with patch("qa_manage.DATA_ROOT", root):
                 mismatch = qa_manage.detect_source_hash_mismatch(r)
-            self.assertIsNotNone(mismatch)
+            assert mismatch is not None
             self.assertEqual(mismatch["recorded_hash"], "0000000000000000")
             self.assertEqual(mismatch["current_hash"], current_hash)
 

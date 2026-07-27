@@ -475,7 +475,7 @@ class RouterTests(unittest.TestCase):
         # points), but the documented convention is tmp/telemetry/ only -
         # assert the module docstring says so, so the guidance can't drift
         # silently out of the help text.
-        self.assertIn("tmp/telemetry", ext.__doc__)
+        self.assertIn("tmp/telemetry", ext.__doc__ or "")
 
 
 # ---------------------------------------------------------------------------

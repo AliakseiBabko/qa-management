@@ -141,8 +141,8 @@ def check_graph(source_types: set[str]) -> None:
     lanes = graph.get("lanes") or {}
     seen_roots: dict[str, str] = {}
     for lane_name, lane_spec in lanes.items():
-        root = (lane_spec or {}).get("root_folder")
-        if not str(root or "").strip():
+        root = str((lane_spec or {}).get("root_folder") or "").strip()
+        if not root:
             fail(f"graph lane {lane_name!r} has no non-empty 'root_folder'")
             continue
         if root in seen_roots:

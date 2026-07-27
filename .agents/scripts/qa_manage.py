@@ -1189,7 +1189,7 @@ def guide_scope_cli_args(project: str, person: str) -> str:
 
 def guide_stage_details(row: dict, graph: dict, route: dict,
                         eval_res: EvaluationResult, ctx: "ReviewContext",
-                        all_queue_rows: list[dict] = ()) -> tuple[list[str], list[str], dict]:
+                        all_queue_rows: list[dict] = []) -> tuple[list[str], list[str], dict]:
     """(checklist, commands, extra_data) for one run's current
     status/stage - the deterministic "what do I do next" logic guide
     exists for. Pure given (row, graph, route, eval_res, ctx, all_queue_rows);
@@ -1748,7 +1748,7 @@ def superseded_suggestion_for(rows: list[dict], row: dict) -> dict | None:
 
 # ---------- commands ----------
 
-def compute_source_file_hash(path: Path, relative_path: str, services: dict = None) -> str:
+def compute_source_file_hash(path: Path, relative_path: str, services: dict | None = None) -> str:
     """Compute 16-char SHA-256 hash for a source file.
     For regular files, reads and hashes file bytes.
     For Google-native placeholders (.gdoc, .gsheet, etc.) or unreadable reparse points:

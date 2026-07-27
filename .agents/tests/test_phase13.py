@@ -305,6 +305,7 @@ class ShowProjectStateLaneRunTests(unittest.TestCase):
         with patch.object(show_project_state, "get_services", return_value=mock_services), \
              patch.object(pk_layout, "find_project_folder", return_value=None):
             envelope, code = show_project_state.do_run_project_knowledge(args)
+        assert envelope is not None
         self.assertFalse(envelope["ok"])
         self.assertEqual(code, 1)
 
@@ -318,6 +319,7 @@ class ShowProjectStateLaneRunTests(unittest.TestCase):
              patch.object(pk_layout, "find_document", return_value={"id": "doc-1"}), \
              patch.object(show_project_state, "read_doc_paragraphs", return_value=["Overview paragraph."]):
             envelope, code = show_project_state.do_run_project_knowledge(args)
+        assert envelope is not None
         self.assertTrue(envelope["ok"])
         self.assertEqual(code, 0)
         doc = envelope["data"]["documents"][0]
@@ -339,6 +341,7 @@ class ShowProjectStateLaneRunTests(unittest.TestCase):
              patch.object(pk_layout, "find_document", side_effect=fake_find_document), \
              patch.object(pk_layout, "_find_subfolder", return_value=None):
             envelope, code = show_project_state.do_run_project_knowledge(args)
+        assert envelope is not None
         self.assertTrue(envelope["ok"])
         self.assertEqual(code, 0)
         self.assertIsNotNone(envelope["data"]["documents"]["pk_knowledge_base"])
@@ -353,6 +356,7 @@ class ShowProjectStateLaneRunTests(unittest.TestCase):
         with patch.object(show_project_state, "do_run_project_knowledge") as mock_pk_run:
             envelope, code = show_project_state.do_run(args)
         mock_pk_run.assert_not_called()
+        assert envelope is not None
         self.assertFalse(envelope["ok"])  # "nothing to do" - no project/registries/summary/document
         self.assertEqual(code, 1)
 

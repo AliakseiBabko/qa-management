@@ -22,6 +22,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -92,8 +93,8 @@ def ready_eval() -> qa_manage.EvaluationResult:
 
 
 def broken_eval(**overrides) -> qa_manage.EvaluationResult:
-    base = dict(ready_for_completion=False, entry_problems=[], unresolved_edges=[],
-                warnings=[], snapshot_sha="", snapshot_problem="", invocation_present=True)
+    base: dict[str, Any] = dict(ready_for_completion=False, entry_problems=[], unresolved_edges=[],
+                                 warnings=[], snapshot_sha="", snapshot_problem="", invocation_present=True)
     base.update(overrides)
     return qa_manage.EvaluationResult(**base)
 
