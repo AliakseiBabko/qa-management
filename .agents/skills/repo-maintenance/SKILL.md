@@ -75,8 +75,15 @@ commit as the change itself.
   duplicate precedence, stale kinds) found in real review.
 - Public-repo check: no real person/company/project name, contact
   detail, or verbatim first-party content - in files **or** the commit
-  message. Run `.agents\scripts\check_sensitive_data.py` when the change
-  involved anything derived from real sources.
+  message. Run `.agents\scripts\check_sensitive_data.py` - it scans the
+  whole commit candidate (index, working tree, untracked, file contents
+  *and* paths, repo-wide), not just this change, so it is worth running
+  even when the edit itself touched nothing real. It reports path/line
+  only - never the matched value, and never the path itself for a
+  filename hit - and it fails closed (exit 2) rather than reporting a
+  clean tree it could not fully read. It cannot catch company names,
+  contacts, unregistered identifiers, or paraphrased content - those
+  still need your own read.
 - Commit message explains *why* (the failure pattern or need, stated
   abstractly), not just what changed - future agents read git history as
   context.

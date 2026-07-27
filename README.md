@@ -468,13 +468,38 @@ These are what actually runs day to day, once a project's folder already exists:
 - `refresh_timeline_looker_view.py` — rebuilds `_timeline_looker_view`,
   the flattened Sheet the Looker Studio report reads. Normally invoked via
   `refresh_all_timeline_views.py`.
-- `check_sensitive_data.py` — grep-based guard for AGENTS.md's
-  no-sensitive-data rule: scans added lines in the current git diff under
-  `.agents/` for real person/project names pulled live from
-  `_people_registry`/`_project_registry`. A cheap net, not proof of
-  safety — it only matches registered names as literal substrings; company
-  names, emails, and paraphrased content still need a human read. Run
-  manually before committing changes under `.agents/`.
+- `check_sensitive_data.py` — guard for AGENTS.md's no-sensitive-data
+  rule. Scans the whole **commit candidate** — everything that would become
+  public if you committed and pushed right now — for real person/project
+  names pulled live from `_people_registry`/`_project_registry`: every
+  tracked file as staged in the index, every tracked file's working-tree
+  version, and untracked non-gitignored files, anywhere in the repository
+  rather than only under `.agents/`. Index and working tree are scanned
+  separately on purpose: a value can be staged and then removed from the
+  working copy, and a working-tree-only scan would call that dirty
+  candidate clean. Skips `.git/`, gitignored paths (including `.local/`),
+  and binary files. Deletions are not skipped wholesale: a *staged*
+  deletion contributes no candidate blob, but an *unstaged* deletion is
+  still in the index, so its staged content is still scanned — that is
+  what would ship on a commit right now. Symlinks and junctions are never
+  followed out of the repository (a staged symlink's blob is still read as
+  text, without dereferencing it). Repository-relative **paths** are
+  scanned too, since a filename can leak a name a clean file body does
+  not. Registry lookup is strictly read-only — a missing registry
+  folder/Sheet, or a watch list that comes back empty, is a clear failure
+  (exit 2), never something it creates or waves through. **Fails closed:**
+  a failed `git ls-files`, a non-git `--repo`, or a truncated
+  `cat-file --batch` stream exits 2 rather than reporting "no findings" —
+  an unreadable repository must never look like a clean one. Output is
+  metadata only: path, line number, and index/worktree/untracked. A path
+  hit prints *no path* (the path is the value), only an ordinal. No stable
+  per-value hash is emitted — against a registry of a few hundred names a
+  truncated hash is trivially dictionary-matched back. `--repo <path>`
+  scans a different checkout. A cheap net, **not** proof of safety — it matches
+  only registered names as literal substrings, so company names, emails,
+  phone numbers, unregistered identifiers, and paraphrased first-party
+  material still need a human read against AGENTS.md. Run manually before
+  committing; it is not wired into a git hook or CI.
 - `check_cascade_closure.py` — deterministic half of the cascading-update
   chain: reads `.agents/document_graph.yaml` (the machine-readable version
   of `m2-role-rules.md`'s Cascading Updates / Project-Level Rollups fan-out)
