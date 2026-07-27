@@ -26,8 +26,8 @@ Do not list current problems as risks without stating what future harm they can 
 
 Do not conflate "at least one named risk is serious" with "the project's
 overall risk level is high." Individual risks can and should be classified
-by severity on their own (see `m2-project-risk-report` document-contract for
-the full definition) — but the project-wide level is a separate, stricter
+by severity on their own (see
+`m2-project-risk-report/references/risk-evidence-rules.md` for the full definition) — but the project-wide level is a separate, stricter
 judgment about whether something concretely threatens the engagement's
 continuation or trust right now, not a maximum over the individual items.
 Nearly every active project has at least one serious individual risk;

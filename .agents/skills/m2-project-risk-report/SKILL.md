@@ -11,7 +11,7 @@ Use this skill for one output family only:
 
 ## Required Start
 
-1. Read `references/document-contract.md`.
+1. Read `references/risk-schema.md` and `references/risk-evidence-rules.md`.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-risk-rules.md` and
    `../qa-management-roles/references/m2-role/m2-project-rollups.md`

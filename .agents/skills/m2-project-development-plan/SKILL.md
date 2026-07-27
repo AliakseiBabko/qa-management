@@ -14,20 +14,23 @@ headed sections, not one row per initiative. Do not flatten it into a Sheet.
 
 ## Required Start
 
-1. Read `references/document-contract.md`.
+1. Read `references/plan-schema.md` and
+   `references/plan-sources-normalization.md`.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-role-basics.md`
    (business-value framing) and
    `../qa-management-roles/references/m2-role/m2-development-plans.md`
    (what a project development plan must answer).
-4. Read `../qa-management-roles/references/presale-upsell-rules.md` for the Возможности расширения (Upsell) section.
+4. Read `../qa-management-roles/references/presale-upsell-rules.md` too
+   when filling or changing the Возможности расширения (Upsell) section —
+   not needed for the rest of the plan.
 5. Identify the target project, period, review cycle, and next review date if present.
 6. Read the existing project development plan first, then project metrics, risk summaries, and workbook status rows.
 
 ## Workflow
 
 1. Start from business/project context: how the project creates value, what the client/business needs, and what success means.
-2. Write the plan as prose organized under headings (see `references/document-contract.md` for the section skeleton), not as rows in a table.
+2. Write the plan as prose organized under headings (see `references/plan-schema.md` for the section skeleton), not as rows in a table.
 3. Cover, in order: business focus and value the project/QA brings, expansion/upsell opportunities (see `presale-upsell-rules.md`), current state (by stream/initiative where relevant), the plan itself broken into review horizons (e.g. 30/60/90 days, or phased months), open decisions, risks, and evidence/sources.
 4. Each plan item should carry its owner and success criterion inline in the sentence or bullet, not as separate table columns.
 5. Cover project movement, business/client value, QA/process value, staffing/continuity, communication, and role/value growth where evidence supports it.

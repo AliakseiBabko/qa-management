@@ -42,7 +42,7 @@ any `<Person>\` subfolder (see `google-workspace/m1-layout.md`).
 
 - Use only `Низкий`, `Средний`, or `Высокий` in both risk columns — a
   3-level scale, same as M2's `project_risk` (see
-  `m2-project-risk-report`'s document-contract). Do not use `Критический`
+  `m2-project-risk-report/references/risk-evidence-rules.md`). Do not use `Критический`
   or any other level; a row still on the older 4-level scale (e.g. from a
   pre-Google-API-access CSV) needs remapping to this scale, not carried
   forward as-is — an acute, already-materialized situation is still

@@ -45,9 +45,10 @@ then copy-pastes the result back into the shared table by hand.
    (Sheets API safety - the rate-limit/scoped-query rules apply the same
    way to this foreign Sheet as to any other).
 2. Read `../qa-management-roles/references/presale-upsell-rules.md`'s Rule
-   before filling `Upsale opportunity`/`Upsale comment` for any row (see
-   Workflow step 6) - a stricter bar than the general "leave blank rather
-   than guessing" line applies specifically to these two columns.
+   too when filling or changing `Upsale opportunity`/`Upsale comment` for
+   any row (see Workflow step 6) - not needed for the rest of the tracker.
+   A stricter bar than the general "leave blank rather than guessing" line
+   applies specifically to these two columns.
 3. Confirm which file is M2's own editable copy before touching anything.
    The department original and M2's copy often have near-identical names
    (e.g. `Auto staff. Светофор проектов` vs `Copy of Auto staff. Светофор
