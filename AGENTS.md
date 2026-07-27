@@ -1,527 +1,149 @@
 # QA Management - Workspace Agent Policy
 
-This file is the workspace-level policy for AI agents working in this repository.
+This file is the workspace-level policy for AI agents working in this
+repository. It is a **compact startup router**, not a detailed manual:
+README.md, `.agents/skills/`, and this repo's own executable validation
+(`validate_repo.py`, `check_sensitive_data.py`) are canonical for anything
+not stated as a rule below. When in doubt, read the owning skill or
+README section rather than expecting the answer here.
 
 ## Purpose
 
-This repository stores QA-management agent infrastructure for both:
+Model-agnostic agent infrastructure for:
 
 - `M1` people-management workflows
 - `M2` project-management workflows
+- Project Knowledge (`30_Project_Knowledge`) - project
+  understanding/onboarding, distinct from M1/M2 management reporting
 
 ## No Sensitive Data In This Repository
 
 This repository is **public**. It holds abstract skill logic, templates,
-and scripts only — never real business data. Before writing or editing
+and scripts only - never real business data. Before writing or editing
 any file here (skills, references, templates, scripts, README/AGENTS
-content, commit messages), check that it contains none of:
+content, **commit messages**), check it contains none of: a real person's
+name, a real company name, a real client/project codename, a real
+contact detail, or verbatim content copied from a real transcript, chat,
+1:1, or risk narrative - even as an "example."
 
-- a real person's name (employee, client, candidate — first name alone
-  included, if it identifies someone in context), in any script
-- a real company name — including this tool's own operating company; use
-  `Internal`/`the company` generically (see Company context below)
-- a real client/project codename
-- a real email address, phone number, or other contact detail
-- verbatim content copied from a real transcript, chat, 1:1, risk
-  narrative, or similar first-party source, even as an "example"
-- any other detail that identifies a specific real person, team, or
-  engagement
+Use a placeholder instead (`<Person>`, `<Project>`, `<email>`), in file
+content and commit messages alike. Real names and business data belong
+**only** in the Google Drive workspace (`_people_registry`, each
+project's own folder); skills read/write that data via the Drive API at
+runtime, never hardcode it here.
 
-Development-tool and API-provider names/domains (e.g. the AI coding
-agents named in Multi-Agent Convention below, Google Workspace APIs) are
-allowed when needed for technical documentation or commit attribution —
-including `Co-Authored-By` trailers. The prohibition covers real
-employer, client, engagement, employee, and other business identities,
-plus personal contact details.
+If you find real data that leaked into this repo, flag it rather than
+just deleting it going forward - it may need scrubbing from git history
+too (`git log --all -p` still exposes a value after the current tree is
+fixed).
 
-If a rule or example needs illustrating, use a placeholder
-(`<Person>`/`<Имя>`, `<Project>`, `<email>`) or describe the pattern in
-the abstract ("a real example seen on this kind of team looks like...")
-instead of naming the actual instance. This applies to commit messages
-too, not just file content — a redacted file with an identifying commit
-message defeats the point.
+The Drive workspace itself does **not** carry this repo's restriction:
+it's internal, and real names, judgments, and reliability assessments
+about named colleagues are exactly what `project_risk`, `individual_*`,
+and the department tracker are for. Don't over-redact real, sourced Drive
+output just because the same detail would be unsafe here in the repo.
 
-Real names, real project data, and any other company-specific detail
-belong **only** in the corporate Google Drive workspace referenced below
-— principally `_people_registry` for who's who, and each project's own
-folder for project-specific facts. Skills should read/write that data via
-the Drive API at runtime, never hardcode it here.
+**Company context**: skills assume a QA department inside an outsource
+software company staffing engineers onto client projects. `Side` values
+are `Internal`/`Client`, never a literal company name.
 
-This strict rule applies to **this repository only**. The Drive workspace
-itself is internal, shared only with the relevant management audience —
-real names, personal/compensation history, performance judgments, and
-reliability assessments about named colleagues are exactly what documents
-like `project_risk`, `individual_*`, and the department traffic-light
-tracker are for. Don't hedge, genericize, or hold back real judgment
-content when writing into a Drive Sheet/Doc just because the same detail
-would be unsafe here in the repo — the two have different audiences by
-design, and treating Drive output with repo-level caution just adds
-friction nobody asked for. Ordinary evidence-backed judgment still applies
-(don't state something as fact without support); this is only about not
-over-redacting real, sourced content meant for that audience.
+Development-tool and API-provider names/domains (e.g. Google, Codex,
+Claude Code, Antigravity) are allowed when technically necessary,
+including `Co-Authored-By` commit trailers - the prohibition is on real
+employer/client/engagement/business identities, personal contact details,
+and any other detail that identifies a specific real person, team, or
+engagement.
 
-If you ever find real data that leaked into this repo (an example,
-a leftover reference, a stray script), don't just delete it going
-forward — flag it, since it may also need scrubbing from git history
-(`git log --all -p` still exposes it even after a file is fixed/deleted
-in the current tree).
+## `.local/` Is A Narrow Exception, Not A Staging Area
 
-**Company context**: skills here assume a QA department inside an
-outsource software development company, staffing engineers onto client
-projects. `Side` values are `Internal` (this company's own staff) vs.
-`Client` (client-side or third-party vendor people) — never the literal
-company name. If you're adapting this repository for a real company,
-`apply_person_card.py`'s `COMPANY_EMAIL_DOMAIN`/`COMPANY_SIDE_LABEL` are
-the one place a real domain gets configured — and that file stays local/
-private, not committed with a real value filled in.
+`.local/` is gitignored, but it exists for exactly one thing: the OAuth
+credential/token cache (`.local/google/credentials.json` and its token
+file). It is **not** a general place for audit exports, derived business
+data, transcripts, replacement mappings, or any other temporary sensitive
+output - gitignored means "not committed," not "safe to accumulate real
+data here." Transient sensitive processing (an in-memory watch list, a
+one-off scan) stays in process memory or an OS temp location that gets
+cleaned automatically; it never gets written to `.local/`.
 
-Business data and generated outputs live in the QA Management Google Drive workspace:
+## Start Here
 
-`https://drive.google.com/drive/u/0/folders/1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`
+- Skills live in `.agents/skills/`. Each `SKILL.md`'s frontmatter
+  `description` is the router - **load only the skill needed** for the
+  current outcome, and treat the directory plus frontmatter as the
+  canonical skill inventory (not a table in this file).
+- Claude Code discovers skills through a machine-local adapter. If
+  `/skills` looks empty, run
+  `.agents/scripts/setup_agent_adapters.py --check`: if it reports the
+  adapter missing, run the script again without `--check` to create it;
+  if it reports a collision or misdirected link, follow its printed
+  remediation by hand - setup never replaces an existing path
+  automatically.
+- Any structural change to this repo (a new/changed skill, script,
+  template, document type, or dependency) - load `repo-maintenance`
+  before editing.
+- Working the intake queue? Start with
+  `.agents/scripts/qa_manage.py dashboard` - it names the next run and
+  the exact next command. Use `guide <run-id>` for what to do on a
+  specific run, `classify`/`pack` when `guide` points there.
+- About to write an ad hoc Drive/Sheets/Docs script? Read README's
+  **Current pipeline scripts** section first - most tasks already map to
+  an existing one.
 
-Google Drive root folder ID:
+## Canonical Data Boundary
 
-`1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`
+Google Drive is the business-data source of truth:
 
-The desktop mirror / filesystem fallback is:
+- Drive root folder ID: `1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc`
+- Local mirror/fallback: `G:\My Drive\QA_Management`
 
-`G:\My Drive\QA_Management`
+Full folder layout and per-document detail are canonical in README's
+**M1 Person Layout**, **M2 Project Layout**, and **Project Knowledge
+Layout** sections, and in `qa-management-roles`'s role references - not
+duplicated here. Keep these three distinct:
 
-## Start Here (Before Manual Drive/Sheets/Docs Calls)
+- **M1** people data (`10_M1_People_Management`) is person-based,
+  people-management-owned.
+- **M2** project data (`20_M2_Project_Management`) splits `private/`
+  (M2-only) from `people/<Person>/shared/` (employee-visible) - never
+  share the project root or `private/`.
+- **Project Knowledge** (`30_Project_Knowledge`) is project
+  understanding/onboarding, private by default. It is not a universal
+  intermediate store for M1/M2 material: a source whose purpose is M1 or
+  M2 management routes to its appropriate M1/M2 lane, never into Project
+  Knowledge merely for convenience.
 
-Before writing any ad hoc script to read or update Drive/Sheets/Docs content:
+## Core Judgment Rules
 
-1. Check whether Google API access is already set up: `.local/google/credentials.json`
-   and `.local/google/token.json` (see `README.md`, Google API Smoke Test). If both
-   exist, the API pipeline is usable — don't assume CSV/Markdown fallback without
-   checking first.
-2. Read `README.md`'s **Current pipeline scripts** section before hand-rolling a new
-   script. Most tasks map to an existing one:
-   - Need to see a project's or the registries' current state? —
-     `.agents\scripts\show_project_state.py --project <Name>` /
-     `--registries`. Read-only, safe to run anytime, creates nothing. Add
-     `--summary` for a cheap one-liner per project (People count, risk
-     level, last evidence_log date) to triage before pulling a full dump.
-     For programmatic targeted reads (Phase 3), use `--document <Name>`,
-     `--person <Name>`, `--since YYYY-MM-DD`, and `--limit N` along with `--json`
-     to emit a strict JSON envelope. Pass `--lane project_knowledge` (default
-     `m2`) for a project under `30_Project_Knowledge` instead of
-     `20_M2_Project_Management` - see the Project Knowledge lane below;
-     `--registries`/`--summary`/`--person` are not supported for that lane.
-   - Need to search the entire workspace or view historical changes? —
-     `.agents\scripts\search_workspace.py search <query>` (current state) or
-     `.agents\scripts\search_workspace.py history <query>` (first-parent commit traversal).
-     It provides deterministic literal-path search across the canonical `.md`/`.csv` corpus
-     and `_source_text` blobs using Git. Output can be limited by path, kind, run-id, or dates.
-     Passing `--json` emits a strict JSON envelope buffering output for programmatic consumption.
-     See `.agents\references\search-cookbook.md` (Phase 12) for worked recipes
-     ("where was X last mentioned", "what changed since date", canonical-only vs.
-     source-only, one run by run-id) and when to prefer
-     `show_project_state.py` instead (live Drive state vs. the mirror's last
-     committed snapshot, which can be stale). Unprocessed-inbox inspection
-     (a source not yet processed) goes through `triage`/`triage-one`/
-     `classify`/`pack` instead - `search_workspace.py` only sees what's
-     already in the mirror.
-   - Working on project understanding/onboarding rather than M1/M2
-     management reporting? — the **Project Knowledge lane**
-     (`30_Project_Knowledge\<Project>\`, Phase 13.1). Builds a project
-     knowledge base gradually from whatever sources actually exist
-     (transcripts, documents, chats, owner notes) - a formal
-     knowledge-transfer session (`project_knowledge_transcript`) is one
-     possible input, never a prerequisite; a project can start in this
-     lane with poor/incomplete documentation. Reuses the normal intake
-     queue/archive/mirror pipeline: `scan`/`triage`/`classify`/`guide`/
-     `pack` all work unchanged (`route_description` surfaces for these
-     routes the same way it does for M1/M2 ones); `dashboard`/`triage`
-     have no `--lane` filter yet, and `qa_manage.py gates` stays M2-only
-     (this lane has no `m2_input`-style two-phase gate). Four source
-     types: `project_knowledge_transcript`, `project_knowledge_document`,
-     `project_knowledge_chat`, `project_knowledge_notes`; skills
-     `project-knowledge-roles` (shared rules) and
-     `project-knowledge-intake` (source-triggered). Private by default
-     (no shared/team_shared split) - sharing an individual Doc is a
-     deliberate, one-off action outside automation. No Google Slides in
-     this phase - presentation output is explicitly deferred to a later
-     phase, not part of Phase 13.1.
-   - Want to know what M2 still owes an answer on — pending `m2_input`
-     rounds gating `project_risk`/`project_development_plan` across
-     projects? — `.agents\scripts\qa_manage.py gates [--project <Name>]
-     [--min-age-days N] [--json]` (Phase 12). Read-only, sorted oldest
-     first: round age, addenda count, first addendum heading only (never
-     question/addendum text), and a deterministic `recommended_action`.
-     Never answers a question, writes a document, or records closure — this
-     is a review command, not an intake-processing one; `dashboard` remains
-     the default first entry point for intake-queue work.
-   - Starting a session, or not sure what needs attention right now? —
-     run `.agents\scripts\qa_manage.py dashboard` first, before `scan`,
-     `next`, `start`, `review`, or `complete`. It's the default operator
-     entry point: a read-only summary of every run needing the next agent
-     action (grouped with the exact next command), blocked/finalizing
-     runs, integrity issues on finalizing/completed runs (reusing
-     `review`'s own evaluation, bounded by `--limit`), and a read-only
-     `00_Inbox`/`90_Storage` file-count summary (add `--json` for the
-     strict envelope). Never creates or mutates anything. Use it to decide
-     *which* run/action needs attention.
-   - `dashboard` pointed you at a run - what exactly do I do for it? —
-     `.agents\scripts\qa_manage.py guide <run-id>` (add `--json` for the
-     strict envelope). Read-only, one run at a time: identity (status,
-     stage, source path, scopes, snapshot), the graph route's
-     interpretation (skills/entry documents), a stage-specific checklist
-     with exact command templates (the `start`/`add-scope` scope fields a
-     `needs_scope` row is missing, `record-analysis`, which entry
-     documents a `processing/apply` run still needs `record-apply` for,
-     which edges a `processing/closure` run still needs `resolve-edge`
-     for, `commit_workspace_state.py` when closure is clean but the
-     snapshot/invocation token isn't, `complete`/`complete` retry,
-     `resume --continue`, `mark-historical`), and only the guardrails relevant
-     to that stage. Never creates or mutates anything. Use this once
-     `dashboard` (or a direct find) has pointed you at a specific run;
-     once you know the exact command, the full intake workflow below is
-     how you actually process it.
-   - `guide` says a `discovered` run needs a source_type/variant/scope
-     judgment call before `start` - want a cheap read-only preview first? —
-     `.agents\scripts\qa_manage.py classify <run-id>` (add `--json` for the
-     strict envelope; `--max-preview-chars N` caps the returned excerpt,
-     default 2000). Reads `Current source` (falling back to `Source`),
-     reports deterministic format signals only - no AI/LLM call, no
-     semantic judgment: line count, distinct speaker-like prefix count,
-     Google-Chat-style header count, date/time marker count, email-header
-     marker count. From those signals plus `document_graph.yaml` it lists
-     unranked `candidate_routes` (source_type, variant, required scope,
-     skills, entry documents, and the exact signal behind each one) and
-     command templates (`guide`, one `start ...` per candidate, `ignore
-     ...` when the row's own duplicate-detection Reason suggests it). It
-     never picks a final route, never calls `start`, never writes
-     anywhere, and never puts the preview text or full source content into
-     the queue or this repo - the classification decision, made after
-     actually reading the source, stays with the agent.
-   - Working a specific project and want a shortlist instead of picking
-     one `discovered`/`needs_scope` run by hand? — `.agents\scripts\
-     qa_manage.py recommend-next --project <Project> [--lane
-     m2_project_management|project_knowledge|m1_people_management]
-     [--focus <keyword>[,<keyword>...]] [--limit N]` (Phase 15A). Read-only
-     convenience ranking, reusing `classify`'s own signal/candidate-route
-     computation for every candidate - never a decision. `discovered` rows
-     match the project by `Current source` path prefix
-     (`00_Inbox\<Project>\...` - never by content, and never by the
-     canonical `30_Project_Knowledge` lane path, since discovered sources
-     live in `00_Inbox`); `needs_scope` rows use their already-declared
-     `Project` field. `--lane` keeps only candidates whose classify-style
-     candidate route(s) resolve to that lane via `document_graph.yaml`
-     (explicit graph `lane` wins; otherwise a project-scoped route
-     defaults to `m2_project_management` and a person-scoped one to
-     `m1_people_management`) - for `needs_scope` rows the lane comes from
-     the already-chosen Source type/variant instead. `--focus` only
-     re-ranks the already-eligible set (matches filename/preview/
-     candidate-reason text) - it never infers a project/person scope and
-     never changes which rows are eligible. Every candidate's
-     `score_breakdown` is returned so the ranking is never a black box.
-     Never calls `write_queue`, `start`, `archive-source`, `complete`, any
-     Drive/Sheets write, mirror export, or telemetry append. See
-     `.agents\references\operator-prompts.md` (Phase 15A) for ready-made
-     prompts, and its note that final closure is still the explicit
-     workflow below (no `finish-run` shortcut yet).
-   - Handing a run off to another agent session (or resuming one cold)? —
-     `.agents\scripts\qa_manage.py pack <run-id>` (add `--json` for the
-     strict envelope; `--max-preview-chars N` caps the source preview,
-     default 2000). One compact read-only packet combining identity
-     (status/stage, `Source` vs `Current source`, source_type/variant,
-     scopes, source hash, source text version, Snapshot SHA,
-     disposition), `dashboard`'s category for this run, `guide`'s
-     checklist/commands/guardrails, `review`'s evaluate_run summary
-     (unresolved edges, entry problems, invocation/snapshot status), a
-     `classify`-style signals+candidate_routes block *only* when the
-     route isn't resolved yet, graph context (skills/entry docs/required
-     scope, plus downstream closure expectations once at the closure
-     stage), a capped source preview (`Current source` preferred), and a
-     short `agent_handoff` block naming what to read first, which skill(s)
-     to load, the exact next command, and what not to do. Reuses
-     `dashboard`/`guide`/`classify`/`review` exclusively; never creates,
-     writes, or mutates anything, and never includes full source text -
-     only the same capped preview `classify` returns.
-   - Cleaning up the `00_Inbox` backlog itself (not processing a specific
-     source right now)? — `.agents\scripts\qa_manage.py triage
-     [--category discovered|needs_scope|blocked|all] [--limit N]
-     [--project P] [--person X]` (add `--json`). Read-only overview built
-     from the same dashboard/classify helpers: every backlog candidate
-     with its recommended command and the exact terminal-action commands
-     (`ignore`/`mark-historical`/`mark-superseded`) `TRANSITIONS` actually
-     allows from its status - never a suggestion to auto-apply one, and
-     never an inference from filename/extension alone. Drill into one with
-     `qa_manage.py triage-one <run-id>` for source access/age, `classify`-style
-     signals and candidate routes, a capped preview, and the same allowed-action
-     commands, all for a single run. Both are strictly read-only - the
-     only way to actually change a run's state is the explicit `ignore`
-     (`--category C --reason "..." [--evidence "..."]`, required reason,
-     only reachable from `discovered`/`needs_scope`/`ready`), `mark-historical`
-     (`--evidence "..."`, required concrete evidence -
-     not a vague reason or memory - only reachable from a pre-processing
-     state or as a correction of a mistaken `fail`; invalid once
-     `processing`/`blocked` has actually started), or `mark-superseded
-     <old-run-id> --by-run <new-run-id> --reason "..."` (for the specific
-     case where a `00_Inbox` source was intentionally edited and rescanned:
-     the old, never-started row for the same source now just sits stale
-     next to the newer run that actually got processed - reuses `ignored`
-     rather than a new status; `--by-run` must be an existing `completed`
-     run; old/new rows must share a recorded `Source`/`Current source` path
-     unless `--allow-path-change` carries `--path-change-evidence` too)
-     command below, one run at a time. `classify`/`guide`/`pack` all
-     proactively surface `mark-superseded` (never auto-apply it) once a
-     pre-processing row's own `Reason` already flags this situation - the
-     same `content changed - supersedes <run-id>` note `scan` itself writes.
-     None of these mutations moves or deletes the source file - a
-     terminal-status queue row already keeps `scan` from rediscovering it.
-   - Processing a new source (picked via `dashboard`/`guide`/`classify`/
-     `pack`, or found directly)? —
-     the intake workflow runs through
-     `.agents\scripts\qa_manage.py` (state machine; you keep the
-     judgment): `scan` → `next` → read the source → `start <run-id>
-     --source-type ... [--variant] [--scope "Project|Person" ...]` →
-     apply the listed skills → `record-analysis --summary` →
-     `record-apply` per scope (`--updated`/`--no-change`/
-     `--not-applicable`, reasons required) → `resolve-edge` per cascade
-     edge → `archive-source <run-id>` →
-     `commit_workspace_state.py -m "...[<run-id>]"` → `complete`.
-     `archive-source` moves the original from `00_Inbox` to a run-specific
-     `90_Storage/Processed_Sources` folder while preserving Drive identity;
-     the snapshot must be created after this move.
-     Put the exact token `run:<run-id>` in the `_skill_invocations`
-     Notes and the run id in the mirror commit message. The `commit_workspace_state.py`
-     pass also automatically extracts and commits the source text into the private mirror.
-     Full export (walking the entire tree, skipping only `90_Storage`/`01_Recordings` as
-     before) remains the **default** and prints per-file export timing/counts every run;
-     pass `--stats-out <path>` to also dump those stats as JSON. **Phase 14B:**
-     `--scoped --run-id <run-id>` is an opt-in mode for routine single-project/
-     single-person/workspace-only-bookkeeping runs - it exports only that run's scope
-     (`scope_resolver.py`, reusing the same `enumerate_run_scopes()` `review`/`complete`
-     trust) plus workspace-root/lane-root bookkeeping and source-text, never touching or
-     pruning anything outside that scope. It fails closed (exits 1, telling you to re-run
-     without `--scoped`) if the scope, a lane, or a folder can't be resolved, or if the
-     mirror's `_manifest.json` is missing/malformed. Multi-project rollups and periodic
-     audits should keep using full export - scoping barely helps there since most of the
-     lane is already in scope. Run one full export once after adopting `--scoped` (and
-     after any manual Drive edit or folder-layout change) so the manifest scoped mode
-     carries forward from stays trustworthy.
-     `complete` verifies the invocation evidence, per-scope closure, and requires verification
-     of the exact business snapshot SHA from the queue's `Snapshot` column. For `Source text version 1`
-     runs, it also verifies that the exact snapshot SHA contains the exported text blob.
-     After `complete`, telemetry closeout is mandatory for every queue-backed intake run
-     (it has a real `run_id` to attach rows to): the operator-runs.csv `completed_run_review`
-     row, an agent-sessions.csv row, and a task-outcomes.csv row, cross-linked. **Preferred:**
-     one command, `.agents\scripts\closeout_telemetry.py --run-id <run-id> --runtime <runtime>
-     --session-id <session-id> [--model-label <model>] [--commit] [--json]` - runs
-     `measure_operator_outputs.py --case completed_run_review`, `record_agent_session.py
-     --from-run`, and `record_task_outcome.py --from-run --linked-session-run-id` in sequence,
-     then all six validators (`check_operator_csv.py` x3, `summarize_agent_telemetry.py --json`,
-     `check_sensitive_data.py`, `git diff --check`), and reports every created row id. Refuses
-     to run at all unless `qa_manage.py review <run-id>` already reports `completed`; refuses
-     `--commit` if any validator failed (leaves the change uncommitted and prints the exact
-     next command instead); `--commit` stages only the three telemetry CSVs, never Drive, the
-     queue, the mirror, or a business document. For a runtime whose adapter can't derive a
-     task-scoped time window yet (only Claude/`claude-code` can today), it records a
-     whole-session agent-session row instead, with an explicit warning that it is not
-     task-scoped - never a silent mislabel. Manual step-by-step invocation of the three
-     scripts below remains available for anything the wrapper doesn't cover.
-     **No-queue direct-note/conversational rollup passes are different** - an M2 answer
-     pass, a repo-maintenance fix, a direct owner-note enrichment, anything that ends with
-     its own `commit_workspace_state.py` snapshot but never went through `start`/`complete`
-     has no `run_id`, so `completed_run_review` cannot be recorded (it requires one). For
-     these, the mandatory closing step is instead a `.agents\telemetry\agent-sessions.csv`
-     row: `.agents\scripts\record_agent_session.py --runtime <runtime> --session-id
-     <session-id> --objective "<short description>" [--linked-operator-run-ids <id1>,<id2>]
-     --append-csv` (or `--manual` with explicit `--actual-*` flags if extraction isn't
-     available) - see `.agents\telemetry\README.md`'s "Two CSVs, two different questions"
-     section. Recording a `dashboard_overview`/other operator-runs.csv row for a no-queue
-     pass is optional and measures only that one command's output, never a substitute for
-     the session-level row - it does not represent the whole pass.
-     Either way, rows store only redacted command labels and counts (byte/char/
-     deterministic token estimates); they never store real output, source text, or names -
-     actual token fields stay blank unless you have real agent-log telemetry for that pass
-     (`extract_agent_telemetry.py`), never invented.
-   - Need to find new/unprocessed source files? —
-     `.agents\scripts\prepare_intake_review.py` (transcripts/chats/source
-     documents) or `.agents\scripts\detect_strategy_chats.py`
-     (`_strategy` chats specifically) — or `qa_manage.py scan`, which
-     also creates queue rows.
-   - Just routed a source into project documents? —
-     `.agents\scripts\check_cascade_closure.py --touched <docs>` (or
-     `--from-log 1`) expands `.agents\document_graph.yaml` and flags every
-     downstream document not yet accounted for. Record each edge's
-     resolution with `closure_outcomes.py record --run-id <date>-<slug>
-     ... --outcome updated|no_change|gated|regenerated` (reason required
-     for no_change/gated), then re-run the closure check with
-     `--run-id` — it must report CLOSED before the pass ends.
-   - Then record the pass in the data-side history:
-     `.agents\scripts\commit_workspace_state.py -m "<skill>: <source>"` —
-     exports the workspace's canonical documents into the local private
-     mirror repo (`~/Documents/qa-drive-mirror`, real data, never public)
-     and commits, so the whole pass can be diffed or rolled back as one
-     unit later (`rollback_from_mirror.py`). The mirror automatically stores exact,
-     content-addressed text representations of source chats and transcripts, which means it
-     contains real conversation text and must remain strictly private. Harmless when nothing
-     changed. Before treating the commit as done, check the "Changed files" list the
-     script prints (or `git -C ~/Documents/qa-drive-mirror status`/`diff`)
-     against what this pass was actually supposed to touch, and report
-     anything outside that scope as unrelated Drive drift instead of
-     silently committing it - standing practice (qa-retro, 2026-07-21),
-     not something to be asked for on each individual pass.
-   - Writing a new one-off inspection/update script anyway? Reuse
-     `.agents\scripts\pipeline_common.py`'s `get_services()` instead of
-     re-inlining `load_credentials`/`build_services` boilerplate.
-   - Want to know whether the operator commands above (`dashboard`, `guide`,
-     `classify`, `pack`, `triage`, `search_workspace`,
-     `show_project_state --document`) actually save output/tokens versus an
-     older full-read workflow, or just recording that a real pass happened?
-     — Phase 11's telemetry layer, `.agents\telemetry\README.md`.
-     `.agents\scripts\measure_operator_outputs.py --case <case_id>
-     [--dry-run]` runs one read-only case and measures elapsed time,
-     byte/char counts, and a deterministic token estimate (never the real
-     output); `--append-csv` records a redacted row in
-     `.agents\telemetry\operator-runs.csv`. Cases include
-     `dashboard_overview`, `guide_discovered`, `classify_discovered`,
-     `pack_discovered`, `completed_run_review` (`qa_manage.py review`),
-     `triage_overview`/`triage_one`, `search_current`/`search_history`,
-     `show_project_state_targeted`/`show_project_state_full_project`.
-     `finalize_operator_run.py` enriches a row with actual token telemetry
-     (only if you have real agent-log data - never invented) and a
-     baseline reduction ratio; `check_operator_csv.py` validates the CSV
-     and diff-guards a specific append. Recording a row after every real
-     queue-backed intake run is a mandatory closing step (see the intake
-     workflow above) - not optional instrumentation; for a no-queue direct-
-     note/rollup pass, the mandatory closing step is instead an
-     `.agents\telemetry\agent-sessions.csv` row (`record_agent_session.py`
-     - see the intake workflow bullet and `.agents\telemetry\README.md`),
-     and an operator-runs.csv row there is optional, command-level-only
-     measurement. This does not change which command is the default entry
-     point — `dashboard` still is — it only measures/records the existing
-     workflow.
-3. Only fall back to raw filesystem exploration (`find`/`Glob`) under
-   `G:\My Drive\QA_Management` for genuinely new source files that haven't been
-   classified yet — not for inspecting already-canonical project documents, which
-   are Google Sheets/Docs and can't be read as plain files anyway (they'll error
-   with "Invalid request code" if you try).
+- Start from the smallest relevant evidence source; do not invent
+  unsupported facts.
+- Keep business-facing output concrete and evidence-based.
+- Russian is the default language for business-facing output unless the
+  user asks otherwise; preserve English terms/citations that are already
+  part of the source.
+- Preserve established template schemas and filename conventions unless
+  the user asks for a schema change.
+- Google Sheets for final tabular output, Google Docs for final
+  narrative/status output; local CSV/Markdown only as fallback or
+  staging.
+- Visibility/sharing (what's shared with whom) follows the owning
+  skill/reference - see M2 Project Layout in README and
+  `qa-management-roles`.
+- Append-only vs. versioned-snapshot behavior (1to1 files never overwrite
+  old rows; dated reports get `_vN`) is owned by each document's skill -
+  follow it, don't improvise a new convention.
 
-## Skill Location
+## Repository Validation
 
-Local skills live under:
-
-```text
-.agents/skills/
-```
-
-Current canonical skills:
-
-| Skill | Role | Outcome | Canonical source |
-|-------|------|---------|------------------|
-| `qa-1to1-analysis` | Common | Shared structured analysis from a QA 1to1 transcript for both M1 and M2, including topic classification, evidence extraction, and people/project signal separation | `.agents/skills/qa-1to1-analysis/SKILL.md` |
-| `m2-strategy-chat-analysis` | M2 | Analysis of a project-level "_strategy" chat export (running, multi-month, multi-stakeholder planning/status channel for one project) into project-scoped facts, routed via the normal M2 cascading-update/rollup chain | `.agents/skills/m2-strategy-chat-analysis/SKILL.md` |
-| `m2-admin-note-intake` | M2 | Short pasted-inline (not file-based) conversation snippets about chat access/membership, chat/project naming ambiguity, and structured person-info cards | `.agents/skills/m2-admin-note-intake/SKILL.md` |
-| `m2-1to1-apply` | M2 | Routes a QA 1:1 transcript's already-analyzed (via `qa-1to1-analysis`) findings through the M2 cascading-update chain into individual/project documents and `m2_input` | `.agents/skills/m2-1to1-apply/SKILL.md` |
-| `qa-management-roles` | Common | Shared M1/M2/M3/M4 role boundaries and role rules, including M1 people-management goals and M2 project-management/business-value rules | `.agents/skills/qa-management-roles/SKILL.md` |
-| `m1-people-1to1-file` | M1 | Individual person Google Sheet inside `10_M1_People_Management\<Person>\`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m1-people-1to1-file/SKILL.md` |
-| `m1-1to1-prep` | M1 | Scoped question list for an upcoming M1 1to1 with a specific QA engineer, driven by that person's current people-risk signals | `.agents/skills/m1-1to1-prep/SKILL.md` |
-| `m2-1to1-prep` | M2 | Scoped question list for an upcoming M2 1to1 with a specific QA engineer on one of M2's projects | `.agents/skills/m2-1to1-prep/SKILL.md` |
-| `m2-status-meeting-intake` | M2 | Multi-project M2/M3 status-review meeting transcript split per project and routed through the normal m2_input/action_items/evidence_log chain | `.agents/skills/m2-status-meeting-intake/SKILL.md` |
-| `m1-people-risk-report` | M1 | Living people risk traffic-light Google Sheet (`Светофор рисков`), with CSV fallback, based on `Templates/светофор_рисков.csv` from this repo | `.agents/skills/m1-people-risk-report/SKILL.md` |
-| `m1-individual-development-plan` | M1 | Individual OKR Google Doc per Performance Review cycle, with Markdown fallback, based on `Templates/okr_m1.md` from this repo | `.agents/skills/m1-individual-development-plan/SKILL.md` |
-| `m1-timeline` | M1 | Workspace-wide `_m1_timeline` Google Sheet (Performance Reviews computed from real PR cadence, OKR cycle closures, monthly-report deadlines, follow-ups) plus the generated `_m1_pr_calendar` PR-only view, with CSV fallback | `.agents/skills/m1-timeline/SKILL.md` |
-| `m-self-review` | Common (M1/M2) | M1's/M2's own Performance Review self-prep: dated `критерии_оценки_команды` team-scoring Google Sheet (CSV fallback) plus a chat-ready self-review prep summary | `.agents/skills/m-self-review/SKILL.md` |
-| `salary-review-prep` | Common | Salary-review self-feedback Google Doc draft (evidence-backed value growth, AI-competency status, blocker pre-check) for a team member or for M1/M2 themselves, based on `Templates/salary_review_self_feedback.md` | `.agents/skills/salary-review-prep/SKILL.md` |
-| `m2-people-1to1-file` | M2 | Individual person Google Sheet in `20_M2_Project_Management`, with CSV fallback, based on `Templates/1to1.csv` from this repo | `.agents/skills/m2-people-1to1-file/SKILL.md` |
-| `m2-project-risk-report` | M2 | Project risk traffic-light Google Sheet, with CSV fallback | `.agents/skills/m2-project-risk-report/SKILL.md` |
-| `m2-project-process-checklist` | M2 | Living per-project outsource QA process-maturity checklist Google Sheet (12 sections), with CSV fallback, based on `Templates/аутсорс_чек_лист_qa.csv` | `.agents/skills/m2-project-process-checklist/SKILL.md` |
-| `m2-project-qa-metrics-report` | M2 | Project-level QA metrics Google Sheet, with CSV fallback | `.agents/skills/m2-project-qa-metrics-report/SKILL.md` |
-| `m2-individual-qa-metrics-report` | M2 | Individual QA metrics Google Sheet within project scope, with CSV fallback | `.agents/skills/m2-individual-qa-metrics-report/SKILL.md` |
-| `m2-project-development-plan` | M2 | Project-level development-plan Google Doc (narrative, synced via `sync_m2_plans_to_docs.py`), with Markdown fallback | `.agents/skills/m2-project-development-plan/SKILL.md` |
-| `m2-individual-development-plan` | M2 | Individual development-plan Google Doc within project scope (employee-visible), with Markdown fallback | `.agents/skills/m2-individual-development-plan/SKILL.md` |
-| `m2-project-status-report` | M2 | Short chat-ready project status report for a requested period; regular saved reports use Google Docs with Markdown fallback | `.agents/skills/m2-project-status-report/SKILL.md` |
-| `m2-chat-reply` | M2 | Short chat-ready reply to one specific incoming question/message, blending new project/person information with M2's own stated plan; chat text only unless a copy is requested | `.agents/skills/m2-chat-reply/SKILL.md` |
-| `m2-department-traffic-light` | M2 | Fills M2's own row block on the department's shared (foreign, not workspace-generated) "Auto staff. Светофор проектов" outstaff tracker from real source documents | `.agents/skills/m2-department-traffic-light/SKILL.md` |
-| `m2-timeline` | M2 | Per-project `action_items` Google Sheet (events, deadlines, follow-ups) and the workspace-wide `_timeline` rollup, with CSV fallback | `.agents/skills/m2-timeline/SKILL.md` |
-| `m1-monthly-report` | M1 | Monthly M1 KPI/bonus Google Sheet, with CSV fallback, based on monthly report workbook structure and evidence-backed people-management data | `.agents/skills/m1-monthly-report/SKILL.md` |
-| `m2-monthly-report` | M2 | Monthly M2 KPI/bonus Google Sheet, with CSV fallback, based on monthly report example structure and evidence-backed project-management data | `.agents/skills/m2-monthly-report/SKILL.md` |
-| `qa-retro` | Common | Improvement-loop retro pass: turns repeated friction/feedback since the last retro (via `prepare_retro.py` over `_skill_invocations`) into proposed skill/reference/graph edits, presented as diffs for user review | `.agents/skills/qa-retro/SKILL.md` |
-| `repo-maintenance` | Common | Consistency checklist for any structural change to this repo (skill/script/template/document-type/dependency), keeping AGENTS.md, README, `document_graph.yaml`, and source-type lists in sync in the same commit | `.agents/skills/repo-maintenance/SKILL.md` |
-| `visual-evidence-intake` | Common | Organizes raw screenshots dumped in `00_Inbox/_Visual_Drop` into a renamed/grouped bundle with rough context notes, a preserved original-to-new filename mapping, and a recommended downstream path (Project Knowledge or M2 supporting context) - does not write any business document itself | `.agents/skills/visual-evidence-intake/SKILL.md` |
-| `project-knowledge-roles` | Project Knowledge | Shared rules for the Project Knowledge lane (`30_Project_Knowledge`) - gradual knowledge accumulation from diverse sources, durable-vs-one-off distinction, open questions, M1/M2 boundary, QA docs as downstream products | `.agents/skills/project-knowledge-roles/SKILL.md` |
-| `project-knowledge-intake` | Project Knowledge | Source-triggered intake for `project_knowledge_transcript`/`document`/`chat`/`notes`: summary (where appropriate), `pk_source_index` row, `pk_knowledge_base` update, optional QA-doc update | `.agents/skills/project-knowledge-intake/SKILL.md` |
-
-Load only the skill needed for the current outcome. Do not preload other role skills.
-
-## Repository Contents
-
-- `.agents/skills`: local skills and skill-local scripts
-- `Templates`: canonical CSV templates used as schemas for Google Sheets or local CSV fallback
-- `.agents/skills/qa-1to1-analysis/references`: shared 1to1 topic, risk, and wording rules
-- `.agents/skills/qa-management-roles/references`: shared M1/M2 role boundaries and management rules
-- `README.md`: repo overview
-
-## Data Root
-
-Use the Google Drive root folder ID `1QtIOTEd0fVi4eAhCo_I0xqDSIUiEITRc` as the canonical business workspace when Google API access is available. Use `G:\My Drive\QA_Management` as the local mirror and fallback data root unless the user points to a different dataset location.
-
-Expected data folders under that root:
-
-- `00_Inbox`: the only intake folder; recursively scanned, and empty means there are no unprocessed files. `00_Inbox/_Visual_Drop/` is a special subfolder for raw screenshot dumps (arbitrary filenames, plus optional rough context notes such as `visual_context.md` or `visual_context_notes.txt`) - image files aren't picked up by `scan`, so they sit inert until organized via the `visual-evidence-intake` skill; screenshots can be sidecar visual evidence for an already-processed transcript or document, but they do not replace the text source
-- `10_M1_People_Management`: person-based, `<Person>\` subfolder per team member (1to1, OKR, salary-review self-feedback); the living `Светофор рисков` sheet, `_m1_timeline`, and M1's own monthly report stay at the root — see `google-workspace-rules.md`, M1 Person-Based Layout
-- `20_M2_Project_Management`: M2 project-management outputs
-- `80_Exports` (optional): created only when an explicit immutable package/copy is prepared for external sharing
-- `90_Storage`: the single non-actionable storage root, containing `Reference`,
-  `Processed_Sources`, `_System`, `Backups`, and `Retired`
-  It is explicitly excluded from source discovery; moving a file here means it
-  is no longer part of the active intake backlog.
-
-M2 project-management outputs are project-based. Each active project should have
-its own folder under `20_M2_Project_Management`, for example:
-
-```text
-20_M2_Project_Management/<Project>/
-├─ private/
-│  ├─ project_risk.gsheet
-│  ├─ process_checklist.gsheet
-│  ├─ project_development_plan.gdoc
-│  ├─ project_metrics.gsheet
-│  ├─ evidence_log.gsheet
-│  ├─ action_items.gsheet
-│  ├─ m2_input/m2_input.gdoc
-│  ├─ status_reports/
-│  └─ people/<Person>/individual_metrics_internal.gsheet
-├─ team_shared/qa_process_metrics.gsheet
-└─ people/<Person>/shared/
-   ├─ individual_development_plan.gdoc
-   └─ individual_metrics.gsheet
-```
-
-Share only `team_shared/` with the project QA team and only a specific
-`people/<Person>/shared/` folder with that person. Never share the project
-root or `private/`.
-
-Use `_project_registry.gsheet` / `_project_registry.csv` in
-`20_M2_Project_Management` to track active project names, aliases, people, and
-source locations. For broad cross-project sources, split extracted facts by
-project first, update each project folder separately, then archive the aggregate
-source/output as evidence.
-
-Archived legacy locations:
-
-- `90_Storage/Retired/VSCode_Settings_Backup`: former top-level `.vscode`
-- `90_Storage/Retired/03_Projects_DC_old_empty_placeholder`: preserved old empty DC placeholder
-
-## General Rules
-
-- Start from the smallest relevant evidence source.
-- Do not invent unsupported facts.
-- Keep final business-facing text concrete and evidence-based.
-- Use Russian as the default language for business-facing analysis and generated outputs unless the user explicitly requests another language.
-- Preserve English terms, definitions, and citations when they are part of the source or normal working vocabulary.
-- Preserve established template schemas and filename conventions unless the user requests a schema change.
-- Prefer Google Sheets for final tabular business outputs and Google Docs for final narrative/status outputs. Use local CSV/Markdown in `G:\My Drive\QA_Management` only as fallback, staging, or source-extraction output when Google API access is unavailable or not requested.
-- For M2, route final tabular outputs into the relevant project folder. Do not keep cross-project KT or batch files as canonical final documents; use them only as intermediate evidence that feeds project-local files.
-- Each report-generation skill should target one expected output document format.
-- Do not overwrite existing final dated/monthly documents by default. If a final document already exists for the same snapshot date or reporting month, create the next `_vN` file, for example `_v2`, `_v3`, unless the user explicitly asks to revise the existing file in place.
-- Personal 1to1 files are append-only longitudinal records, not versioned snapshot documents. Preserve old rows and revise an old row only when the user explicitly asks for correction.
+Before committing a structural change, run
+`.agents/scripts/validate_repo.py` (must exit 0) and
+`.agents/scripts/check_sensitive_data.py` (scans the whole commit
+candidate, not just your diff). See `repo-maintenance` for the full
+checklist.
 
 ## Multi-Agent Convention
 
-This repository is intended to be usable by Codex, Antigravity, and Claude Code through the same shared skill files under `.agents/skills/`.
-Keep runtime differences limited to invocation notes inside the skills.
+This repository is used by Codex, Antigravity, and Claude Code. Canonical
+skill content is shared under `.agents/skills/` for all three - runtime
+differences are limited to machine-local discovery adapters (see Start
+Here) and genuinely necessary invocation notes inside a skill, never a
+duplicated runtime-specific skill body.

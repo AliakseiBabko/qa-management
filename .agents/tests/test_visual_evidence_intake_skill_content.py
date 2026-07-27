@@ -15,7 +15,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SKILL_MD = REPO_ROOT / ".agents" / "skills" / "visual-evidence-intake" / "SKILL.md"
-AGENTS_MD = REPO_ROOT / "AGENTS.md"
 README = REPO_ROOT / "README.md"
 PROMPTS = REPO_ROOT / ".agents" / "references" / "operator-prompts.md"
 
@@ -120,16 +119,12 @@ class VisualEvidenceIntakeSkillContentTests(unittest.TestCase):
 
 
 class VisualEvidenceIntakeMirrorSyncTests(unittest.TestCase):
-    def test_agents_md_table_row(self):
-        text = AGENTS_MD.read_text(encoding="utf-8")
-        self.assertIn("`visual-evidence-intake`", text)
-        self.assertIn(".agents/skills/visual-evidence-intake/SKILL.md", text)
-
-    def test_agents_md_inbox_bullet_mentions_visual_drop(self):
-        text = AGENTS_MD.read_text(encoding="utf-8")
-        self.assertIn("_Visual_Drop", text)
-        self.assertIn("visual_context_notes.txt", text)
-        self.assertIn("sidecar visual evidence", text)
+    def test_skill_frontmatter_is_the_canonical_inventory_entry(self):
+        """AGENTS.md carries no skill table; the skill's own frontmatter
+        (validated structurally by validate_repo.py) is the inventory now."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("name: visual-evidence-intake", text)
+        self.assertIn("description:", text)
 
     def test_readme_documents_the_drop_folder(self):
         text = README.read_text(encoding="utf-8")

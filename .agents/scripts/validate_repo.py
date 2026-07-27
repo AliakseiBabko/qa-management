@@ -1,17 +1,20 @@
 """Mechanical consistency validation for this repo's convention-mirrored files.
 
 The `repo-maintenance` skill lists the mirrors that must stay in sync by
-hand (AGENTS.md skill table <-> .agents/skills/, README <-> .agents/scripts/,
-document_graph.yaml <-> skills/scripts/aliases, source-type lists in
-pipeline_common <-> google-workspace-rules.md). This script is that
-checklist automated - the same move as check_cascade_closure.py for the
-data-side cascade. Run it before committing any structural change; exit 1
-means drift.
+hand (README <-> .agents/scripts/, document_graph.yaml <-> skills/scripts/
+aliases, source-type lists in pipeline_common <-> google-workspace-rules.md).
+This script is that checklist automated - the same move as
+check_cascade_closure.py for the data-side cascade. Run it before
+committing any structural change; exit 1 means drift.
+
+AGENTS.md is intentionally a compact startup router, not a skill
+inventory - the canonical skill inventory is `.agents/skills/` itself plus
+each `SKILL.md`'s own frontmatter, so skill discovery is validated
+structurally against the filesystem, never against AGENTS.md content.
 
 Checks (FAIL = exit 1):
 - every .agents/skills/<dir> has a SKILL.md whose frontmatter `name`
-  matches the directory, and a row in AGENTS.md's skill table; every table
-  row points at an existing skill directory and SKILL.md path
+  matches the directory and whose `description` is present and non-empty
 - every .agents/scripts/*.py is mentioned in README.md, and every
   `<name>.py` mentioned in README/AGENTS exists
 - document_graph.yaml parses; every edge target / alias target / source
@@ -64,40 +67,47 @@ def warn(msg: str) -> None:
     warnings.append(msg)
 
 
-def parse_frontmatter_name(skill_md: Path) -> str | None:
+def parse_frontmatter(skill_md: Path) -> dict[str, str]:
+    """Return the frontmatter block's simple `key: value` fields.
+
+    Deliberately a plain line scan, not a YAML parser: several
+    descriptions contain unquoted colons/commas that a strict YAML load
+    can choke on, and all we need here is `name` and `description`.
+    """
     lines = skill_md.read_text(encoding="utf-8").splitlines()
+    fields: dict[str, str] = {}
     if not lines or lines[0].strip() != "---":
-        return None
-    for line in lines[1:30]:
+        return fields
+    for line in lines[1:]:
         if line.strip() == "---":
             break
         if line.startswith("name:"):
-            return line.split(":", 1)[1].strip()
-    return None
+            fields["name"] = line.split(":", 1)[1].strip()
+        elif line.startswith("description:"):
+            fields["description"] = line.split(":", 1)[1].strip()
+    return fields
 
 
-def check_skills_vs_agents_md() -> None:
-    agents_md = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    table_rows = re.findall(r"^\| `([a-z0-9-]+)` \|.*\| `(\.agents/skills/[^`]+)` \|",
-                            agents_md, re.MULTILINE)
-    table = {name: path for name, path in table_rows}
+def check_skills() -> None:
+    """Structural skill-inventory validation: filesystem + frontmatter only.
 
+    AGENTS.md carries no skill table to cross-check against - the
+    directory listing plus each SKILL.md's own frontmatter *is* the
+    canonical inventory now, so this only ever needs to look at
+    `.agents/skills/`.
+    """
     dirs = {p.name for p in SKILLS_DIR.iterdir() if p.is_dir()}
     for d in sorted(dirs):
         skill_md = SKILLS_DIR / d / "SKILL.md"
         if not skill_md.exists():
             fail(f"skill dir without SKILL.md: .agents/skills/{d}")
             continue
-        fm_name = parse_frontmatter_name(skill_md)
+        fields = parse_frontmatter(skill_md)
+        fm_name = fields.get("name")
         if fm_name != d:
             fail(f"SKILL.md frontmatter name {fm_name!r} != directory name {d!r}")
-        if d not in table:
-            fail(f"skill {d!r} has no row in AGENTS.md's skill table")
-    for name, path in sorted(table.items()):
-        if name not in dirs:
-            fail(f"AGENTS.md table row {name!r} has no .agents/skills/{name} directory")
-        elif not (REPO / path).exists():
-            fail(f"AGENTS.md table row {name!r} points at missing path {path}")
+        if not fields.get("description", "").strip():
+            fail(f"SKILL.md for {d!r} has no non-empty frontmatter 'description'")
 
 
 def check_scripts_vs_readme() -> None:
@@ -261,7 +271,7 @@ def check_templates() -> None:
 
 def main() -> int:
     source_types = load_source_types()
-    check_skills_vs_agents_md()
+    check_skills()
     check_scripts_vs_readme()
     check_graph(source_types)
     check_source_types_documented(source_types)
