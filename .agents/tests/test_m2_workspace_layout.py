@@ -6,7 +6,11 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+AGENTS_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = AGENTS_ROOT / "scripts"
+M2_1TO1_CONTRACT = (
+    AGENTS_ROOT / "skills" / "m2-people-1to1-file" / "references" / "file-contract.md"
+)
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -39,6 +43,10 @@ class TestM2WorkspaceLayout(unittest.TestCase):
         self.assertEqual(
             ("private", "people", "Person A"),
             layout.canonical_folder_parts("individual_metrics_internal", "Person A"),
+        )
+        self.assertEqual(
+            ("private", "people", "Person A"),
+            layout.canonical_folder_parts("m2_people_1to1_file", "Person A"),
         )
 
     def test_person_role_requires_scope(self) -> None:
@@ -141,6 +149,29 @@ class TestM2WorkspaceLayout(unittest.TestCase):
         self.assertFalse(ambiguous)
         self.assertEqual("live", moves[0].destination)
         self.assertEqual(("private",), moves[0].target_parts)
+
+
+class TestM2People1to1Contract(unittest.TestCase):
+    """The written contract must name the same private path the layout module builds.
+
+    Deliberately literal substring checks, not a Markdown-to-path parser: the point
+    is to catch the contract drifting back to the pre-migration non-private folder.
+    """
+
+    CANONICAL = r"20_M2_Project_Management\<Project>\private\people\<Person Name>"
+    OBSOLETE = r"20_M2_Project_Management\<Project>\people\<Person Name>"
+
+    def setUp(self) -> None:
+        self.contract = M2_1TO1_CONTRACT.read_text(encoding="utf-8")
+
+    def test_canonical_private_target_is_documented(self) -> None:
+        self.assertIn(rf"{self.CANONICAL}\<Person Name> 1to1", self.contract)
+
+    def test_csv_fallback_uses_canonical_private_folder(self) -> None:
+        self.assertIn(rf"{self.CANONICAL}\<Person Name> 1to1.csv", self.contract)
+
+    def test_obsolete_non_private_target_is_absent(self) -> None:
+        self.assertNotIn(self.OBSOLETE, self.contract)
 
 
 if __name__ == "__main__":
