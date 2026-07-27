@@ -97,11 +97,11 @@ class ScopeResolverTests(unittest.TestCase):
 
     def test_project_knowledge_scope_resolves_pk_lane(self):
         row = make_row(source_type="project_knowledge_transcript",
-                       scopes=json.dumps([["<Project>", ""]]))
+                       scopes=json.dumps([["Project_A", ""]]))
         res = self._resolve(row)
         self.assertTrue(res.ok, res.reason)
         self.assertEqual(res.lane_root_prefixes, {"30_Project_Knowledge"})
-        self.assertEqual(res.subtree_prefixes, {"30_Project_Knowledge/<Project>"})
+        self.assertEqual(res.subtree_prefixes, {"30_Project_Knowledge/Project_A"})
 
     def test_mixed_scope_resolves_both_lanes(self):
         row = make_row(source_type="qa_1to1", scopes=json.dumps([["ProjectX", "PersonY"]]),

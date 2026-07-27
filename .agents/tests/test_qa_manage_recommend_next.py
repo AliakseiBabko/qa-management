@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import qa_manage
 
+
+PROJECT_A = "Project_A"
 GRAPH = {
     "lanes": {
         "m2_project_management": {"root_folder": "20_M2_Project_Management"},
@@ -159,36 +161,36 @@ def run_recommend_next(rows, data_root, people_rows=None, **kwargs):
 
 class DiscoveredProjectPathMatchTests(unittest.TestCase):
     def test_matches_project_subfolder_prefix(self):
-        r = row("r1", **{"Current source": "00_Inbox/<Project>/05 nfr.txt"})
-        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        r = row("r1", **{"Current source": "00_Inbox/Project_A/05 nfr.txt"})
+        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_case_insensitive(self):
-        r = row("r1", **{"Current source": "00_Inbox/<Project>/05 nfr.txt"})
-        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        r = row("r1", **{"Current source": f"00_Inbox/{PROJECT_A.lower()}/05 nfr.txt"})
+        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_bare_inbox_file_never_matches_any_project(self):
         r = row("r1", **{"Current source": "00_Inbox/some file.txt"})
-        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_different_project_subfolder_does_not_match(self):
         r = row("r1", **{"Current source": "00_Inbox/OtherProject/file.txt"})
-        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_backslash_paths_normalized(self):
-        r = row("r1", **{"Current source": "00_Inbox\\<Project>\\file.txt"})
-        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        r = row("r1", **{"Current source": "00_Inbox\\Project_A\\file.txt"})
+        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_falls_back_to_source_when_current_source_blank(self):
-        r = row("r1", Source="00_Inbox/<Project>/file.txt", **{"Current source": ""})
-        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        r = row("r1", Source="00_Inbox/Project_A/file.txt", **{"Current source": ""})
+        self.assertTrue(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
     def test_never_matches_canonical_lane_path(self):
         # Discovered rows live in 00_Inbox, never 30_Project_Knowledge -
         # a row whose Current source somehow pointed at the canonical lane
         # path must NOT match via this path-prefix check (it isn't the
         # convention this function implements).
-        r = row("r1", **{"Current source": "30_Project_Knowledge/<Project>/file.txt"})
-        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, "<Project>"))
+        r = row("r1", **{"Current source": "30_Project_Knowledge/Project_A/file.txt"})
+        self.assertFalse(qa_manage.discovered_row_matches_project_path(r, PROJECT_A))
 
 
 class LaneResolutionTests(unittest.TestCase):
@@ -232,7 +234,7 @@ class FocusMatchTests(unittest.TestCase):
         self.assertEqual(result, {"matched": False, "keywords_found": []})
 
     def test_matches_filename(self):
-        result = qa_manage.compute_focus_match("00_Inbox/<Project>/performance-notes.txt", "", [], ["performance"])
+        result = qa_manage.compute_focus_match("00_Inbox/Project_A/performance-notes.txt", "", [], ["performance"])
         self.assertTrue(result["matched"])
         self.assertIn("performance", result["keywords_found"])
 
@@ -442,13 +444,13 @@ class ProjectFilteringTests(unittest.TestCase):
     def test_discovered_rows_filtered_by_path_prefix(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
             write_file(root, "00_Inbox/OtherProject/b.txt", TRANSCRIPT_THREE_SPEAKERS)
             rows = [
-                row("r1", **{"Current source": "00_Inbox/<Project>/a.txt"}),
+                row("r1", **{"Current source": "00_Inbox/Project_A/a.txt"}),
                 row("r2", **{"Current source": "00_Inbox/OtherProject/b.txt"}),
             ]
-            res, _, write_mock = run_recommend_next(rows, root, project="<Project>")
+            res, _, write_mock = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertTrue(res.ok)
             run_ids = {c["run_id"] for c in res.data["candidates"]}
             self.assertEqual(run_ids, {"r1"})
@@ -463,7 +465,7 @@ class ProjectFilteringTests(unittest.TestCase):
                 row("r1", Status="needs_scope", **{
                     "Current source": "00_Inbox/misc/a.txt",
                     "Source type": "meeting_transcript", "Route variant": "single_project",
-                    "Project": "<Project>",
+                    "Project": PROJECT_A,
                 }),
                 row("r2", Status="needs_scope", **{
                     "Current source": "00_Inbox/misc/b.txt",
@@ -471,7 +473,7 @@ class ProjectFilteringTests(unittest.TestCase):
                     "Project": "OtherProject",
                 }),
             ]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             run_ids = {c["run_id"] for c in res.data["candidates"]}
             self.assertEqual(run_ids, {"r1"})
 
@@ -486,20 +488,20 @@ class ProjectFilteringTests(unittest.TestCase):
                 "Source type": "meeting_transcript", "Route variant": "single_project",
                 "Project": "",
             })]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertEqual(res.data["candidates"], [])
 
     def test_terminal_and_processing_rows_never_considered(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
             rows = [
-                row("r1", Status="completed", **{"Current source": "00_Inbox/<Project>/a.txt"}),
-                row("r2", Status="processing", **{"Current source": "00_Inbox/<Project>/a.txt"}),
-                row("r3", Status="blocked", **{"Current source": "00_Inbox/<Project>/a.txt"}),
-                row("r4", Status="ignored", **{"Current source": "00_Inbox/<Project>/a.txt"}),
+                row("r1", Status="completed", **{"Current source": "00_Inbox/Project_A/a.txt"}),
+                row("r2", Status="processing", **{"Current source": "00_Inbox/Project_A/a.txt"}),
+                row("r3", Status="blocked", **{"Current source": "00_Inbox/Project_A/a.txt"}),
+                row("r4", Status="ignored", **{"Current source": "00_Inbox/Project_A/a.txt"}),
             ]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertEqual(res.data["candidates"], [])
 
 
@@ -507,9 +509,9 @@ class LaneFilteringTests(unittest.TestCase):
     def test_discovered_row_kept_when_a_candidate_route_maps_to_lane(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/transcript.txt", TRANSCRIPT_THREE_SPEAKERS)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/transcript.txt"})]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", lane="project_knowledge")
+            write_file(root, "00_Inbox/Project_A/transcript.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/transcript.txt"})]
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, lane="project_knowledge")
             run_ids = {c["run_id"] for c in res.data["candidates"]}
             self.assertEqual(run_ids, {"r1"})
             self.assertIn("project_knowledge", res.data["candidates"][0]["candidate_lanes"])
@@ -517,12 +519,12 @@ class LaneFilteringTests(unittest.TestCase):
     def test_discovered_row_excluded_when_no_candidate_matches_lane(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/note.txt", PLAIN_NOTE)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/note.txt"})]
+            write_file(root, "00_Inbox/Project_A/note.txt", PLAIN_NOTE)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/note.txt"})]
             # A short, signal-free note only yields project_knowledge_notes/
             # project_knowledge_document candidates (both project_knowledge
             # lane) - filtering for m1_people_management must exclude it.
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", lane="m1_people_management")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, lane="m1_people_management")
             self.assertEqual(res.data["candidates"], [])
 
     def test_needs_scope_lane_resolved_from_source_type_not_path(self):
@@ -532,9 +534,9 @@ class LaneFilteringTests(unittest.TestCase):
             rows = [row("r1", Status="needs_scope", **{
                 "Current source": "00_Inbox/misc/a.txt",  # NOT under 30_Project_Knowledge
                 "Source type": "project_knowledge_transcript", "Route variant": "",
-                "Project": "<Project>",
+                "Project": PROJECT_A,
             })]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", lane="project_knowledge")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, lane="project_knowledge")
             run_ids = {c["run_id"] for c in res.data["candidates"]}
             self.assertEqual(run_ids, {"r1"})
 
@@ -545,9 +547,9 @@ class LaneFilteringTests(unittest.TestCase):
             rows = [row("r1", Status="needs_scope", **{
                 "Current source": "00_Inbox/misc/a.txt",
                 "Source type": "qa_1to1", "Route variant": "m2",
-                "Project": "<Project>",
+                "Project": PROJECT_A,
             })]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", lane="m1_people_management")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, lane="m1_people_management")
             self.assertEqual(res.data["candidates"], [])
 
 
@@ -557,34 +559,34 @@ class FocusRankingTests(unittest.TestCase):
             root = Path(tmp)
             write_file(root, "00_Inbox/OtherProject/perf.txt", TRANSCRIPT_THREE_SPEAKERS)
             rows = [row("r1", **{"Current source": "00_Inbox/OtherProject/perf.txt"})]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", focus="perf")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, focus="perf")
             self.assertEqual(res.data["candidates"], [])
 
     def test_focus_never_bypasses_lane_hard_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/note.txt", PLAIN_NOTE)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/note.txt"})]
+            write_file(root, "00_Inbox/Project_A/note.txt", PLAIN_NOTE)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/note.txt"})]
             res, _, _ = run_recommend_next(
-                rows, root, project="<Project>", lane="m1_people_management", focus="note")
+                rows, root, project=PROJECT_A, lane="m1_people_management", focus="note")
             self.assertEqual(res.data["candidates"], [])
 
     def test_focus_reorders_within_eligible_set(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a_first.txt", TRANSCRIPT_THREE_SPEAKERS)
-            write_file(root, "00_Inbox/<Project>/b_second_performance.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/a_first.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/b_second_performance.txt", TRANSCRIPT_THREE_SPEAKERS)
             rows = [
-                row("r1", Discovered="2026-01-01 00:00", **{"Current source": "00_Inbox/<Project>/a_first.txt"}),
+                row("r1", Discovered="2026-01-01 00:00", **{"Current source": "00_Inbox/Project_A/a_first.txt"}),
                 row("r2", Discovered="2026-01-02 00:00",
-                   **{"Current source": "00_Inbox/<Project>/b_second_performance.txt"}),
+                   **{"Current source": "00_Inbox/Project_A/b_second_performance.txt"}),
             ]
             # Without focus, r1 (older) ranks first on recency alone.
-            res_no_focus, _, _ = run_recommend_next(rows, root, project="<Project>")
+            res_no_focus, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertEqual(res_no_focus.data["recommended"], "r1")
 
             # With focus matching only r2's filename, r2 must outrank r1.
-            res_focus, _, _ = run_recommend_next(rows, root, project="<Project>", focus="performance")
+            res_focus, _, _ = run_recommend_next(rows, root, project=PROJECT_A, focus="performance")
             self.assertEqual(res_focus.data["recommended"], "r2")
 
 
@@ -592,10 +594,10 @@ class ScoringAndSortTests(unittest.TestCase):
     def test_score_breakdown_present_and_deterministic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/a.txt"})]
-            res1, _, _ = run_recommend_next(rows, root, project="<Project>")
-            res2, _, _ = run_recommend_next(rows, root, project="<Project>")
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/a.txt"})]
+            res1, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
+            res2, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertEqual(res1.data["candidates"][0]["score_breakdown"],
                             res2.data["candidates"][0]["score_breakdown"])
             breakdown = res1.data["candidates"][0]["score_breakdown"]
@@ -605,11 +607,11 @@ class ScoringAndSortTests(unittest.TestCase):
     def test_tie_break_is_run_id_deterministic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
-            write_file(root, "00_Inbox/<Project>/b.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            write_file(root, "00_Inbox/Project_A/b.txt", TRANSCRIPT_THREE_SPEAKERS)
             rows = [
-                row("zzz_run", Discovered="2026-01-01 00:00", **{"Current source": "00_Inbox/<Project>/a.txt"}),
-                row("aaa_run", Discovered="2026-01-02 00:00", **{"Current source": "00_Inbox/<Project>/b.txt"}),
+                row("zzz_run", Discovered="2026-01-01 00:00", **{"Current source": "00_Inbox/Project_A/a.txt"}),
+                row("aaa_run", Discovered="2026-01-02 00:00", **{"Current source": "00_Inbox/Project_A/b.txt"}),
             ]
             # Force a genuine total-score tie (recency is normally rank-based
             # and would otherwise differentiate even equal-timestamp rows -
@@ -617,7 +619,7 @@ class ScoringAndSortTests(unittest.TestCase):
             # specifically, not the recency formula's own stable-sort effect.
             with patch("qa_manage.compute_recency_bonus_by_run_id",
                       return_value={"zzz_run": 0.05, "aaa_run": 0.05}):
-                res, _, _ = run_recommend_next(rows, root, project="<Project>")
+                res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             ordered_ids = [c["run_id"] for c in res.data["candidates"]]
             self.assertEqual(ordered_ids, sorted(ordered_ids))
 
@@ -626,9 +628,9 @@ class ScoringAndSortTests(unittest.TestCase):
             root = Path(tmp)
             rows = []
             for i in range(3):
-                write_file(root, f"00_Inbox/<Project>/f{i}.txt", TRANSCRIPT_THREE_SPEAKERS)
-                rows.append(row(f"r{i}", **{"Current source": f"00_Inbox/<Project>/f{i}.txt"}))
-            res, _, _ = run_recommend_next(rows, root, project="<Project>", limit=2)
+                write_file(root, f"00_Inbox/Project_A/f{i}.txt", TRANSCRIPT_THREE_SPEAKERS)
+                rows.append(row(f"r{i}", **{"Current source": f"00_Inbox/Project_A/f{i}.txt"}))
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A, limit=2)
             self.assertEqual(len(res.data["candidates"]), 2)
             self.assertTrue(res.data["truncated"])
 
@@ -636,14 +638,14 @@ class ScoringAndSortTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             big_text = TRANSCRIPT_THREE_SPEAKERS + ("padding line\n" * 1)
-            write_file(root, "00_Inbox/<Project>/big.txt", big_text)
-            big_path = root / "00_Inbox" / "<Project>" / "big.txt"
+            write_file(root, "00_Inbox/Project_A/big.txt", big_text)
+            big_path = root / "00_Inbox" / PROJECT_A / "big.txt"
             # Pad the file past the large-file threshold without changing
             # its transcript signal shape (append after real content).
             with open(big_path, "a", encoding="utf-8") as f:
                 f.write("x" * (qa_manage.RECOMMEND_NEXT_LARGE_FILE_BYTES + 1))
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/big.txt"})]
-            res, _, _ = run_recommend_next(rows, root, project="<Project>")
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/big.txt"})]
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertEqual(res.data["candidates"][0]["score_breakdown"]["size_penalty"],
                             qa_manage.RECOMMEND_NEXT_SIZE_PENALTY)
 
@@ -652,18 +654,18 @@ class ReadOnlyEnforcementTests(unittest.TestCase):
     def test_never_calls_write_queue(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/a.txt"})]
-            res, mock_services, write_mock = run_recommend_next(rows, root, project="<Project>")
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/a.txt"})]
+            res, mock_services, write_mock = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertTrue(res.ok)
             write_mock.assert_not_called()
 
     def test_never_calls_drive_mutating_methods(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_file(root, "00_Inbox/<Project>/a.txt", TRANSCRIPT_THREE_SPEAKERS)
-            rows = [row("r1", **{"Current source": "00_Inbox/<Project>/a.txt"})]
-            _, mock_services, _ = run_recommend_next(rows, root, project="<Project>")
+            write_file(root, "00_Inbox/Project_A/a.txt", TRANSCRIPT_THREE_SPEAKERS)
+            rows = [row("r1", **{"Current source": "00_Inbox/Project_A/a.txt"})]
+            _, mock_services, _ = run_recommend_next(rows, root, project=PROJECT_A)
             drive_mock = mock_services["drive"]
             # No Drive method was ever invoked at all - recommend-next reads
             # the local Drive-sync-mounted file directly (same as classify),
@@ -711,7 +713,7 @@ class JsonEnvelopeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             rows = []
-            res, _, _ = run_recommend_next(rows, root, project="<Project>")
+            res, _, _ = run_recommend_next(rows, root, project=PROJECT_A)
             self.assertTrue(res.data["guardrails"])
             joined = " ".join(res.data["guardrails"]).lower()
             self.assertIn("ranked", joined)
@@ -720,7 +722,7 @@ class JsonEnvelopeTests(unittest.TestCase):
     def test_guardrails_warn_person_alias_match_is_a_hint_not_a_scope(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            res, _, _ = run_recommend_next([], root, project="<Project>")
+            res, _, _ = run_recommend_next([], root, project=PROJECT_A)
             joined = " ".join(res.data["guardrails"])
             self.assertIn("person_alias_matches", joined)
             self.assertIn("never declares a person or project scope", joined)

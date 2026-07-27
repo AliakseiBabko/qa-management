@@ -15,7 +15,7 @@ class TestSourceTextRequirement(unittest.TestCase):
     """source_text_requirement() decides whether a queue row's source must
     have a v1 text blob exported. Covers the existing M1/M2 behavior
     (unchanged) and the Project Knowledge lane types added after the
-    20260721 <Project> run found project_knowledge_transcript was falling
+    20260721 Project_A run found project_knowledge_transcript was falling
     through to 'optional' instead of 'required'."""
 
     def test_m1_m2_types_still_required_for_file_backed_sources(self):
@@ -34,7 +34,7 @@ class TestSourceTextRequirement(unittest.TestCase):
         for src_type in ("project_knowledge_transcript", "project_knowledge_document",
                          "project_knowledge_chat", "project_knowledge_notes"):
             for ext in (".txt", ".md", ".docx"):
-                row = {"Source type": src_type, "Source": f"00_Inbox/<Project>/example{ext}"}
+                row = {"Source type": src_type, "Source": f"00_Inbox/Project_A/example{ext}"}
                 self.assertEqual(source_text_requirement(row), "required",
                                  f"{src_type} + {ext} should be required")
 
@@ -45,13 +45,13 @@ class TestSourceTextRequirement(unittest.TestCase):
         # extension are required, same rule as every other type here.
         row = {"Source type": "project_knowledge_notes", "Source": ""}
         self.assertEqual(source_text_requirement(row), "optional")
-        row_unsupported_ext = {"Source type": "project_knowledge_notes", "Source": "00_Inbox/<Project>/example.pdf"}
+        row_unsupported_ext = {"Source type": "project_knowledge_notes", "Source": "00_Inbox/Project_A/example.pdf"}
         self.assertEqual(source_text_requirement(row_unsupported_ext), "optional")
 
     def test_project_knowledge_types_optional_for_unsupported_extension(self):
         for src_type in ("project_knowledge_transcript", "project_knowledge_document",
                          "project_knowledge_chat"):
-            row = {"Source type": src_type, "Source": "00_Inbox/<Project>/example.pdf"}
+            row = {"Source type": src_type, "Source": "00_Inbox/Project_A/example.pdf"}
             self.assertEqual(source_text_requirement(row), "optional")
 
     def test_unknown_type_still_optional(self):

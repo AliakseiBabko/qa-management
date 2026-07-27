@@ -44,6 +44,18 @@ class OperatorPromptsTests(unittest.TestCase):
         self.assertIn("ranking hint only", normalized)
         self.assertIn("not a project/person scope decision", normalized)
 
+    def test_cookbook_contains_no_email_addresses(self) -> None:
+        """Generic contact-detail guard, carrying no name to test against.
+
+        The cookbook is copy-paste operator text, so a real address pasted
+        into an example would land in a public file. `@` is the cheap
+        marker for that; identifier-specific checks belong to
+        check_sensitive_data.py, which reads its watch list from the
+        registries instead of hardcoding one here.
+        """
+        text = PROMPTS.read_text(encoding="utf-8")
+        self.assertNotIn("@", text)
+
 
 if __name__ == "__main__":
     unittest.main()

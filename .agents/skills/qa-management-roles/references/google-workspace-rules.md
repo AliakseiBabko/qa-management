@@ -215,7 +215,7 @@ or folder-navigation link; those don't belong in a summary dashboard.
 Keep `_people_registry` in its own top-level folder, `05_People_Management`
 (not nested under `10_M1_People_Management` or `20_M2_Project_Management`),
 as a single workspace-wide Google Sheet (CSV fallback) covering **every**
-person who comes up — <Project> employees under M1 management, M2-staffed
+person who comes up — Internal employees under M1 management, M2-staffed
 people, and client/vendor-side people across all projects. One person, one
 row, regardless of which skill (M1 or M2) is the one touching them that day.
 

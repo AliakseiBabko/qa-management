@@ -95,31 +95,31 @@ class TestGoogleNativeIntake(unittest.TestCase):
 
         # Case 1: Native sheet match without .gsheet extension in Drive item name
         children = [
-            {"id": "item1", "name": "CBS NFR v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"}
+            {"id": "item1", "name": "Example Requirements v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"}
         ]
-        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "Project_A"}), \
              patch("m2_workspace_layout.list_children", return_value=children):
-            found = find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/CBS NFR v0.2.gsheet")
+            found = find_drive_item_by_path(mock_drive, "00_Inbox/Project_A/Example Requirements v0.2.gsheet")
             self.assertEqual(found["id"], "item1")
 
         # Case 2: Non-Google native file extensionless should NOT match
         children_non_native = [
             {"id": "item2", "name": "Report", "mimeType": "text/plain"}
         ]
-        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "Project_A"}), \
              patch("m2_workspace_layout.list_children", return_value=children_non_native):
             with self.assertRaises(SystemExit):
-                find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/Report.txt")
+                find_drive_item_by_path(mock_drive, "00_Inbox/Project_A/Report.txt")
 
         # Case 3: Multiple matching candidates -> fail closed with SystemExit
         children_ambiguous = [
-            {"id": "item1", "name": "CBS NFR v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"},
-            {"id": "item2", "name": "CBS NFR v0.2.gsheet", "mimeType": "application/vnd.google-apps.spreadsheet"}
+            {"id": "item1", "name": "Example Requirements v0.2", "mimeType": "application/vnd.google-apps.spreadsheet"},
+            {"id": "item2", "name": "Example Requirements v0.2.gsheet", "mimeType": "application/vnd.google-apps.spreadsheet"}
         ]
-        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "<Project>"}), \
+        with patch("m2_workspace_layout.find_folder_path", return_value={"id": "p1", "name": "Project_A"}), \
              patch("m2_workspace_layout.list_children", return_value=children_ambiguous):
             with self.assertRaises(SystemExit) as cm:
-                find_drive_item_by_path(mock_drive, "00_Inbox/<Project>/CBS NFR v0.2.gsheet")
+                find_drive_item_by_path(mock_drive, "00_Inbox/Project_A/Example Requirements v0.2.gsheet")
             self.assertIn("Multiple Drive items match", str(cm.exception))
 
     def test_execute_with_backoff_retry_429_500_503(self):
