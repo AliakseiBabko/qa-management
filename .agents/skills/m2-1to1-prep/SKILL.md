@@ -18,7 +18,10 @@ happened yet.
 1. Identify the person and confirm which project(s) their 1to1 prep should
    draw from (a person can be on more than one project).
 2. Read `references/document-contract.md`.
-3. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Read `../qa-management-roles/references/m2-role/m2-metrics-attribution.md`
+   (Вклад в проект calibration, for turning a caveat into a question) and
+   `../qa-management-roles/references/m2-role/m2-project-rollups.md`
+   (the `m2_input` preliminary-analysis questions this skill draws from).
 4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 5. Read `../qa-management-roles/references/chat-message-style-rules.md` if drafting the optional first-contact invite message (see below).
 

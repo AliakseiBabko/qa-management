@@ -16,8 +16,8 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
 
 1. Run `qa-1to1-analysis` first — topic classification, strongest facts,
    people/project signal separation. Don't skip straight to routing.
-2. Read `../qa-management-roles/references/m2-role-rules.md`'s Cascading
-   Updates and Project-Level Rollups sections.
+2. Read `../qa-management-roles/references/m2-role/m2-cascading-updates.md`
+   and `../qa-management-roles/references/m2-role/m2-project-rollups.md`.
 3. Read `../qa-management-roles/references/google-workspace/m2-layout.md`
    (person/project document locations), `../qa-management-roles/references/google-workspace/operational-registries.md`
    (`evidence_log` discipline), and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
@@ -58,7 +58,8 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
   be a people-risk signal (`individual_development_plan`), project-process
   evidence (`m2_input` - e.g. a single point of contact/failure), and a
   wider organizational-process finding (`m2-role-rules.md` or a similar
-  shared reference, if it's not scoped to just this project). Route it to
+  shared reference - see its module index if it's not scoped to just this
+  project). Route it to
   every document it actually supports, not just the most obvious one.
 
 ## Guardrails
@@ -66,7 +67,7 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
 - Apply the same registry-scoping and Person Card cross-reference
   guardrails as `m2-strategy-chat-analysis` (don't duplicate them here) —
   a 1:1 can just as easily surface a role/track/level mismatch (see
-  `m2-role-rules.md`, Вклад в проект Calibration) as a strategy chat can.
+  `m2-role/m2-metrics-attribution.md`, Вклад в проект Calibration) as a strategy chat can.
 - Don't fabricate an "M2 answer" in `m2_input` — only write into the answer
   section when the transcript's content actually resolves the round's
   questions, not to force a round closed.
@@ -75,5 +76,5 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
   of a project-wide event (e.g. "the client ignored us") stand in for
   independent confirmation if the same fact should really come from a
   strategy chat or a direct account-level source; note whose account it is
-  when the confidence matters (see `m2-role-rules.md`, Risk Rules — naming
+  when the confidence matters (see `m2-role/m2-risk-rules.md` — naming
   the feedback path).

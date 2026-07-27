@@ -109,7 +109,7 @@ under `20_M2_Project_Management`:
   See `.agents/skills/m2-timeline`.
 
 Project completeness is expected to be uneven under the incremental-fill
-model (see `m2-role-rules.md`, Project-Level Rollups) — a freshly-scaffolded
+model (see `m2-role/m2-project-rollups.md`, Project-Level Rollups) — a freshly-scaffolded
 project with mostly `Неизвестно` rows and an unanswered `m2_input` round
 isn't a data-quality bug, it's the normal state before M2 has answered that
 round.
@@ -152,7 +152,7 @@ team-editable factual input; its synthesized conclusion lives in the M2-only
 **Update chain**: `individual_metrics`/`individual_development_plan` (per
 person) → `project_metrics` (per project) → `_project_registry` (across
 all projects). A new source that changes something at the person level
-should update the whole chain in the same pass — see `m2-role-rules.md`,
+should update the whole chain in the same pass — see `m2-role/m2-cascading-updates.md`,
 Cascading Updates. Metric definitions and which artifact each one belongs
 in: `Templates/метрики_qa_по_проекту.md` (individual) and
 `Templates/метрики_проекта_qa.md` (project/QA-process/dashboard).
@@ -504,7 +504,7 @@ These are what actually runs day to day, once a project's folder already exists:
   committing; it is not wired into a git hook or CI.
 - `check_cascade_closure.py` — deterministic half of the cascading-update
   chain: reads `.agents/document_graph.yaml` (the machine-readable version
-  of `m2-role-rules.md`'s Cascading Updates / Project-Level Rollups fan-out)
+  of `m2-role/m2-cascading-updates.md` and `m2-role/m2-project-rollups.md`'s Cascading Updates / Project-Level Rollups fan-out)
   and prints the downstream checklist for a set of touched documents —
   `--touched individual_metrics,evidence_log` offline, or `--from-log N` to
   check the last N `_skill_invocations` rows' `Documents touched`. Exit 1
@@ -826,7 +826,7 @@ These are what actually runs day to day, once a project's folder already exists:
   silently drop the Cyrillic half of the name while building this script.
   For an existing person, also greps their currently-listed Project(s)'
   `individual_metrics`/`individual_development_plan` for a track/level
-  mismatch against the card (see `m2-role-rules.md`, Вклад в проект
+  mismatch against the card (see `m2-role/m2-metrics-attribution.md`, Вклад в проект
   Calibration) and prints a heads-up, not a resolution. Known gap: it only
   checks *current* Project(s) — someone recently moved off a project leaves
   their mismatch evidence behind in the old project's docs, invisible to

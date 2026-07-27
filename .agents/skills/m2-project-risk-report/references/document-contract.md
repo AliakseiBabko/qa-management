@@ -75,7 +75,7 @@ tells the reader nothing, and that traceability already lives in
 
 - `m2_input` — the latest round's answers. If the latest round's answer
   section is empty, this is a rollup and you must stop and run the
-  preliminary-analysis round first (see `m2-role-rules.md`
+  preliminary-analysis round first (see `m2-role/m2-project-rollups.md`
   Project-Level Rollups) rather than proceeding on metrics alone.
 - Individual `Вклад в проект` conclusions and the `Команда: ...` rollup rows
   in `project_metrics` — a person flagged `Есть риск` is a candidate risk

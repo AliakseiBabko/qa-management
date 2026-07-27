@@ -54,7 +54,7 @@ unavailable): `план_развития_проекта_<Project>_YYYY-MM-DD.md`
 Write the Doc as headed prose, in this order (full skeleton in the template
 file above). Every section is always present, regardless of how much source
 material exists for this project — never omit a section because there's no
-evidence for it (see `m2-role-rules.md`, Template Consistency). If a
+evidence for it (see `m2-role/m2-metrics-calibration.md`, Template Consistency). If a
 section has nothing to say yet, write that plainly as an open question
 instead of inventing content or dropping the section.
 
@@ -108,7 +108,7 @@ instead of inventing content or dropping the section.
 10. **Риски проекта** — same rule: one heading, categories as bold-labelled
     sub-bullets, not separate headings. Split by perspective, not just "QA
     risk": business risk, project/product risk, development risk, QA/process
-    risk (matches `../qa-management-roles/references/m2-role-rules.md` Risk
+    risk (matches `../qa-management-roles/references/m2-role/m2-risk-rules.md` Risk
     Rules).
 11. **Открытые вопросы** — missing information and questions that need a
     stakeholder's answer, if any. Name it for what it actually is (things we
@@ -124,7 +124,7 @@ instead of inventing content or dropping the section.
 1. Existing project development plan.
 2. `m2_input` — the latest round's answers. If the latest round's answer
    section is empty, this is a rollup and you must stop and run the
-   preliminary-analysis round first (see `m2-role-rules.md`
+   preliminary-analysis round first (see `m2-role/m2-project-rollups.md`
    Project-Level Rollups) rather than proceeding on metrics alone.
 3. Business/project context, client expectations, strategy-chat statuses, and
    project goals.

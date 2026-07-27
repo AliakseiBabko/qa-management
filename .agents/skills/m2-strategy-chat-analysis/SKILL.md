@@ -49,7 +49,10 @@ editing an already-logged file in place makes new content invisible to it.
    don't sample. If a file came back `UNCLASSIFIED`, confirm the project
    with the user and rename the file (`<Project>_strategy...txt`) before
    continuing.
-4. Read `../qa-management-roles/references/m2-role-rules.md`,
+4. Read `../qa-management-roles/references/m2-role/m2-cascading-updates.md`,
+   `../qa-management-roles/references/m2-role/m2-project-rollups.md`,
+   `../qa-management-roles/references/m2-role/m2-metrics-calibration.md`
+   (Template Consistency, for Guardrails below),
    `../qa-management-roles/references/google-workspace/people-registry.md`,
    `../qa-management-roles/references/google-workspace/operational-registries.md`,
    and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
@@ -74,7 +77,7 @@ editing an already-logged file in place makes new content invisible to it.
    person's real profile, treat it as a correction, note it explicitly, and
    fix every document that repeated the wrong fact (registry entry, and any
    project doc prose that named the person's affiliation/role) — see
-   `m2-role-rules.md`'s Template Consistency note on fixing a defect
+   `m2-role/m2-metrics-calibration.md`'s Template Consistency note on fixing a defect
    everywhere it propagated, not just where it was first noticed.
 3. Cross-check dated facts against the project's existing `m2_input`,
    `project_risk`, and `project_development_plan` for contradictions (a
@@ -82,7 +85,7 @@ editing an already-logged file in place makes new content invisible to it.
    conclusion — e.g. "candidate found" vs. a later "still searching").
    Surface contradictions as open questions; do not silently pick one side.
 4. Route extracted facts using the same chain as any other source
-   (`m2-role-rules.md`, Cascading Updates):
+   (`m2-role/m2-cascading-updates.md`, Cascading Updates):
    - direct, unambiguous corrections (a wrong name/role/affiliation) can be
      fixed directly in `_people_registry` and any doc that repeated them.
    - person-level facts that materially change a picture already in

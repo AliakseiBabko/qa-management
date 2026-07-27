@@ -15,7 +15,7 @@ project_metrics directly; the next run of this script picks that up like
 any other mirrored field.
 
 Aggregation for "Наименьший вклад в проект" is worst-known-status, not an
-average (see m2-role-rules.md, Registry Data-Gap Semantics): among named
+average (see m2-role/m2-metrics-attribution.md, Registry Data-Gap Semantics): among named
 people with an actual Позитивный/Смешанный/Негативный judgment, report the
 worst one and who is at it; people with no judgment yet (blank or
 "Неизвестно") are named separately, never folded into the worst-case label.
@@ -49,7 +49,7 @@ CONTRIBUTION_PREFIX = "Вклад в проект: "
 
 # Values that legitimately mean "no judgment yet" - never warned about, just
 # folded into the unknown bucket per the Registry Data-Gap Semantics rule
-# above (see m2-role-rules.md).
+# above (see m2-role/m2-metrics-attribution.md).
 MISSING_CONTRIBUTION_VALUES = {"", "Неизвестно"}
 
 PROJECT_STATUS_VALUES = {"Активен", "На паузе"}
@@ -87,7 +87,7 @@ def project_status_warning(project: str, status: str) -> str | None:
 
 def contribution_summary(rows: list[list[str]], project: str = "") -> tuple[str, list[str], list[str]]:
     # project_metrics is meant to hold at most one current "Вклад в
-    # проект: <Имя>" row per person (see m2-role-rules.md, Cascading
+    # проект: <Имя>" row per person (see m2-role/m2-cascading-updates.md, Cascading
     # Updates - update in place, don't append a new dated row per pass).
     # A stale duplicate can still slip in upstream, though (this happened
     # on a real project once); dedupe defensively here by name, keeping

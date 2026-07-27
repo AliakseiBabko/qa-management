@@ -1,5 +1,6 @@
 # Document dependency graph — the machine-readable version of the cascade
-# chains described in m2-role-rules.md (Cascading Updates, Project-Level
+# chains described in m2-role/m2-cascading-updates.md and
+# m2-role/m2-project-rollups.md (Cascading Updates, Project-Level
 # Rollups) and the individual skills. One place, so a script can compute
 # "what else must be checked after this change" instead of each agent
 # re-deriving the fan-out from prose.

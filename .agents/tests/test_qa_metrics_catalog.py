@@ -13,8 +13,8 @@ cross-cutting map tying together three tiers:
    gated) — new subsection in `Templates\метрики_qa_по_проекту.md`,
    "Личный вклад".
 
-All three tiers share one governing principle, stated in `m2-role-rules.md`
-under "Metrics Are Signals, Not Verdicts": metrics are diagnostic signals
+All three tiers share one governing principle, stated in
+`m2-role/m2-metrics-calibration.md` under "Metrics Are Signals, Not Verdicts": metrics are diagnostic signals
 for M2 judgment, not automatic verdicts; optional metrics are added only
 with a real recurring data source and a real management question; missing
 data is recorded as an explicit gap, never fabricated; and RCA is required
@@ -33,7 +33,12 @@ SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 TEMPLATES_DIR = REPO_ROOT / "Templates"
 
 CATALOG_PATH = SKILLS_DIR / "qa-management-roles" / "references" / "qa-metrics-catalog.md"
-ROLE_RULES_PATH = SKILLS_DIR / "qa-management-roles" / "references" / "m2-role-rules.md"
+METRICS_CALIBRATION_PATH = (
+    SKILLS_DIR / "qa-management-roles" / "references" / "m2-role" / "m2-metrics-calibration.md"
+)
+METRICS_ATTRIBUTION_PATH = (
+    SKILLS_DIR / "qa-management-roles" / "references" / "m2-role" / "m2-metrics-attribution.md"
+)
 PROJECT_CATALOG_PATH = TEMPLATES_DIR / "метрики_проекта_qa.md"
 INDIVIDUAL_CATALOG_PATH = TEMPLATES_DIR / "метрики_qa_по_проекту.md"
 PROJECT_CONTRACT_PATH = (
@@ -124,7 +129,7 @@ class CatalogFileExistsAndListsTiersTests(unittest.TestCase):
 
 class RoleRulesSignalsNotVerdictsTests(unittest.TestCase):
     def setUp(self):
-        self.text = _normalized(_read(ROLE_RULES_PATH))
+        self.text = _normalized(_read(METRICS_CALIBRATION_PATH))
 
     def test_has_signals_not_verdicts_section(self):
         self.assertIn("Metrics Are Signals, Not Verdicts", self.text)
@@ -152,6 +157,11 @@ class RoleRulesSignalsNotVerdictsTests(unittest.TestCase):
 
     def test_cross_references_catalog_file(self):
         self.assertIn("qa-metrics-catalog.md", self.text)
+
+
+class RoleRulesLeakageRcaTests(unittest.TestCase):
+    def setUp(self):
+        self.text = _normalized(_read(METRICS_ATTRIBUTION_PATH))
 
     def test_leakage_attribution_requires_rca(self):
         self.assertIn(

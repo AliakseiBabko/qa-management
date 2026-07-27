@@ -51,7 +51,7 @@ adding anything to it.
   `periodic`, not `documents`.
 - Sanity-check with
   `check_cascade_closure.py --touched <new_doc>` - the printed chain
-  should match the prose in the owning skill and `m2-role-rules.md`.
+  should match the prose in the owning skill and `m2-role/m2-cascading-updates.md`.
 - If the cascade prose in a skill/reference describes the same edge,
   keep both in the same commit; the graph is canonical, prose explains
   the judgment side.

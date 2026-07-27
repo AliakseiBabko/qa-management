@@ -1,6 +1,6 @@
 """Compute the downstream checklist after a document change and verify closure.
 
-The cascade chains (m2-role-rules.md Cascading Updates / Project-Level
+The cascade chains (m2-role/m2-cascading-updates.md Cascading Updates / m2-role/m2-project-rollups.md Project-Level
 Rollups, plus the per-skill routing notes) are encoded once, as data, in
 `.agents/document_graph.yaml`. This script is the deterministic half of the
 observer pattern the workspace runs on: it computes *which* documents are

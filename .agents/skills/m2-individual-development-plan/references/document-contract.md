@@ -73,7 +73,7 @@ unavailable): `план_развития_qa_<Project>_<Person>_YYYY-MM-DD.md`
 Write the Doc as headed prose, in this order (full skeleton in the template
 file above). Every section is always present, for every person, regardless
 of how much source material exists — never omit a section because there's
-no evidence for it (see `m2-role-rules.md`, Template Consistency). If a
+no evidence for it (see `m2-role/m2-metrics-calibration.md`, Template Consistency). If a
 section has nothing to say yet, write that plainly ("Неизвестно — <what's
 missing and what would close the gap>") instead of inventing content or
 dropping the section.

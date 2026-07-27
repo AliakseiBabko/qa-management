@@ -1,7 +1,7 @@
 """Intake assistant: find new/changed source files, extract and classify them,
 log them to evidence_log, and produce a review bundle for M2 to read.
 
-Scope, deliberately stopped short of judgment (see m2-role-rules.md's
+Scope, deliberately stopped short of judgment (see m2-role/m2-project-rollups.md's
 Project-Level Rollups and
 qa-management-roles/references/google-workspace/pipeline-architecture.md):
 
@@ -251,7 +251,7 @@ def main() -> int:
     lines.append(
         "Next step: read the flagged files above (and their extracts, where present), then — "
         "if they change the picture for a project — start a new preliminary-analysis round in "
-        "that project's `m2_input` (see m2-role-rules.md, Project-Level Rollups). This script "
+        "that project's `m2_input` (see m2-role/m2-project-rollups.md, Project-Level Rollups). This script "
         "does not write m2_input, project_risk, project_development_plan, project_metrics, or "
         "status reports; UNCLASSIFIED items need manual routing before anything else happens "
         "with them."

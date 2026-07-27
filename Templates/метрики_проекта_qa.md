@@ -16,7 +16,7 @@
 меняет что-то на уровне человека — обнови всю цепочку в одном проходе:
 `individual_metrics`/`individual_development_plan` → соответствующие
 строки `project_metrics` → строку этого проекта в `_project_registry`, а
-не только нижний уровень. См. `m2-role-rules.md`, Cascading Updates.
+не только нижний уровень. См. `m2-role/m2-cascading-updates.md`, Cascading Updates.
 
 `project_metrics` — M2-only — не показывай его QA-инженерам, чьи данные
 там упомянуты, даже после того как появится folder-level sharing для
@@ -49,7 +49,7 @@
   шкале Низкий/Средний/Высокий — последнее реальное значение остаётся
   замороженным, а не подгоняется под факт паузы (пауза сама по себе не
   Высокий и не Низкий риск — это отдельное состояние, не точка на той же
-  шкале). См. `m2-role-rules.md`, Risk Rules.
+  шкале). См. `m2-role/m2-risk-rules.md`, Risk Rules.
 - `qa_process_metrics` замораживается — новые периоды не запрашиваются у
   команды, пока проект не вернётся в `Активен`. См. §2 ниже.
 - `_project_registry` не убирает проект из списка — пауза это не "проект
@@ -240,7 +240,7 @@ Consistency) и **Расширенного каталога** (опционал�
   `_project_registry`'s «Качество QA-процесса» (см. §1.4 выше) — не
   становится строкой `individual_metrics`, если источник явно и с опорой
   на свидетельства не называет ответственного человека (см.
-  `m2-role-rules.md`, Production Bug Leakage Attribution, и
+  `m2-role/m2-metrics-attribution.md`, Production Bug Leakage Attribution, и
   `m2-individual-qa-metrics-report`'s document-contract). Связанная
   quantitative-версия при наличии тега prod/pre-release в трекере —
   «Defect Escape Rate / Bug leakage rate» в Расширенном каталоге ниже; эта
@@ -431,7 +431,7 @@ Service Management, статус-страница, или хотя бы ручн
 
 Каждая метрика каталога — это строка в `qa_process_metrics` для каждого
 проекта, всегда, независимо от того, приоритетна ли она сейчас или есть ли
-по ней данные (см. `m2-role-rules.md`, Template Consistency). Не выбирай
+по ней данные (см. `m2-role/m2-metrics-calibration.md`, Template Consistency). Не выбирай
 подмножество "самых важных" метрик и не пропускай остальные — вместо этого
 для метрик, которые сейчас не приоритетны или не собираются, оставляй
 `Показатель` пустым и пиши в `Пояснение`, почему именно (например, "баги на

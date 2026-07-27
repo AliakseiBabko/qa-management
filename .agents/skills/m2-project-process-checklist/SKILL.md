@@ -21,7 +21,11 @@ a one-time onboarding form.
 1. Read `references/document-contract.md`.
 2. Read `references/outsource-operating-principles.md` — required before judging any gap, since a missing item is not automatically a risk on an outsource project.
 3. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
-4. Read `../qa-management-roles/references/m2-role-rules.md`.
+4. Read `../qa-management-roles/references/m2-role/m2-metrics-calibration.md`
+   (Template Consistency - every question/status stays in the schema, blank
+   with a stated reason) and
+   `../qa-management-roles/references/m2-role/m2-metrics-attribution.md`
+   (Вклад в проект calibration, for Guardrails below).
 5. Read the project's existing checklist Sheet if one exists, plus `project_risk` and `project_metrics` for context already on record.
 
 ## Workflow
@@ -30,7 +34,7 @@ a one-time onboarding form.
    questions across 12 sections. Do not renumber, merge, or drop a
    question even if it looks inapplicable; mark it `Не применимо` with a
    reason instead (same Template Consistency discipline as every other
-   schema in this repo — see `m2-role-rules.md`).
+   schema in this repo — see `m2-role/m2-metrics-calibration.md`).
 2. For each item, fill: `Применимо к проекту`, `Статус` (`Есть` /
    `Отсутствует` / `Частично`), and — for anything not a clean `Есть` — a
    real `Обоснование` (why it's missing/not applicable, not just "N/A").
@@ -58,7 +62,7 @@ a one-time onboarding form.
   default — judge it against `outsource-operating-principles.md` first.
 - Do not let a checklist gap alone lower an individual's `Вклад в проект`
   judgment — process-maturity gaps are usually project/PM-level, per
-  `m2-role-rules.md`'s Вклад в проект Calibration.
+  `m2-role/m2-metrics-attribution.md`'s Вклад в проект Calibration.
 - Do not skip a question's `Обоснование` just because the status is "not
   applicable" — every non-`Есть` status needs a stated reason.
 - Do not use this Sheet as the QA-process risk assessment itself — that's

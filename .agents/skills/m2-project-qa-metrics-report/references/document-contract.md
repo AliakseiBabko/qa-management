@@ -202,7 +202,7 @@ here — §3 is `_project_registry`, not this catalog).
   showed teams can't realistically fill):
   - **Core (6 metrics)** — always a row on every project, same
     blank-with-reason discipline as everything else under Template
-    Consistency (see `m2-role-rules.md`). Full list and collection method:
+    Consistency (see `m2-role/m2-metrics-calibration.md`). Full list and collection method:
     `Templates\метрики_проекта_qa.md` §2 Core. Two of the six are
     collected by the QA engineer running `Templates\qa_repo_metrics_prompt.md`
     against their own project's test repo with whatever coding agent
@@ -219,7 +219,7 @@ here — §3 is `_project_registry`, not this catalog).
     QA-процесса` and `_project_registry` the same as any other Core
     metric — it does not become an `individual_metrics` row unless the
     source directly attributes responsibility to a named person and that
-    attribution is evidence-backed (see `m2-role-rules.md`, Production Bug
+    attribution is evidence-backed (see `m2-role/m2-metrics-attribution.md`, Production Bug
     Leakage Attribution).
   - **Extended catalog** — optional, menu not checklist. Add a row only
     when the project **already has** a working data source for that

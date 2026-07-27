@@ -34,9 +34,10 @@ intake skills:
    for the `evidence_log`/`source_type` conventions this skill writes into.
    Read `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
    before writing a registry row via `apply_person_card.py --apply`.
-2. Read `../qa-management-roles/references/m2-role-rules.md`'s Risk Rules
-   (topology risk) and Communication and Visibility sections — a chat
-   topology finding is often itself a risk signal, not just registry
+2. Read `../qa-management-roles/references/m2-role/m2-risk-rules.md`
+   (topology risk) and
+   `../qa-management-roles/references/m2-role/m2-communication-visibility.md`
+   — a chat topology finding is often itself a risk signal, not just registry
    housekeeping.
 3. Check `../qa-management-roles/references/aliases.md` before treating an
    unfamiliar project/person name from the note as new.
@@ -54,7 +55,7 @@ intake skills:
    person it prints the existing row and the computed fields side by side
    but does not write — Name/Project(s) changes, and any contradiction
    against that person's `individual_metrics`/`individual_development_plan`
-   (e.g. the AQA-vs-manual-track pattern in `m2-role-rules.md`'s Вклад в
+   (e.g. the AQA-vs-manual-track pattern in `m2-role/m2-metrics-attribution.md`'s Вклад в
    проект Calibration), still need your read before applying.
 3. Log the addition/correction to whichever project's `evidence_log` is
    most contextually relevant (the project the card arrived alongside), with
@@ -71,7 +72,7 @@ intake skills:
    registry rules (unclear role, unclear project mapping).
 3. If the note reveals a real visibility/access gap (M2 or M3 missing from
    a project's own strategy chat, no M3 present at all, unclear who can
-   grant access), treat it as a topology risk per `m2-role-rules.md` — add
+   grant access), treat it as a topology risk per `m2-role/m2-risk-rules.md` — add
    it to that project's `m2_input` with `pipeline_common.add_questions()`
    (it auto-routes to extending a pending round or opening a fresh one, so
    you don't need to check `get_last_round_status()` or pick between the

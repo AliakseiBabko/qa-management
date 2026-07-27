@@ -43,7 +43,8 @@ has already collected.
    `search_workspace.py`, `gates`, `m2-project-status-report`, or ad hoc
    analysis instead; this skill doesn't apply.
 2. Read `../qa-management-roles/references/chat-message-style-rules.md`.
-3. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Read `../qa-management-roles/references/m2-role/m2-communication-visibility.md`
+   (making M2's role explicit and avoiding an auditing tone in a reply).
 4. Identify the project and/or person this question concerns. If it can't
    be inferred and genuinely isn't clear, ask once, briefly — don't guess
    a project/person scope silently.

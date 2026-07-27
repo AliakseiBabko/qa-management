@@ -87,7 +87,7 @@ class ProjectKnowledgePlaceholderRuleTests(unittest.TestCase):
 class RegistryRefreshAfterProjectRiskTests(unittest.TestCase):
     def setUp(self):
         self.text = _normalized(
-            _read("qa-management-roles/references/m2-role-rules.md")
+            _read("qa-management-roles/references/m2-role/m2-cascading-updates.md")
         )
 
     def test_refresh_discipline_applies_regardless_of_entry_point(self):

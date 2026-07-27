@@ -59,10 +59,10 @@ at the last moment.
   scope, revisit if extended" is a complete, valid reason. A blank
   `Обоснование` next to a gap is incomplete, matching the same discipline
   used for blank metric cells elsewhere in this repository (see
-  `m2-role-rules.md`, Template Consistency).
+  `m2-role/m2-metrics-calibration.md`, Template Consistency).
 - A process-maturity gap is usually a project/PM-level condition, not a
   personal QA shortfall — this checklist reinforces the same rule already
-  in `m2-role-rules.md`'s Вклад в проект Calibration (no formal DoR/DoD,
+  in `m2-role/m2-metrics-attribution.md`'s Вклад в проект Calibration (no formal DoR/DoD,
   no TMS decision, no CI pipeline are examples given there). Do not let a
   checklist gap pull an individual's contribution judgment down on its
   own.
@@ -111,7 +111,7 @@ escalations, and client-side agreement.
   guessing.
 
 M2 is support and quality control, not an auditor of DC/PM — the same
-framing already stated in `m2-role-rules.md`'s Communication and
+framing already stated in `m2-role/m2-communication-visibility.md`'s Communication and
 Visibility section; this checklist and the escalation list above are
 tools for that support role, not a compliance audit to hold over the
 project team.

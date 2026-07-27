@@ -33,7 +33,7 @@ Escape Rate / Bug leakage rate», «Баги, найденные в проде �
 может стать строкой `individual_metrics` как сигнал контрибуции/поведения
 этого человека — но `qa_process_metrics`/`project_metrics`/
 `_project_registry` всё равно обновляются в первую очередь (см.
-`m2-role-rules.md`, Production Bug Leakage Attribution). Не создавай
+`m2-role/m2-metrics-attribution.md`, Production Bug Leakage Attribution). Не создавай
 строку `individual_metrics` по умолчанию только потому, что человек —
 единственный QA на проекте — это не эквивалент атрибуции с опорой на
 свидетельства.
@@ -115,7 +115,7 @@ QA-инженер: эти цифры описывают состояние QA-pr
 личный перформанс этого человека, и живут в `qa_process_metrics`, поднимаясь
 через `project_metrics` в `_project_registry` (см.
 `Templates\метрики_проекта_qa.md` §2, раздел Automation, и
-`m2-role-rules.md`, Automation Metric Layering). `individual_metrics` может
+`m2-role/m2-metrics-attribution.md`, Automation Metric Layering). `individual_metrics` может
 упоминать automation только через призму вклада/владения/поведения этого
 конкретного человека — например: владеет automation-фреймворком, вносит
 тесты, улучшает видимость/отчётность, нуждается в поддержке при презентации
@@ -167,7 +167,7 @@ Automation); они живут в `qa_process_metrics`, а не здесь, да
 действительно сравнимы (тот же метод сбора, та же единица для всех, у
 кого есть строка) — иначе они не значат ничего, кроме шума. Ни одна из
 них не становится автоматическим личным вердиктом сама по себе, вне
-контекста проекта и без прочтения `Пояснение` (см. `m2-role-rules.md`,
+контекста проекта и без прочтения `Пояснение` (см. `m2-role/m2-metrics-calibration.md`,
 Metrics Are Signals, Not Verdicts).
 
 - **Test documentation created/updated (тест-документация:
@@ -190,4 +190,4 @@ Metrics Are Signals, Not Verdicts).
   человека — не предположение и не "единственный QA на проекте". До RCA,
   или без явной атрибуции, находка остаётся project-level фактом в
   `qa_process_metrics`/`project_metrics`, а не строкой здесь (см.
-  `m2-role-rules.md`, Production Bug Leakage Attribution).
+  `m2-role/m2-metrics-attribution.md`, Production Bug Leakage Attribution).

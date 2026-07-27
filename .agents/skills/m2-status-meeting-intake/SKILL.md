@@ -18,9 +18,9 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
 
 1. Read `../qa-management-roles/references/aliases.md` before treating an
    unfamiliar project/person name from the transcript as new.
-2. Read `../qa-management-roles/references/m2-role-rules.md`'s
-   Project-Level Rollups and Cascading Updates sections - the routing
-   rules below apply directly.
+2. Read `../qa-management-roles/references/m2-role/m2-project-rollups.md`
+   and `../qa-management-roles/references/m2-role/m2-cascading-updates.md`
+   - the routing rules below apply directly.
 3. Read `../qa-management-roles/references/google-workspace/operational-registries.md`
    (the `evidence_log`/`source_type` conventions this skill writes into)
    and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`

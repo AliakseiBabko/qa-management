@@ -4,7 +4,7 @@ entirely missing) a placeholder project_metrics.
 
 This creates structure, not judgment. project_metrics rows and m2_input
 rounds need M2's actual read of the project to be worth anything (see
-m2-role-rules.md, Project-Level Rollups) — this script only fills in the
+m2-role/m2-project-rollups.md, Project-Level Rollups) — this script only fills in the
 schema and placeholder text so that work has somewhere to go. It never
 overwrites an existing project_metrics; if one is already there (even on
 an older schema), it's left alone and reported as skipped.
@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         "--owner",
         default=None,
         help="Named owner for qa_process_metrics. Defaults to the sole person if there's exactly one, "
-        "otherwise must be given explicitly (see m2-role-rules.md on picking an owner for multi-person "
+        "otherwise must be given explicitly (see m2-role/m2-metrics-attribution.md on picking an owner for multi-person "
         "projects).",
     )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
@@ -194,7 +194,7 @@ def main() -> int:
         else:
             raise SystemExit(
                 f"{len(people)} people on {args.project} ({', '.join(people)}) — pass --owner explicitly. "
-                "See m2-role-rules.md for how to pick one."
+                "See m2-role/m2-metrics-attribution.md for how to pick one."
             )
 
     print(f"Scaffolding {args.project} ({len(people)} people, qa_process_metrics owner: {owner})")

@@ -9,7 +9,7 @@ this script does the part that's the same every time - parse fields, find
 the existing row (by email), compute Role/Internal rank/Notes per the
 documented mapping, and show the diff. It does NOT check for contradictions
 against a project's individual_metrics/individual_development_plan (e.g.
-the AQA-vs-manual-track pattern, m2-role-rules.md Вклад в проект
+the AQA-vs-manual-track pattern, m2-role/m2-metrics-attribution.md Вклад в проект
 Calibration) - that needs reading project docs, which this script doesn't
 touch. Flag those by hand after running this.
 
@@ -195,7 +195,7 @@ def scan_track_level_mismatch(
     individual_development_plan (across their confirmed Project(s)) for
     seniority/track language that doesn't match the card, the way several
     real track/level mismatches were each found by hand before this script
-    existed (see m2-role-rules.md, Вклад в проект Calibration). Does not
+    existed (see m2-role/m2-metrics-attribution.md, Вклад в проект Calibration). Does not
     fetch anything if projects is empty - there's nowhere to look.
 
     Known limitation (confirmed while building this): only scans the

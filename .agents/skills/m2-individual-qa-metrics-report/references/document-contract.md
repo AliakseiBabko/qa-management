@@ -33,7 +33,7 @@ individual-tier definitions rather than duplicating them.
 - Every Core metric from the catalog is always a row for every person, on
   every project, whether or not there's data for it yet — this is what
   makes people and projects comparable, and what makes a blank cell mean
-  something rather than looking like an oversight (see `m2-role-rules.md`,
+  something rather than looking like an oversight (see `m2-role/m2-metrics-calibration.md`,
   Template Consistency). Don't substitute a similar-but-different local
   metric for a Core one without a real reason. If a Core metric genuinely
   can't be collected right now, the row still exists: leave `Показатель`
@@ -77,7 +77,7 @@ when only one QA engineer currently owns or maintains the framework. They
 describe the project/team QA-process asset, not this person's personal
 performance, and belong in `qa_process_metrics`, rolling up through
 `project_metrics` to `_project_registry` (see `m2-project-qa-metrics-report`'s
-document-contract and `m2-role-rules.md`, Automation Metric Layering).
+document-contract and `m2-role/m2-metrics-attribution.md`, Automation Metric Layering).
 
 `individual_metrics` may mention automation only as this person's
 contribution, ownership, or behavior. Examples of allowed individual
@@ -114,7 +114,7 @@ Suggested naming pattern:
   `Пояснение`); it does not add a second row for a metric that already has
   one. A real intake once appended a fresh dated row instead of updating
   the existing one, which is exactly the duplicate-row failure this rule
-  exists to prevent — see `m2-role-rules.md`, Cascading Updates, for the
+  exists to prevent — see `m2-role/m2-cascading-updates.md`, Cascading Updates, for the
   same discipline applied to `project_metrics`.
 - Deduplicate on (`Проект`, `Сотрудник`, `Метрика`) — `Дата` is not part of
   the key; it is the row's own "as of" field and gets overwritten along
@@ -211,7 +211,7 @@ it's worth keeping.
 Do not feed this table into the automated `project_metrics` rollup script —
 it only reads the shared `individual_metrics` Core set. Anything from here
 that should influence `project_risk` or `project_development_plan` goes
-through the normal `m2_input` two-phase gate (see `m2-role-rules.md`
+through the normal `m2_input` two-phase gate (see `m2-role/m2-project-rollups.md`
 Project-Level Rollups): raise it as a preliminary-analysis question, wait
 for M2's answer, then apply it — the same discipline as any other
 project-level rollup input, not a shortcut around it.

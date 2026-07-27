@@ -16,7 +16,10 @@ headed sections, not one row per initiative. Do not flatten it into a Sheet.
 
 1. Read `references/document-contract.md`.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
-3. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Read `../qa-management-roles/references/m2-role/m2-role-basics.md`
+   (business-value framing) and
+   `../qa-management-roles/references/m2-role/m2-development-plans.md`
+   (what a project development plan must answer).
 4. Read `../qa-management-roles/references/presale-upsell-rules.md` for the Возможности расширения (Upsell) section.
 5. Identify the target project, period, review cycle, and next review date if present.
 6. Read the existing project development plan first, then project metrics, risk summaries, and workbook status rows.

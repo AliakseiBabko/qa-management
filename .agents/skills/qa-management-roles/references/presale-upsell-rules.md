@@ -13,7 +13,7 @@ identifying where additional QA/AQA services would help, and advocating
 for them. This reference is what `m2-project-status-report` and
 `m2-project-development-plan` draw on for their "Возможности расширения
 (Upsell)" section, and what informs the "expansion opportunities" business
-metric in `m2-role-rules.md`.
+metric in `m2-role/m2-metrics-calibration.md`.
 
 ## Diagnostic Markers (Is There an Expansion Opportunity?)
 

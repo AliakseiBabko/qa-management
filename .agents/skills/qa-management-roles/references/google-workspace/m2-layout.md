@@ -44,7 +44,7 @@ Standard project folder shape:
   `m2-individual-qa-metrics-report` document-contract, Internal Variant).
 - `private\m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
   own dated rounds of questions/answers ahead of each project-level
-  rollup (see `m2-role-rules.md` Project-Level Rollups and
+  rollup (see `m2-role/m2-project-rollups.md` Project-Level Rollups and
   `Templates\m2_input.md`). One Doc per project, not a file per cycle —
   rounds are dated sections appended to it. (No longer holds a metrics
   Sheet — that moved into `project_metrics`, see above.)

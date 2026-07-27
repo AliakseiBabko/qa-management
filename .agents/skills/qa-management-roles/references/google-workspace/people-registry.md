@@ -146,12 +146,12 @@ If a card conflicts with an existing registry row for the same person (a
 different Role, Side, or rank), treat it as a correction — the card is
 direct, first-party information from M2, stronger evidence than an inferred
 role from a transcript — but still fix every document that repeated the old
-fact (see the Template Consistency note in `m2-role-rules.md`).
+fact (see the Template Consistency note in `m2-role/m2-metrics-calibration.md`).
 
 If a card's `Job Title` (e.g. AQA Engineer) conflicts with how that person's
 actual on-project work reads in `individual_metrics`/`individual_development_plan`
 (e.g. a fully manual scope), don't treat it as a contradiction to resolve
-by picking a side — see `m2-role-rules.md`'s Вклад в проект Calibration,
+by picking a side — see `m2-role/m2-metrics-attribution.md`'s Вклад в проект Calibration,
 client-driven scope-vs-track mismatch, which is very likely the actual
 explanation.
 

@@ -16,7 +16,10 @@ headed sections, not one row per focus area. Do not flatten it into a Sheet.
 
 1. Read `references/document-contract.md`.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
-3. Read `../qa-management-roles/references/m2-role-rules.md`.
+3. Read `../qa-management-roles/references/m2-role/m2-development-plans.md`
+   (what an individual project-context plan must answer) and
+   `../qa-management-roles/references/m2-role/m2-metrics-calibration.md`
+   (Template Consistency - never omit a section for lack of evidence).
 4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 5. Identify the target person and project scope.
 6. Read the existing individual development plan first, then individual metrics, person workbook rows, and project context.

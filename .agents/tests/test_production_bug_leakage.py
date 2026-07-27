@@ -165,7 +165,8 @@ class RoleRulesLeakageAttributionTests(unittest.TestCase):
                 SKILLS_DIR
                 / "qa-management-roles"
                 / "references"
-                / "m2-role-rules.md"
+                / "m2-role"
+                / "m2-metrics-attribution.md"
             )
         )
 
