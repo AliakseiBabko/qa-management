@@ -52,6 +52,23 @@ project should move to `На паузе`, or that changes a person's `Вклад
 `project_metrics` change — do not treat `project_risk` as a dead end just
 because the script doesn't read it directly.
 
+## Cross-Lane Step: Project Knowledge
+
+Standard step (2026-07-28) for every M2 document-processing pass, not just
+1:1s: after the cascade above, check whether the source carries durable
+project-understanding content (business model, architecture, workflows,
+constraints, glossary terms — see `project-knowledge-roles`) worth folding
+into that project's `pk_knowledge_base` under `30_Project_Knowledge/<Project>/`.
+Create the project's folder (`project_knowledge_workspace_layout.py`'s
+`ensure_project_folder`) if it doesn't exist yet — do not skip this step
+just because the folder is missing. This is a `judgment` edge (see
+`evidence_log`'s downstream in `document_graph.yaml`): most people-only or
+pure-judgment passes (an `m2_conversation` answer, an `admin_note`) will
+legitimately have nothing to add — record that as `no_change`, not as a
+skipped check. Only `pk_knowledge_base` itself gets touched this way, never
+`pk_test_plan`/`pk_test_strategy`/`pk_performance_test_plan` — those stay
+out of scope unless the user asks for one of them by name.
+
 This fan-out (and the M1 chain) is encoded as data in
 `.agents/document_graph.yaml`; `.agents/scripts/check_cascade_closure.py`
 expands it into a checklist and flags downstream documents not yet

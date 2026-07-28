@@ -79,7 +79,7 @@ sources:
         skills: [qa-1to1-analysis, m2-1to1-apply, m2-people-1to1-file]
         entry: [m2_people_1to1_file, individual_metrics,
                 individual_development_plan, m2_input, evidence_log,
-                _skill_invocations]
+                pk_knowledge_base, _skill_invocations]
       mixed:
         description: >-
           Single 1:1 conversation that covers both people-management and
@@ -92,7 +92,7 @@ sources:
         entry: [m1_1to1_file, m1_risk_report, _m1_timeline,
                 m2_people_1to1_file, individual_metrics,
                 individual_development_plan, m2_input, evidence_log,
-                _skill_invocations]
+                pk_knowledge_base, _skill_invocations]
   strategy_chat:
     description: >-
       Project-level strategy/status chat (not a 1:1) - client-facing or
@@ -102,7 +102,7 @@ sources:
       conclusion directly.
     skills: [m2-strategy-chat-analysis]
     entry: [_people_registry, individual_metrics, individual_development_plan,
-            m2_input, evidence_log, _skill_invocations]
+            m2_input, evidence_log, pk_knowledge_base, _skill_invocations]
   meeting_transcript:
     routes:
       multi_project:
@@ -113,7 +113,8 @@ sources:
           project_development_plan directly (see the m2_input gate below).
         # Status walkthrough covering several of M2's projects.
         skills: [m2-status-meeting-intake]
-        entry: [m2_input, action_items, evidence_log, _skill_invocations]
+        entry: [m2_input, action_items, evidence_log, pk_knowledge_base,
+                _skill_invocations]
       single_project:
         description: >-
           A meeting/transcript scoped to exactly one project (not a 1:1) -
@@ -126,7 +127,8 @@ sources:
         # action_items. Person-level facts update individual docs directly,
         # same as a strategy chat.
         skills: [qa-management-roles, m2-timeline]
-        entry: [m2_input, action_items, evidence_log, _skill_invocations]
+        entry: [m2_input, action_items, evidence_log, pk_knowledge_base,
+                _skill_invocations]
   admin_note:
     description: >-
       Short pasted admin note (e.g. a forwarded email) - a people-registry
@@ -365,7 +367,20 @@ documents:
   evidence_log:
     scope: project
     append_only: true
-    downstream: []
+    downstream:
+      - to: pk_knowledge_base
+        kind: judgment
+        note: >-
+          Cross-lane step (added 2026-07-28, standard pipeline per M2
+          request): does this source carry durable project-understanding
+          content (business model, architecture, workflows, constraints -
+          see project-knowledge-roles) worth folding into the project's
+          Project Knowledge base? Create 30_Project_Knowledge/<Project>/
+          via project_knowledge_workspace_layout.py.ensure_project_folder
+          if it doesn't exist yet. Most people-only or judgment-only
+          passes (e.g. m2_conversation, admin_note) legitimately have
+          nothing to add here - a no_change outcome is expected, not a
+          gap - but the check is not optional.
     note: >-
       Every intake writes one row; routed_to must list every document
       actually touched — it is the ground truth this closure check reads.

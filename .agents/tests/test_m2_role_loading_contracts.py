@@ -2,8 +2,13 @@
 
 The 36,613-byte monolith was replaced with a thin routing index
 (`m2-role-rules.md`) plus eight physically separated, task-scoped modules
-under `m2-role/`. These tests guard the two things a future edit could
-silently break:
+under `m2-role/`. `ORIGINAL_MONOLITH_BYTES` re-anchors to the current
+combined size whenever a legitimate rule addition pushes past the
+preservation band below (most recently 2026-07-28, for the
+Project Knowledge cross-lane step added to m2-cascading-updates.md) - the
+band's job is catching accidental content loss/duplication on an edit,
+not capping the docs' total size forever. These tests guard the two
+things a future edit could silently break:
 
 1. the loading-contract shape itself - the index stays thin, every module
    it lists exists and is titled/scoped/size-bounded, and no consuming
@@ -43,7 +48,7 @@ EXPECTED_MODULES = [
     "m2-development-plans.md",
 ]
 
-ORIGINAL_MONOLITH_BYTES = 36613
+ORIGINAL_MONOLITH_BYTES = 41124  # re-anchored 2026-07-28, see module docstring
 
 
 def _all_skill_md_texts() -> dict[Path, str]:
