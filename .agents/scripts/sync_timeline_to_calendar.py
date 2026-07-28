@@ -45,12 +45,15 @@ CALENDAR_TITLE = "QA Management Timeline"
 SOURCE_TAG = "qa-timeline-sync"
 
 # colorId values from the Calendar API's fixed event-color palette (colors().get()) -
-# not arbitrary numbers, these are Google Calendar's own IDs (11=Tomato/red,
-# 5=Banana/yellow, 10=Basil/green).
-COLOR_OVERDUE = "11"
-COLOR_DUE_SOON = "5"
-COLOR_LATER = "10"
-DUE_SOON_DAYS = 7
+# not arbitrary numbers, these are Google Calendar's own IDs (5=Banana/yellow,
+# 10=Basil/green). Policy (2026-07-28 revision): two-color distinction by
+# *kind*, not by due-soon/overdue urgency - specific scheduled deadlines are
+# yellow, the Monday weekly-review item is green. This replaces the earlier
+# three-color overdue/due-soon/later scheme; see WEEKLY_REVIEW_TYPE below for
+# how a row is recognized as the weekly-review kind.
+COLOR_SPECIFIC = "5"
+COLOR_WEEKLY_REVIEW = "10"
+WEEKLY_REVIEW_TYPE = "Weekly Review"
 
 
 def parse_mixed_date(value: str) -> dt.date | None:
@@ -72,6 +75,24 @@ def parse_mixed_date(value: str) -> dt.date | None:
         except ValueError:
             return None
     return None
+
+
+def parse_date_range(value: str) -> tuple[dt.date, dt.date] | None:
+    """A `Дата события` value can be a real single-day date (handled by
+    `parse_mixed_date`) or a short window written as `START..END`
+    (ISO dates only, e.g. `2026-07-27..2026-07-29`) - introduced for the
+    monthly timesheet-check window, which is a real 2-3 day deadline
+    window, not a single day. Returns (start, end) inclusive, or None if
+    `value` isn't a range."""
+    value = (value or "").strip()
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$", value)
+    if not match:
+        return None
+    start = dt.date.fromisoformat(match.group(1))
+    end = dt.date.fromisoformat(match.group(2))
+    if end < start:
+        return None
+    return start, end
 
 
 def parse_args() -> argparse.Namespace:
@@ -154,32 +175,38 @@ def collect_rows(services: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def build_event(item: dict[str, str], today: dt.date) -> dict[str, Any] | None:
-    event_date = parse_mixed_date(item["date"])
-    if event_date is None:
-        return None
-    if event_date < today:
-        color = COLOR_OVERDUE
-    elif (event_date - today).days <= DUE_SOON_DAYS:
-        color = COLOR_DUE_SOON
+    date_range = parse_date_range(item["date"])
+    if date_range is not None:
+        start_date, end_date = date_range
     else:
-        color = COLOR_LATER
+        single_date = parse_mixed_date(item["date"])
+        if single_date is None:
+            return None
+        start_date = end_date = single_date
+
+    color = COLOR_WEEKLY_REVIEW if item["type"] == WEEKLY_REVIEW_TYPE else COLOR_SPECIFIC
 
     label = item["project"] or item["scope"]
     summary = f"[{label}] {item['type']}: {item['task'][:80]}"
+    # Deliberately short (2026-07-28 feedback): just the task description and
+    # its source. Owner is dropped (M2 is always the owner of what's on this
+    # calendar) and Комментарии is dropped (that's Sheet-level detail for
+    # reviewing action_items itself, not something this calendar needs to
+    # carry) - if more context is wanted, the source document is right there.
     description_parts = [
-        f"Полное описание: {item['task']}",
-        f"Owner: {item['owner']}" if item["owner"] else "",
-        f"Тип: {item['type']}",
+        item["task"],
         f"Источник: {item['source']}" if item["source"] else "",
-        f"Комментарии: {item['comments']}" if item["comments"] else "",
     ]
     description = "\n".join(p for p in description_parts if p)
+
+    # All-day multi-day events use an *exclusive* end date per the Calendar API.
+    end_exclusive = end_date + dt.timedelta(days=1)
 
     return {
         "summary": summary,
         "description": description,
-        "start": {"date": event_date.isoformat()},
-        "end": {"date": event_date.isoformat()},
+        "start": {"date": start_date.isoformat()},
+        "end": {"date": end_exclusive.isoformat()},
         "colorId": color,
         "extendedProperties": {"private": {"source": SOURCE_TAG}},
     }

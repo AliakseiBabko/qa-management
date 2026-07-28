@@ -60,10 +60,37 @@ Use exactly the columns in `Templates\action_items.csv`:
    to revisit it. Leave the cell blank only if none of those fit and the
    schema's consumers (`_timeline`'s sort, the Calendar sync) can tolerate
    it; a cadence label is the safer default. Either way, name in
-   `Комментарии` what would turn the label into a real date.
+   `Комментарии` what would turn the label into a real date. A short
+   multi-day deadline window (e.g. the monthly timesheet-check window) can
+   be written as `START..END` (ISO dates, e.g. `2026-07-27..2026-07-29`) —
+   `sync_timeline_to_calendar.py` renders this as one multi-day all-day
+   Calendar event rather than a single-day one. Don't use the range syntax
+   for anything that isn't genuinely a multi-day window.
 3. `Тип` — free text but keep to a small consistent set: `Встреча`
    (1:1/status/client sync), `Отчёт/статус в чат`, `Дедлайн`, `Follow-up`
-   (a clarification owed to or from someone), `Прочее`.
+   (a clarification owed to or from someone), `Weekly Review` (the one
+   recurring Monday M2 planning/review item — see Calendar policy below),
+   `Прочее`.
+
+## Calendar Policy (2026-07-28 revision)
+
+`sync_timeline_to_calendar.py` colors events by *kind*, not by
+overdue/due-soon urgency: yellow (`colorId 5`) for a specific scheduled
+deadline/action, green (`colorId 10`) for the `Weekly Review` row. The
+Calendar is meant to show only real scheduled commitments — a project
+closure date, an explicit M2 deadline, a scheduled 1:1, a promised
+deliverable with a real date, or the timesheet-check window — not
+informational events owned by someone else, wishlist ideas, or vague
+follow-ups with no real deadline. Non-scheduled "needs attention" items
+(verify an overdue promise was kept, chase a soft commitment with no fixed
+meeting, etc.) belong inside the weekly `Weekly Review` row's task text,
+not as their own dated Calendar rows — do not assign a row a date just to
+force it onto the Calendar. There is deliberately no automatic weekly/
+monthly recurrence for either the timesheet window or the `Weekly Review`
+row (the sync script fully regenerates the Calendar from current
+`action_items` rows each run, which doesn't compose cleanly with the
+Calendar API's native RRULE recurrence) — log the next period's row by
+hand when it comes due.
 4. `Что нужно сделать` — concrete, one action, not a vague intention.
 5. `Статус` — `Открыто`, `Выполнено`, or `Отменено`.
 6. `Owner` — who acts on it: `M2`, a named QA, or the client side. Never blank.

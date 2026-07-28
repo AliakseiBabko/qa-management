@@ -36,14 +36,13 @@ from show_project_state import find_folder
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values, upsert_sheet
 
 VIEW_TITLE = "_timeline_looker_view"
-# "Дата (конец)" = "Дата (начало)" + 1 day - the same exclusive-end
-# convention Google Calendar itself uses for all-day events (see
-# sync_timeline_to_calendar.py: an all-day event's API "end.date" is the
-# next day). Every row here is a single-point deadline/event, not a
-# multi-day task, so there is no genuine multi-day span to report - this
-# is not a fabricated duration, it is "this item occupies its one day,"
-# which a zero-length start=end bar renders as invisible in Data Studio's
-# Timeline chart.
+# "Дата (конец)" = "Дата (начало)" + 1 day for a single-point deadline/
+# event (the same exclusive-end convention Google Calendar itself uses for
+# all-day events - a zero-length start=end bar renders as invisible in
+# Data Studio's Timeline chart). A genuine multi-day window (`Дата
+# события` written as `START..END`, e.g. the monthly timesheet-check
+# window) instead reports its real end date + 1 day - see
+# parse_date_or_range.
 VIEW_HEADER = ["Дата (начало)", "Дата (конец)", "Проект", "Scope", "Тип", "Что нужно сделать", "Owner", "Статус", "Источник", "Комментарии"]
 DUE_SOON_DAYS = 7
 
@@ -66,6 +65,21 @@ def parse_mixed_date(value: str) -> dt.date | None:
     return None
 
 
+def parse_date_or_range(value: str) -> tuple[dt.date, dt.date] | None:
+    """Same `START..END` window convention as
+    sync_timeline_to_calendar.py.parse_date_range (e.g. the monthly
+    timesheet-check window) - returns (start, end) inclusive for a range,
+    or (date, date) for a single real date. None if unparseable."""
+    value = (value or "").strip()
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$", value)
+    if match:
+        start = dt.date.fromisoformat(match.group(1))
+        end = dt.date.fromisoformat(match.group(2))
+        return (start, end) if end >= start else None
+    single = parse_mixed_date(value)
+    return (single, single) if single else None
+
+
 def status_of(event_date: dt.date, today: dt.date) -> str:
     diff = (event_date - today).days
     if diff < 0:
@@ -85,12 +99,13 @@ def collect_rows(services: dict[str, Any], today: dt.date) -> list[list[str]]:
         for row in read_sheet_values(services, m2_timeline["id"])[1:]:
             if len(row) < 5 or row[4].strip() != "Открыто":
                 continue
-            event_date = parse_mixed_date(row[1])
-            if event_date is None:
+            date_range = parse_date_or_range(row[1])
+            if date_range is None:
                 continue
+            start_date, end_date = date_range
             rows_out.append(
-                [event_date.isoformat(), (event_date + dt.timedelta(days=1)).isoformat(), row[0], "M2", row[2], row[3],
-                 row[5] if len(row) > 5 else "", status_of(event_date, today),
+                [start_date.isoformat(), (end_date + dt.timedelta(days=1)).isoformat(), row[0], "M2", row[2], row[3],
+                 row[5] if len(row) > 5 else "", status_of(start_date, today),
                  row[6] if len(row) > 6 else "", row[7] if len(row) > 7 else ""]
             )
 
@@ -101,12 +116,13 @@ def collect_rows(services: dict[str, Any], today: dt.date) -> list[list[str]]:
             for row in read_sheet_values(services, m1_timeline["id"])[1:]:
                 if len(row) < 5 or row[4].strip() != "Открыто":
                     continue
-                event_date = parse_mixed_date(row[1])
-                if event_date is None:
+                date_range = parse_date_or_range(row[1])
+                if date_range is None:
                     continue
+                start_date, end_date = date_range
                 rows_out.append(
-                    [event_date.isoformat(), (event_date + dt.timedelta(days=1)).isoformat(), row[0], "M1", row[2], row[3],
-                     row[5] if len(row) > 5 else "", status_of(event_date, today),
+                    [start_date.isoformat(), (end_date + dt.timedelta(days=1)).isoformat(), row[0], "M1", row[2], row[3],
+                     row[5] if len(row) > 5 else "", status_of(start_date, today),
                      row[6] if len(row) > 6 else "", row[7] if len(row) > 7 else ""]
                 )
 
