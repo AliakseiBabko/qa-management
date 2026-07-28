@@ -23,6 +23,39 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
    (this skill writes Docs/Sheets directly).
 
+## Live/Interactive Investigation Sources
+
+A Project Knowledge source does not have to be a file already dropped in
+`00_Inbox`. A live admin console, repository browser, API call log,
+notebook-style source collection, generated endpoint documentation, or
+browser-opened document can all be valid sources. Classify by shape: a
+live system/log/repo investigation is usually `project_knowledge_notes`;
+a spec, PDF, exported doc, or written artifact reached through that
+investigation is usually `project_knowledge_document`. Apply the same
+full discipline either way: summary where appropriate, `pk_source_index`
+row, `pk_knowledge_base` update or explicit `no_change`, Change Log, and
+`_skill_invocations`.
+
+Repeated live-investigation patterns:
+
+- A live operational log beats a static doc for "what is actually used"
+  questions. When a system exposes its own call/audit log, prioritize
+  checking it before inferring from specs, generated docs, or source code.
+- Notebook-style AI-curated source collections can duplicate material
+  already reviewed elsewhere. Check their source list before treating the
+  collection as new content, and prefer the collection's source summaries
+  or guide panels when those are the fastest reliable path to the facts.
+- Browser-opened document editors can resist DOM scraping because content
+  lazy-loads or renders per page. If automation is not quickly exposing
+  the text, don't burn repeated tool calls fighting the renderer:
+  - For an online spreadsheet, try driving the editor's own **File >
+    Export > Download as** (CSV/TXT) yourself first, then inspect the
+    downloaded file directly - this reliably beats scraping a
+    virtualized/canvas-rendered grid, and needs no back-and-forth with
+    the user.
+  - For an online word processor (or anything the export route doesn't
+    solve), ask the user to paste the raw text instead.
+
 ## Workflow
 
 1. **Summarize, if appropriate.** For `project_knowledge_transcript`/
@@ -100,6 +133,12 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
 6. **Log `_skill_invocations`** via `pipeline_common.log_skill_invocation()`
    with `source_type` set to the source's actual type and `Documents
    touched` listing everything actually written this pass.
+   Before moving to the next source, check whether the user corrected a
+   routing, wording, or judgment call in this pass. If so, log a
+   separate `feedback:`-prefixed row in the same pass, following
+   `operational-registries.md`'s convention. Do not leave that correction
+   only in conversation history or as a later mental note; `qa-retro`
+   cannot see it unless it is logged.
 
 ## Guardrails
 
