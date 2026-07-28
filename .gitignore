@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 tmp/
 .vscode/
+.playwright-mcp/
 # Machine-local Claude Code skill adapter (link to .agents/skills, the
 # canonical source). Untracked so linked skill contents cannot be staged.
 .claude/skills
