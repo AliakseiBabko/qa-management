@@ -147,3 +147,58 @@ JSON envelope at the end) for programmatic agent integration. Rows hold operatio
 metadata and short summaries only — never transcript content or analysis bodies.
 The queue's `Run ID` is the canonical run id used in `_closure_outcomes`,
 `_skill_invocations` notes, and mirror commit messages.
+
+## Closing Out Conversational (No-Queue) Processing
+
+For a source processed through the queue (`qa_manage.py start` →
+`record-apply` → `complete`), archiving is already an explicit, *enforced*
+step: `complete`'s readiness check blocks on `"Source original is still in
+00_Inbox; run archive-source before snapshotting"` until `archive-source`
+has moved the file to
+`90_Storage/Processed_Sources/<year>/<month>/<run-id>/`. That machinery
+already works and needs nothing added — this section is about the gap
+next to it.
+
+When a source instead gets processed **conversationally** — read
+directly, analyzed, and routed through a skill's cascade without ever
+running `qa_manage.py start` — nothing in the state machine stops the file
+from sitting in `00_Inbox` indefinitely. A clean
+`check_cascade_closure.py` only means the *business documents* are in
+sync; it says nothing about the source file. Close this out explicitly,
+in the same pass:
+
+1. Discover the source's row via `qa_manage.py scan` (or find it directly
+   in `_intake_queue` if scan no longer reports it as new — this happens
+   once a run already exists for it in a non-`discovered` state).
+2. Mark it `historical` (`qa_manage.py mark-historical <run-id>
+   --evidence "..."`, citing the `evidence_log` row/date and the
+   `_skill_invocations` row that prove it was actually processed). This
+   is for a source that was genuinely, validly processed outside the
+   queue — not for a duplicate (see below, different command).
+3. Move the file itself from `00_Inbox` to
+   `90_Storage/Processed_Sources/<year>/<month>/<run-id>/`, the same
+   destination convention `archive-source` uses for queue-managed runs.
+
+This has already been missed twice on real items (a processed source left
+in `00_Inbox` until the user pointed it out, on two separate occasions) —
+treat it as a standing step of every conversational intake pass, not an
+optional tidy-up.
+
+**Duplicates are a different case, with a different command — never ad
+hoc deletion.** If a discovered source turns out to be a duplicate
+(identical content already processed under a different path), the correct
+route is `qa_manage.py ignore <run-id> --category duplicate_data_quality
+--reason "..." --evidence "..."`, not `mark-historical` (which asserts the
+source *was validly processed*, not that it's redundant). `ignore` only
+updates the queue row's judgment — it does not touch the physical file.
+Deleting the actual duplicate file is a separate, explicit action that
+still needs the user's own go-ahead each time; neither `mark-historical`
+nor `ignore` implies it, and this rule does not authorize doing it
+unprompted.
+
+When you make a correction during a pass because the user pushed back on a
+routing/wording/judgment call, actually use the `feedback:`-prefixed
+`_skill_invocations` Notes convention (see above) for it at the time, not
+just as a passing mention in the conversation — `prepare_retro.py` only
+sees what's logged this way, and a correction that only lives in chat
+history is invisible to the retro loop.

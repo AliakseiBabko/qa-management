@@ -2,8 +2,13 @@
 
 The 46 KB monolith was replaced with a thin routing index
 (`google-workspace-rules.md`) plus nine physically separated, task-scoped
-modules under `google-workspace/`. These tests guard the two things a
-future edit could silently break:
+modules under `google-workspace/`. `ORIGINAL_MONOLITH_BYTES` re-anchors to
+the current combined size whenever a legitimate rule addition pushes past
+the preservation band below (most recently 2026-07-28, for the
+conversational-processing closeout rule added to operational-registries.md)
+- the band's job is catching accidental content loss/duplication on an
+edit, not capping the docs' total size forever. These tests guard the two
+things a future edit could silently break:
 
 1. the loading-contract shape itself - the index stays thin, every module
    it lists exists and is titled/scoped/size-bounded, and no consuming
@@ -49,7 +54,7 @@ EXPECTED_MODULES = [
     "pipeline-architecture.md",
 ]
 
-ORIGINAL_MONOLITH_BYTES = 46330
+ORIGINAL_MONOLITH_BYTES = 53829  # re-anchored 2026-07-28, see module docstring
 
 
 def _all_skill_md_texts() -> dict[Path, str]:

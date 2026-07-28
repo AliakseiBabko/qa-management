@@ -44,6 +44,15 @@ Usage (from the skills-repo root, where .local/google lives):
 
 Run it at the end of every pass that wrote to canonical documents (and it
 is harmless anytime - no changes means no commit).
+
+Concurrency: a full export can take several minutes (the slowest observed
+step is a single large Doc export). Do not start a second run while one
+from the same session may still be in flight - check that a prior
+backgrounded invocation has actually reported completion first. Two
+concurrent runs have not yet corrupted the mirror in practice (git's
+own serialization has papered over it so far), but that is luck, not a
+guarantee - treat "is the previous commit done yet" as a real check, not
+a formality.
 """
 
 from __future__ import annotations
