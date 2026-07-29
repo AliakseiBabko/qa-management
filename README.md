@@ -407,6 +407,16 @@ These are what actually runs day to day, once a project's folder already exists:
   duplicating them. `find_*` functions never create anything; `ensure_*`
   functions create what's missing (a project folder is only created when a
   source is actually being processed into it, never by a read command).
+- `resolve_drive_path.py` — read-only lookup: resolves a local path under
+  the user's Google Drive-for-Desktop mirror (`G:\My Drive\QA_Management\...`)
+  to its real Drive file/folder (`id`, `mimeType`, `webViewLink`), walking
+  the same folder tree by name that `qa_manage.compute_source_file_hash`
+  already uses internally. Exists because `.gdoc`/`.gsheet`/`.gslides`
+  placeholders in that mirror have no readable bytes on disk at all - a
+  direct file read fails with an I/O error even though the file looks
+  normal - so this is the way to get from "a local path the user pasted or
+  dropped in 00_Inbox" to something the Docs/Sheets API (or an export URL)
+  can actually open, with no browser automation involved.
 - `migrate_workspace_root_layout.py` — legacy-to-current source lifecycle migration.
   `audit` is read-only; `apply` fails closed if any item lacks a queue-backed
   disposition. It moves active sources to `00_Inbox`, processed originals to

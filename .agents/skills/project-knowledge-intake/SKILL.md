@@ -45,6 +45,19 @@ Repeated live-investigation patterns:
   already reviewed elsewhere. Check their source list before treating the
   collection as new content, and prefer the collection's source summaries
   or guide panels when those are the fastest reliable path to the facts.
+- A source dropped as a local path under the user's Google Drive mirror
+  (`G:\My Drive\QA_Management\...`) ending in `.gdoc`/`.gsheet`/`.gslides`
+  is **not** a real file - Drive for Desktop keeps no readable bytes for
+  Google-native types locally, so `Read`/`cat`/`Get-Content` on it fails
+  with an I/O error even though it looks like a normal small file. This is
+  not a live/interactive-investigation source needing browser automation -
+  resolve it straight to the real Drive file via
+  `python resolve_drive_path.py "<local path>"` (see
+  `../qa-management-roles/references/google-workspace/api-sharing-editing.md`,
+  "Resolving A Local Drive-Mirror Path") and then read/export it through the
+  Docs/Sheets API directly. Reach for a live browser only when the source
+  genuinely has no corresponding local mirror path (a bare Drive URL the
+  user pasted with nothing synced locally) or the API path itself fails.
 - Browser-opened document editors can resist DOM scraping because content
   lazy-loads or renders per page. If automation is not quickly exposing
   the text, don't burn repeated tool calls fighting the renderer:
