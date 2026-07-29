@@ -59,6 +59,42 @@ The M2 tree uses folders as explicit permission boundaries:
   automation must verify the target folder, intended audience, and absence
   of private descendants before adding permissions.
 
+## Resolving A Local Drive-Mirror Path (No Browser Needed)
+
+The user's Google Drive for Desktop app mirrors this Drive account 1:1 at
+`G:\My Drive\QA_Management` (`qa_manage.DATA_ROOT`), itself the Drive folder
+`sync_m2_source_docs_to_sheets.ROOT_FOLDER_ID`. A `.gdoc`/`.gsheet`/
+`.gslides` file in that mirror is a Google-native placeholder with no
+readable bytes on disk - opening it with `Read`, `cat`, `Get-Content`, or
+`[System.IO.File]::ReadAllBytes` fails with "Incorrect function" (or
+similar), even though `Get-Item` reports a plausible size. This is expected
+Google Drive for Desktop behavior, not a broken file or a sandboxing issue -
+**do not** attempt to read it as a regular file, and do not fall back to
+opening a live browser and clicking through Drive's search UI to find it.
+Instead, resolve the local path straight to the real Drive file via the API:
+
+```
+python resolve_drive_path.py "G:\My Drive\QA_Management\00_Inbox\PKF\PKF - Perfomance Strategy v2.gdoc"
+```
+
+This walks the same folder tree by name via `drive.files().list` (the exact
+technique `qa_manage.compute_source_file_hash` already uses internally for
+Google-native placeholders) and returns the file's real `id`,
+`mimeType`, and `webViewLink`. Once you have the `id`, read/write it
+directly - `docs_service.documents().get(documentId=id)` for a Doc,
+`sheets_service.spreadsheets().values().get(spreadsheetId=id, range=...)`
+for a Sheet, or the export endpoints
+(`https://docs.google.com/document/d/<id>/export?format=txt`,
+`.../spreadsheets/d/<id>/export?format=xlsx`) if a plain-text/CSV dump is
+more convenient than working with the structured API response. None of this
+needs a browser tool at all; a browser is only a fallback if the local path
+truly isn't under `DATA_ROOT` (e.g. the user pastes a bare Drive URL with no
+corresponding local mirror path) or the API call itself fails for another
+reason. The same resolution also works the other direction in miniature: if
+you already know the local folder path the user is talking about, resolving
+it this way gives you the same "folder → Drive URL" mapping the user would
+otherwise have to look up and paste by hand.
+
 ## Docs API Editing
 
 - When updating an existing Doc's content in bulk, clear the whole body
@@ -68,3 +104,16 @@ The M2 tree uses folders as explicit permission boundaries:
   `insertText`, its paragraph style resets to normal text — you must reapply
   `updateParagraphStyle` (e.g. `HEADING_2`) afterward, or the heading silently
   stops looking like a heading.
+- When replacing one paragraph's text in place via `deleteContentRange` +
+  `insertText`, get the paragraph's own `startIndex`/`endIndex` from a fresh
+  `documents().get()` call and delete range `[startIndex, endIndex - 1)` -
+  `endIndex` itself is exclusive and its last position is the paragraph's own
+  trailing `\n`. Deleting one index too far in either direction (off by one
+  on `startIndex` or using `endIndex` unadjusted) eats that newline and
+  silently merges the paragraph into its neighbor - the two paragraphs read
+  as one run-on block, invisible until you actually re-fetch and inspect
+  paragraph boundaries afterward. When applying several such replacements
+  (or heading-relative inserts) in one `batchUpdate`, process them in
+  descending index order in the request list so an edit near the end of the
+  document never invalidates the indices of an edit you computed earlier for
+  content before it.
