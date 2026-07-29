@@ -55,9 +55,14 @@ Repeated live-investigation patterns:
   `python resolve_drive_path.py "<local path>"` (see
   `../qa-management-roles/references/google-workspace/api-sharing-editing.md`,
   "Resolving A Local Drive-Mirror Path") and then read/export it through the
-  Docs/Sheets API directly. Reach for a live browser only when the source
-  genuinely has no corresponding local mirror path (a bare Drive URL the
-  user pasted with nothing synced locally) or the API path itself fails.
+  Docs/Sheets API directly. Never fall back to a live browser for a source
+  under this Drive mirror, even if `resolve_drive_path.py` or the follow-up
+  API call hits a snag - debug that instead. A live browser is reserved for
+  a genuinely different case: an external system outside this Drive account,
+  gated behind its own separate login (e.g. the Unicard project's documents,
+  unreachable by any Drive/Sheets/Docs API call this OAuth client has) - a
+  narrow, deliberate exception, not a general fallback for local-mirror
+  sources.
 - Browser-opened document editors can resist DOM scraping because content
   lazy-loads or renders per page. If automation is not quickly exposing
   the text, don't burn repeated tool calls fighting the renderer:
