@@ -39,6 +39,12 @@ em-dash rule, which applies here too.
   middle: a workable starting point, visible improvement areas, and a plan
   to support the person. Preserve that balance unless the evidence or the
   user explicitly says otherwise.
+- **For candidate/project fit replies, use the user's direct match/mismatch
+  framing.** Separate the written role description from the real current
+  project need, name the concrete stack/domain fit, then state the practical
+  conditions under which the candidate should or should not be submitted.
+  Keep the wording business-direct and avoid softening a clear "not a match"
+  into a generic maybe.
 - General shape that works: short direct opener (who you are + why you're
   writing) → 2-4 topics, bulleted if there's more than one → one sentence
   on why the input matters/what it's for → no closing meta-ask unless
