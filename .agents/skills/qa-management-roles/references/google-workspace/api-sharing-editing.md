@@ -87,13 +87,24 @@ for a Sheet, or the export endpoints
 (`https://docs.google.com/document/d/<id>/export?format=txt`,
 `.../spreadsheets/d/<id>/export?format=xlsx`) if a plain-text/CSV dump is
 more convenient than working with the structured API response. None of this
-needs a browser tool at all; a browser is only a fallback if the local path
-truly isn't under `DATA_ROOT` (e.g. the user pastes a bare Drive URL with no
-corresponding local mirror path) or the API call itself fails for another
-reason. The same resolution also works the other direction in miniature: if
-you already know the local folder path the user is talking about, resolving
-it this way gives you the same "folder → Drive URL" mapping the user would
-otherwise have to look up and paste by hand.
+needs a browser tool at all. The same resolution also works the other
+direction in miniature: if you already know the local folder path the user
+is talking about, resolving it this way gives you the same "folder → Drive
+URL" mapping the user would otherwise have to look up and paste by hand.
+
+**Never reach for a live browser when the user hands you a local path under
+this Drive mirror** (`G:\My Drive\QA_Management\...`), even a `.gdoc`/
+`.gsheet` placeholder that looks unreadable, and even if `resolve_drive_path.py`
+or the follow-up API call hits a snag - debug that (wrong path, stale OAuth
+token, wrong scope) rather than falling back to a browser as a workaround.
+The one legitimate use of a live browser in this workspace is a genuinely
+different situation: an external system that isn't this Drive account at
+all and sits behind its own separate login (the precedent being Unicard
+project documents gated behind their own credentials, unreachable by any
+Drive/Sheets/Docs API call this OAuth client has). That is a deliberate,
+narrow exception for credential-gated external systems - it is not a general
+fallback for "the API path was inconvenient" or "the local path didn't
+resolve," and must not be broadened into one.
 
 ## Docs API Editing
 
@@ -104,6 +115,27 @@ otherwise have to look up and paste by hand.
   `insertText`, its paragraph style resets to normal text — you must reapply
   `updateParagraphStyle` (e.g. `HEADING_2`) afterward, or the heading silently
   stops looking like a heading.
+- The same inheritance runs the other way too, and is easier to miss: `insertText`
+  at a location that sits exactly at a heading paragraph's own `startIndex`
+  (the common "insert new content right before this section's heading" move)
+  makes every newly-inserted paragraph inherit that heading's style — the
+  content silently becomes a run of fake `HEADING_2` paragraphs, not the
+  `NORMAL_TEXT` you intended. This produced a real incident: several rounds of
+  "append new facts before the next heading" on a `pk_knowledge_base` document
+  quietly turned every appended paragraph into a heading, and it wasn't
+  caught until a later pass dumped all `HEADING_2` paragraphs and found
+  6–20-paragraph runs where only one real section heading should have been.
+  The fix is generic and works even after the fact: fetch the document, find
+  every run of *consecutive* `HEADING_2` paragraphs (`start` of one equals
+  `end` of the previous), and reset every paragraph in the run except the
+  last one (the real heading) to `NORMAL_TEXT` — a real heading is never
+  immediately followed by another heading with zero content between them, so
+  this is a safe, general repair. Better: avoid it going in by *always*
+  appending an explicit `updateParagraphStyle: NORMAL_TEXT` request over the
+  inserted range in the same `batchUpdate` as the `insertText`, exactly as
+  `pipeline_common._insert_blocks` already does — don't skip that step just
+  because the insertion point "looks like" plain body text; the paragraph
+  mark you're inserting before is never guaranteed to be `NORMAL_TEXT`.
 - When replacing one paragraph's text in place via `deleteContentRange` +
   `insertText`, get the paragraph's own `startIndex`/`endIndex` from a fresh
   `documents().get()` call and delete range `[startIndex, endIndex - 1)` -
