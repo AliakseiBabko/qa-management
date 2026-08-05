@@ -42,7 +42,7 @@ class TestM2WorkspaceLayout(unittest.TestCase):
         )
         self.assertEqual(
             ("private", "people", "Person A"),
-            layout.canonical_folder_parts("individual_metrics_internal", "Person A"),
+            layout.canonical_folder_parts("individual_risk", "Person A"),
         )
         self.assertEqual(
             ("private", "people", "Person A"),

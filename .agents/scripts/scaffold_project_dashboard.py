@@ -1,5 +1,5 @@
 """Scaffold the M2-only dashboard artifacts for one project: qa_process_metrics,
-individual_metrics_internal (per person), m2_input, action_items, and (only if
+individual_risk (per person), m2_input, action_items, and (only if
 entirely missing) a placeholder project_metrics.
 
 This creates structure, not judgment. project_metrics rows and m2_input
@@ -40,7 +40,11 @@ from m2_workspace_layout import ensure_document_folder, list_project_people
 EMPTY_ROUND_PLACEHOLDER = "(placeholder - раунд создан автоматически, вопросов ещё нет)"
 
 QA_HEADER = ["Проект", "Период", "Метрика", "Показатель", "Пояснение", "Owner", "Тренд"]
-INTERNAL_HEADER = ["Проект", "Сотрудник", "Дата", "Сторона", "Метрика", "Показатель", "Пояснение", "Тренд"]
+INTERNAL_RISK_HEADER = [
+    "Проект", "Сотрудник", "Дата обновления",
+    "Риск с нашей стороны (мы недовольны)", "Риск со стороны сотрудника (он недоволен)",
+    "Комментарии", "План действий",
+]
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 
 # Core 6 only (2026-07-17, extended 2026-07-26 with production bug leakage)
@@ -85,7 +89,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         dest="people",
-        help="A person's name to scaffold individual_metrics_internal for. Repeat for multiple people; if "
+        help="A person's name to scaffold individual_risk for. Repeat for multiple people; if "
         "omitted, every existing people/<Person> subfolder is used.",
     )
     parser.add_argument(
@@ -113,12 +117,17 @@ def scaffold_qa_process_metrics(services: dict, project_folder_id: str, project:
     return "qa_process_metrics: created"
 
 
-def scaffold_individual_metrics_internal(services: dict, person_folder_id: str, project: str, person: str) -> str:
+def scaffold_individual_risk(services: dict, person_folder_id: str, project: str, person: str) -> str:
     drive = services["drive"]
-    if find_sheet_in_folder(drive, person_folder_id, "individual_metrics_internal"):
-        return f"individual_metrics_internal ({person}): already exists, skipped"
-    create_sheet(services, "individual_metrics_internal", person_folder_id, [INTERNAL_HEADER])
-    return f"individual_metrics_internal ({person}): created"
+    if find_sheet_in_folder(drive, person_folder_id, "individual_risk"):
+        return f"individual_risk ({person}): already exists, skipped"
+    # Single placeholder row, not a blank header only - this Sheet is a living,
+    # one-row-per-person current-state record (see Templates/individual_risk.csv
+    # and m2-individual-qa-metrics-report/references/internal-variant.md), not a
+    # log; scaffolding still leaves the row's judgment cells blank for M2 to fill.
+    placeholder_row = [project, person, "", "", "", "", ""]
+    create_sheet(services, "individual_risk", person_folder_id, [INTERNAL_RISK_HEADER, placeholder_row])
+    return f"individual_risk ({person}): created"
 
 
 def scaffold_project_metrics(services: dict, project_folder_id: str, project: str, people: list[str], period: str) -> str:
@@ -204,9 +213,9 @@ def main() -> int:
     print(" ", scaffold_qa_process_metrics(services, team_folder["id"], args.project, owner, period))
     for person in people:
         private_person = ensure_document_folder(
-            drive, project_folder["id"], "individual_metrics_internal", person
+            drive, project_folder["id"], "individual_risk", person
         )
-        print(" ", scaffold_individual_metrics_internal(
+        print(" ", scaffold_individual_risk(
             services, private_person["id"], args.project, person
         ))
     print(" ", scaffold_m2_input(services, private_folder["id"], args.project, period))

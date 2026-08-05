@@ -30,7 +30,7 @@ PROJECT_PRIVATE_ROLES = {
 }
 PROJECT_TEAM_SHARED_ROLES = {"qa_process_metrics"}
 PERSON_SHARED_ROLES = {"individual_metrics", "individual_development_plan"}
-PERSON_PRIVATE_ROLES = {"individual_metrics_internal", "m2_people_1to1_file"}
+PERSON_PRIVATE_ROLES = {"individual_risk", "m2_people_1to1_file"}
 FOLDER_ROLES = {"m2_input", "status_reports"}
 
 

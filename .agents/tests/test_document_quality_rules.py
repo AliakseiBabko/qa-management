@@ -70,7 +70,8 @@ class IndividualMetricsInternalVariantCurrentStateTests(unittest.TestCase):
         self.normalized = _normalized(self.text)
 
     def test_internal_variant_matches_current_state_model(self):
-        self.assertIn("Same current-state/dedup mechanics", self.normalized)
+        self.assertIn("one row**, updated in place", self.normalized)
+        self.assertIn("not** an append-only log", self.normalized)
         self.assertNotIn("Same append-only/dedup mechanics", self.normalized)
 
 

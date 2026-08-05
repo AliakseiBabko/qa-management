@@ -46,7 +46,7 @@ line.
 See SKILL.md, Source Order — the priority there is the actual contract:
 `individual_metrics` blanks first, then `individual_development_plan` open
 items, then `project_metrics` contribution-row caveats, then open
-`m2_input` questions this person can answer, then `individual_metrics_internal`
+`m2_input` questions this person can answer, then `individual_risk`
 (reframed, never quoted), then `qa_process_metrics` gaps owned by them.
 
 ## Normalization
