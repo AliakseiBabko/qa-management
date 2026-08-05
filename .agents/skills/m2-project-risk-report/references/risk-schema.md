@@ -15,15 +15,15 @@ Use this reference for the project-risk document family.
 
 ## Expected Output
 
-One project-risk traffic-light document per reporting snapshot.
+One living project-risk Sheet per project — not a dated snapshot series.
+Exactly one row per project, updated in place as the risk read changes
+(same shape/discipline as `project_metrics`, M1's `Светофор рисков`, and
+the person-level `individual_risk`, see `m2-individual-qa-metrics-report/
+references/internal-variant.md`).
 
-Suggested target folder:
+Target folder:
 
-`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>`
-
-Suggested naming pattern:
-
-`светофор_рисков_проекта_YYYY-MM-DD.csv`
+`G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\private`
 
 ## Versioning
 
@@ -36,25 +36,36 @@ Suggested naming pattern:
   output is a raw source dump, not a compliant row — never treat it as
   already following this schema. When applying this schema to a project for
   the first time (or fixing a row that reads like disconnected fragments
-  instead of one coherent risk assessment per column), back up the old row
-  as `project_risk_predecessor_<date>` and write a real synthesized row from
-  the evidence, the same way this has already been done for other projects.
-  `sync_m2_source_docs_to_sheets.py` uses this same extraction path — it
-  only creates `project_risk` when one doesn't exist yet (a rough
-  bootstrap) and never overwrites an existing one, specifically so rerunning
-  it can't silently replace a real synthesized row with fragments again.
-- Use the living project-local `project_risk` file for current state, and append
-  source traceability to the project `evidence_log`.
-- Do not overwrite an existing formal dated project-risk snapshot by default.
-- If the target snapshot-date file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
-- Update an existing project-risk snapshot in place only when the user explicitly asks for revision.
+  instead of one coherent risk assessment per column), write a real
+  synthesized row from the evidence directly into the project's one current
+  row — do not create a `project_risk_predecessor_<date>` backup file
+  first; that dated-backup pattern belonged to the old per-snapshot model
+  and has no place in a living, one-row document (a bad prior row just
+  gets corrected in place, the same as any other stale cell). `sync_m2_source_docs_to_sheets.py`
+  uses this same extraction path — it only creates `project_risk` when one
+  doesn't exist yet (a rough bootstrap) and never overwrites an existing
+  one, specifically so rerunning it can't silently replace a real
+  synthesized row with fragments again.
+- **One row per project, always.** Update that project's existing row in
+  place when the risk read changes — never append a second dated row for
+  a project already on the Sheet, even for a routine no-change review.
+  `Дата обновления` carries the freshness signal; there is no separate
+  snapshot-date key. Append source traceability to the project
+  `evidence_log`, not a new row here.
+- Do not create a dated snapshot file/tab per review. If the user
+  explicitly wants a point-in-time archival export (e.g. for a formal
+  reporting event), create one as a clearly-labeled one-off — that is the
+  exception, not the default working pattern.
 
 ## Schema
 
 Use exactly the columns in `Templates\светофор_рисков_проекта.csv`:
 
 1. `Проект`
-2. `Период / snapshot date`
+2. `Дата обновления` — ISO or `DD.MM.YYYY` (match what's already in the
+   Sheet), the date this row's content last actually changed. Do not
+   touch it when only reading/reviewing, and do not backdate or leave it
+   stale after a real edit.
 3. `Общий уровень риска`
 4. `Риск delivery`
 5. `Риск QA process`
