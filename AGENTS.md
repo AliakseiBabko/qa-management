@@ -88,6 +88,11 @@ cleaned automatically; it never gets written to `.local/`.
 - About to write an ad hoc Drive/Sheets/Docs script? Read README's
   **Current pipeline scripts** section first - most tasks already map to
   an existing one.
+- If a Drive/Sheets/Docs-backed script fails with `WinError 10013`, socket
+  permission errors, DNS/host resolution, or another sandbox-style network
+  block, immediately rerun the same command with network/escalated
+  permissions. Do not treat that first sandbox failure as evidence that
+  Drive access is unavailable.
 
 ## Canonical Data Boundary
 
@@ -146,6 +151,12 @@ exist", it is usually the Microsoft Store App Execution Alias shim, not
 Python itself. Bypass the shim by calling the real interpreter directly,
 currently `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe`,
 or put that directory ahead of `...\Microsoft\WindowsApps` in `PATH`.
+
+`check_sensitive_data.py` builds part of its watch list from Google Drive.
+If it reaches Google API code and then fails with `WinError 10013` or a
+socket/network permission error, rerun it with network/escalated
+permissions; do not report the sandboxed failure as the final validation
+result.
 
 ## Multi-Agent Convention
 

@@ -15,7 +15,16 @@ shares a folder with the project team or a named person.
   this repository's own tracked files (skills, references, templates,
   scripts, commit messages) as an "example" or "for context." See
   `AGENTS.md`, "No Sensitive Data In This Repository."
-- If Google API access fails, fall back to writing the established local CSV/Markdown artifact under `G:\My Drive\QA_Management` and state that the Google API write failed.
+- If a Google API call fails because the local sandbox blocked network
+  access (`WinError 10013`, socket permission errors, DNS/host resolution,
+  or equivalent), rerun the same command with network/escalated permissions
+  before deciding the API is unavailable. This repo is expected to use
+  Drive/Sheets/Docs directly when credentials are present; a first sandbox
+  network denial is not a fallback condition.
+- If Google API access still fails after the command has run with network
+  permission, fall back to writing the established local CSV/Markdown
+  artifact under `G:\My Drive\QA_Management` and state the concrete API
+  failure.
 - The OAuth client only has `drive.file` scope: it can read metadata for any
   file (via `drive.metadata.readonly`), but can only rename/move/trash files
   it created itself through this API. Any file created another way — by hand

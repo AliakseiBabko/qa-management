@@ -27,6 +27,14 @@ em-dash rule, which applies here too.
 - **When the user provides their own edited variant of a drafted message,
   use their wording close to verbatim** in future messages of the same
   kind, rather than re-paraphrasing back toward the original draft.
+- **For short operational status replies, preserve the user's reduced
+  three-point shape when they edit toward it.** Use a direct opener like
+  "From my side, I see it this way," then answer the numbered questions
+  directly. Keep the evidence concise: what works, what the current
+  environment is enough for, what is not yet proven, and the main risk or
+  limitation. Do not add extra asks, infrastructure shopping lists, or
+  stakeholder instructions unless the user explicitly kept them in their
+  edited version.
 - **Prefer the user's conversational update framing over a formal report
   voice.** When the user writes a better version as a short personal
   update, preserve that shape: brief greeting, "updates from my side"
