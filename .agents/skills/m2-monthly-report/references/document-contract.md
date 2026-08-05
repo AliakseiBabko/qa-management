@@ -140,3 +140,33 @@ Internal M2 compensation rule behind the `12 единиц проекты + FTE` 
 - Ask for links or source names for status-thread, client-feedback, release, upsale, rate, staffing, onboarding, offboarding, and improvement claims.
 - Ask for security, timesheet, stop-rate, negative-feedback, and unplanned-exit status if the report requires final bonus/penalty calculation and no source exists.
 - Leave cells blank instead of guessing.
+
+## Comment Column Style (Final Document)
+
+This report is shown to people other than the manager and the assistant
+preparing it — the `Комментарий`/`Примечание`/`Подтверждение` columns are
+final business-facing prose, not a working transcript of how the report
+got filled in. Apply the same discipline `artifact-conventions.md`'s
+Language Rules apply to Doc bodies, to these Sheet comment cells too:
+
+- Write in a formal, impersonal reporting register (e.g. "Проведено
+  интервью...", "Метрики собраны...") — never as a dialogue between the
+  assistant and the manager ("я сделал", addressing "you", "как
+  обсуждали"), and never with the manager's own name as if writing to
+  them.
+- State only what's confirmed. If a fact is genuinely unresolved (an
+  ambiguous term, an unconfirmed name, a pending verification), do not
+  write the uncertainty into the cell as a question or a flagged TODO —
+  either get the resolution from the manager before finalizing, or drop
+  that detail from the sentence and keep only what's confirmed. A hedge
+  like "нужно уточнить у X" or "открытый вопрос" belongs in the
+  conversation with the manager, never in the final cell.
+- No links to internal documents, source files, or process tooling names
+  (e.g. Sheet/Doc names, internal skill or pipeline references). State the
+  business fact directly; if traceability is needed, that lives in
+  `evidence_log`, not in the monthly report.
+- No process/meta commentary about how the cell was produced or what to
+  check next ("pay attention to...", "проверить это", "см. предыдущий
+  комментарий"). One well-defined factual sentence per cell is the target
+  — many cells are legitimately just the Да/Нет with a short supporting
+  clause, not a paragraph.
