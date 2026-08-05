@@ -19,7 +19,7 @@ from typing import Any
 
 PROJECT_RISK_HEADER = [
     "Проект",
-    "Период / snapshot date",
+    "Дата обновления",
     "Общий уровень риска",
     "Риск delivery",
     "Риск QA process",
@@ -578,6 +578,11 @@ def main() -> int:
 
     manifest = read_manifest(extract_root)
 
+    # The dated filename here is this script's own raw-export naming for a rough,
+    # not-template-aware first-pass dump (see risk-schema.md's Versioning section) -
+    # it never touches the canonical Drive project_risk Sheet, which is a living
+    # one-row-per-project record with no dated snapshots. Do not read this filename
+    # pattern as license to create a dated project_risk snapshot anywhere else.
     write_csv(
         output_root / "project_risk" / f"светофор_рисков_проекта_{args.snapshot_date}.csv",
         PROJECT_RISK_HEADER,

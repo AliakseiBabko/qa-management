@@ -366,7 +366,9 @@ These are what actually runs day to day, once a project's folder already exists:
   reading Sheets/Docs one at a time, whenever a conversational update needs
   to see current state. `--summary` (alone, or with `--project`) skips the
   full dump and prints a one-liner per project instead — People count, risk
-  level + snapshot date, evidence_log's most recent entry date — cheap
+  level + updated date (`Дата обновления` — `project_risk` is a living
+  one-row-per-project Sheet, not a dated snapshot series), evidence_log's
+  most recent entry date — cheap
   triage before deciding a full dump is even warranted (e.g. a strategy
   chat that reads as mostly non-QA staffing/contract content). In the full
   dump, `evidence_log` defaults to the last 10 rows (`--evidence-tail N` to

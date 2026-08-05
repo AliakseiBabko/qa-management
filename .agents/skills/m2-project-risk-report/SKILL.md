@@ -16,7 +16,9 @@ Use this skill for one output family only:
 3. Read `../qa-management-roles/references/m2-role/m2-risk-rules.md` and
    `../qa-management-roles/references/m2-role/m2-project-rollups.md`
    (the `m2_input` gate this report's conclusions roll up through).
-4. Identify the target project and reporting snapshot date.
+4. Identify the target project. This is a living Sheet, not a dated
+   snapshot series (see `references/risk-schema.md`, Expected Output) —
+   read the project's existing row first, if any.
 5. Read the smallest relevant evidence set:
    - extracted project risk/summary documents
    - project development plans
@@ -28,7 +30,9 @@ Use this skill for one output family only:
 
 ## Workflow
 
-1. Build one project-level row per project/snapshot.
+1. Exactly one row per project, updated in place - update the project's
+   existing row (`Дата обновления` + whatever cells changed) rather than
+   appending a new dated row, even for a routine no-change review.
 2. Rate the overall project risk as one of: `Низкий`, `Средний`, or `Высокий`.
 3. Separate risk perspectives before mapping to template dimensions:
    - business

@@ -47,7 +47,9 @@ PLAN_MODULES = ["plan-schema.md", "plan-sources-normalization.md"]
 RISK_MODULES = ["risk-schema.md", "risk-evidence-rules.md"]
 
 PLAN_ORIGINAL_BYTES = 10468
-RISK_ORIGINAL_BYTES = 10472
+RISK_ORIGINAL_BYTES = 12150  # re-anchored 2026-08-05: project_risk moved from a dated-snapshot
+# versioning model (_vN, project_risk_predecessor backups) to a living one-row-per-project
+# record (same shape as project_metrics/individual_risk), a legitimate content change.
 
 CONDITIONAL = re.compile(r"\b(when|if)\b", re.IGNORECASE)
 
@@ -323,7 +325,8 @@ class KeyAnchorsPresentInOwningModuleTests(unittest.TestCase):
     def test_risk_versioning_output_anchor(self):
         text = (RISK_REFS / "risk-schema.md").read_text(encoding="utf-8")
         self.assertIn("## Versioning", text)
-        self.assertIn("_v", text)
+        self.assertIn("One row per project, always", text)
+        self.assertNotIn("_vN", text)
 
 
 if __name__ == "__main__":
