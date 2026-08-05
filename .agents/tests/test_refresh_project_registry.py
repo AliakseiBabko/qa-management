@@ -19,11 +19,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from refresh_project_registry import contribution_summary, project_status_warning
+from refresh_project_registry import build_registry_row, contribution_summary, project_status_warning
 
 
 def contribution_row(date: str, name: str, status: str, explanation: str = "x") -> list[str]:
     return ["<Project>", date, f"Вклад в проект: {name}", status, explanation, "M2"]
+
+
+def status_row(status: str, date: str = "2026-01-01") -> list[str]:
+    return ["<Project>", date, "Статус проекта", status, "x", "M2"]
 
 
 class ContributionSummaryDedupeTests(unittest.TestCase):
@@ -146,8 +150,8 @@ class ProjectStatusWarningTests(unittest.TestCase):
     def test_canonical_active_produces_no_warning(self) -> None:
         self.assertIsNone(project_status_warning("<Проект>", "Активен"))
 
-    def test_canonical_paused_produces_no_warning(self) -> None:
-        self.assertIsNone(project_status_warning("<Проект>", "На паузе"))
+    def test_canonical_inactive_produces_no_warning(self) -> None:
+        self.assertIsNone(project_status_warning("<Проект>", "Не активен"))
 
     def test_non_canonical_value_warns(self) -> None:
         warning = project_status_warning("<Проект>", "Стоп")
@@ -155,6 +159,45 @@ class ProjectStatusWarningTests(unittest.TestCase):
         self.assertIn("<Проект>", warning)
         self.assertIn("Стоп", warning)
         self.assertIn("not normalized", warning)
+
+
+class BuildRegistryRowInactiveExclusionTests(unittest.TestCase):
+    """Covers the archival mechanism (Templates/метрики_проекта_qa.md §1.0):
+    a project's `Статус проекта = Не активен` must exclude it from the
+    rebuilt `_project_registry` entirely, not just copy the value through
+    like the other three dashboard metrics."""
+
+    def test_active_status_produces_a_row(self) -> None:
+        rows = [status_row("Активен"), contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
+        row, warnings = build_registry_row("<Project>", rows)
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], "<Project>")
+        self.assertEqual(row[2], "Активен")
+        self.assertEqual(warnings, [])
+
+    def test_inactive_status_excludes_the_project(self) -> None:
+        rows = [status_row("Не активен"), contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
+        row, warnings = build_registry_row("<Project>", rows)
+        self.assertIsNone(row, "Не активен must exclude the project, not just copy the status through")
+        self.assertEqual(warnings, [])
+
+    def test_missing_status_row_defaults_to_active_and_produces_a_row(self) -> None:
+        rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
+        row, warnings = build_registry_row("<Project>", rows)
+        self.assertIsNotNone(row)
+        self.assertEqual(row[2], "Активен")
+
+    def test_non_canonical_status_still_warns_even_though_excluded_is_not_triggered(self) -> None:
+        rows = [status_row("Стоп")]
+        row, warnings = build_registry_row("<Project>", rows)
+        self.assertIsNotNone(row, "a non-canonical value is copied through as-is, not treated as inactive")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Стоп", warnings[0])
+
+    def test_inactive_status_warning_is_not_raised_since_it_is_canonical(self) -> None:
+        rows = [status_row("Не активен")]
+        _, warnings = build_registry_row("<Project>", rows)
+        self.assertEqual(warnings, [], "Не активен is a canonical value, not a warning case")
 
 
 if __name__ == "__main__":

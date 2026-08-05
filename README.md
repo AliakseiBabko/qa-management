@@ -101,7 +101,11 @@ under `20_M2_Project_Management`:
 - `_project_registry` — one row per **active** project, the top-level "war
   room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
   продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
-  Stopped projects are removed from this registry, not marked inactive.
+  A project not currently active (temporary pause or permanent stop alike —
+  `project_metrics`'s `Статус проекта` is exactly two values, `Активен` /
+  `Не активен`, see `Templates/метрики_проекта_qa.md` §1.0) is excluded
+  from this registry, not kept and marked inactive — set `Статус проекта`
+  to `Не активен` and rerun `refresh_project_registry.py`.
 - `_timeline` — generated rollup of every project's open `action_items`
   rows, sorted by date; the one place to see what's due today/tomorrow/this
   week across all projects. Never edited directly — refresh it with
@@ -908,8 +912,12 @@ These are what actually runs day to day, once a project's folder already exists:
 - `refresh_project_registry.py` — the one script safe to run mechanically
   with no judgment step: copies each project's already-curated
   `project_metrics` dashboard values into `_project_registry`
-  (worst-known-status for `Наименьший вклад в проект`, never averaged). Safe
-  to rerun anytime after a `project_metrics` update.
+  (worst-known-status for `Наименьший вклад в проект`, never averaged). A
+  project whose `Статус проекта` is `Не активен` (the manual marker M2 sets
+  in `project_metrics` — pause or permanent stop alike, see
+  `Templates/метрики_проекта_qa.md` §1.0) is excluded from the rebuilt
+  registry entirely, not copied through with that value. Safe to rerun
+  anytime after a `project_metrics` update.
 - `refresh_timeline_registry.py` — same mechanical spirit as
   `refresh_project_registry.py`, but for events instead of health: pulls
   every project's `action_items` rows still `Статус = Открыто` into the

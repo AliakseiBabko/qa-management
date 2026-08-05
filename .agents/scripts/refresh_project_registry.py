@@ -8,11 +8,15 @@ interpretation of its own — it does not compute Статус, Вклад в п
 `project_metrics` already says. Writing those values in `project_metrics`
 in the first place is still a judgment step done in conversation.
 
-Статус (Активен/На паузе, see Templates/метрики_проекта_qa.md §1.0) is
-manual-only in project_metrics - this script never sets or clears it, it
-just copies whatever's there. Reactivation happens by M2 editing
-project_metrics directly; the next run of this script picks that up like
-any other mirrored field.
+Статус (Активен/Не активен - exactly two states, see
+Templates/метрики_проекта_qa.md §1.0) is manual-only in project_metrics -
+this script never sets or clears it. Активен copies through normally; Не
+активен excludes the project from the rebuilt registry entirely - the
+concrete mechanism for "not currently active, for whatever reason"
+projects (pause or official stop alike - see google-workspace/m2-layout.md).
+Reactivation happens by M2 flipping project_metrics back to Активен
+directly; the next run of this script picks that up like any other
+mirrored field.
 
 Aggregation for "Наименьший вклад в проект" is worst-known-status, not an
 average (see m2-role/m2-metrics-attribution.md, Registry Data-Gap Semantics): among named
@@ -52,7 +56,8 @@ CONTRIBUTION_PREFIX = "Вклад в проект: "
 # above (see m2-role/m2-metrics-attribution.md).
 MISSING_CONTRIBUTION_VALUES = {"", "Неизвестно"}
 
-PROJECT_STATUS_VALUES = {"Активен", "На паузе"}
+PROJECT_STATUS_VALUES = {"Активен", "Не активен"}
+INACTIVE_STATUS_VALUE = "Не активен"
 
 
 def parse_args() -> argparse.Namespace:
@@ -74,7 +79,7 @@ def project_status_warning(project: str, status: str) -> str | None:
     """Return a warning string if `status` ('Статус проекта') isn't one of
     PROJECT_STATUS_VALUES, or None if it's canonical. `dashboard_value`'s
     own default ("Активен") means `status` is never blank here - anything
-    else is a value that slipped past the manual-only Активен/На паузе
+    else is a value that slipped past the manual-only Активен/Не активен
     convention (see Templates/метрики_проекта_qa.md §1.0) and would
     otherwise be copied into the registry unnoticed."""
     if status in PROJECT_STATUS_VALUES:
@@ -151,6 +156,33 @@ def contribution_summary(rows: list[list[str]], project: str = "") -> tuple[str,
     return label, people, warnings
 
 
+def build_registry_row(project: str, pm_rows: list[list[str]]) -> tuple[list[str] | None, list[str]]:
+    """Build one `_project_registry` row from a project's `project_metrics`
+    rows, or return `(None, warnings)` if the project is currently `Не
+    активен` - excluded from the registry entirely (see
+    Templates/метрики_проекта_qa.md §1.0). Pure function, no Google API
+    calls, so the inactive-exclusion behavior is directly unit-testable
+    without mocking `main()`'s Drive/Sheets calls.
+
+    `warnings` covers both a non-canonical `Статус проекта` value and any
+    non-canonical `Вклад в проект` values surfaced by `contribution_summary()`
+    - the caller is responsible for printing them."""
+    status = dashboard_value(pm_rows, "Статус проекта", default="Активен")
+    warnings: list[str] = []
+    status_warning = project_status_warning(project, status)
+    if status_warning:
+        warnings.append(status_warning)
+    if status == INACTIVE_STATUS_VALUE:
+        return None, warnings
+    horizon = dashboard_value(pm_rows, "Горизонт совместной работы")
+    biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента (оценка M2)")
+    qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
+    contribution, people, contribution_warnings = contribution_summary(pm_rows, project)
+    warnings.extend(contribution_warnings)
+    row = [project, ", ".join(people), status, horizon, biz_risk, contribution, qa_quality]
+    return row, warnings
+
+
 def main() -> int:
     ensure_utf8_stdout()
     args = parse_args()
@@ -185,18 +217,15 @@ def main() -> int:
             print(f"{project}: no project_metrics yet, skipped")
             continue
         pm_rows = read_sheet_values(services, pm_sheet["id"])
-        status = dashboard_value(pm_rows, "Статус проекта", default="Активен")
-        status_warning = project_status_warning(project, status)
-        if status_warning:
-            print(f"WARNING: {status_warning}")
-        horizon = dashboard_value(pm_rows, "Горизонт совместной работы")
-        biz_risk = dashboard_value(pm_rows, "Бизнес-риск продукта клиента (оценка M2)")
-        qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
-        contribution, people, contribution_warnings = contribution_summary(pm_rows, project)
-        for warning in contribution_warnings:
+        row, warnings = build_registry_row(project, pm_rows)
+        for warning in warnings:
             print(f"WARNING: {warning}")
-        rows.append([project, ", ".join(people), status, horizon, biz_risk, contribution, qa_quality])
-        print(f"{project}: refreshed ({len(people)} people, status={status})")
+        if row is None:
+            print(f"{project}: Статус проекта = Не активен - excluded from registry")
+            continue
+        rows.append(row)
+        people_count = len(row[1].split(", ")) if row[1] else 0
+        print(f"{project}: refreshed ({people_count} people, status={row[2]})")
 
     services["sheets"].spreadsheets().values().clear(
         spreadsheetId=registry_sheet["id"], range="A1:G200"

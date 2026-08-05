@@ -45,7 +45,7 @@ registry only when it also changes one of the `project_metrics` rows the
 registry mirrors (`Статус проекта`, `Горизонт совместной работы`,
 `Бизнес-риск продукта клиента`, `Вклад в проект: <Имя>`,
 `Качество QA-процесса`) — for example, a risk review that concludes a
-project should move to `На паузе`, or that changes a person's `Вклад в
+project should move to `Не активен`, or that changes a person's `Вклад в
 проект` conclusion. When a `project_risk` pass does touch one of those
 `project_metrics` rows, update that row and rerun
 `refresh_project_registry.py` in the same pass, same as any other

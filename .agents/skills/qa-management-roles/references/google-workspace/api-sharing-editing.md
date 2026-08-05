@@ -99,8 +99,8 @@ or the follow-up API call hits a snag - debug that (wrong path, stale OAuth
 token, wrong scope) rather than falling back to a browser as a workaround.
 The one legitimate use of a live browser in this workspace is a genuinely
 different situation: an external system that isn't this Drive account at
-all and sits behind its own separate login (the precedent being Unicard
-project documents gated behind their own credentials, unreachable by any
+all and sits behind its own separate login (for example, `<Project>`
+documents gated behind their own credentials, unreachable by any
 Drive/Sheets/Docs API call this OAuth client has). That is a deliberate,
 narrow exception for credential-gated external systems - it is not a general
 fallback for "the API path was inconvenient" or "the local path didn't

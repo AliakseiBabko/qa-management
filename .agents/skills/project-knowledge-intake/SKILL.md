@@ -59,10 +59,10 @@ Repeated live-investigation patterns:
   under this Drive mirror, even if `resolve_drive_path.py` or the follow-up
   API call hits a snag - debug that instead. A live browser is reserved for
   a genuinely different case: an external system outside this Drive account,
-  gated behind its own separate login (e.g. the Unicard project's documents,
-  unreachable by any Drive/Sheets/Docs API call this OAuth client has) - a
-  narrow, deliberate exception, not a general fallback for local-mirror
-  sources.
+  gated behind its own separate login (e.g. `<Project>` documents behind
+  their own credentials, unreachable by any Drive/Sheets/Docs API call this
+  OAuth client has) - a narrow, deliberate exception, not a general fallback
+  for local-mirror sources.
 - Browser-opened document editors can resist DOM scraping because content
   lazy-loads or renders per page. If automation is not quickly exposing
   the text, don't burn repeated tool calls fighting the renderer:
