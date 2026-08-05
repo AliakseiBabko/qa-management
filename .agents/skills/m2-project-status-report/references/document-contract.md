@@ -43,6 +43,7 @@ For multi-project reports:
 
 - Resolve relative periods to absolute dates using the current date.
 - "Last week" means the previous Monday-Sunday calendar week unless the user gives a different convention.
+- "This month" / "monthly overview" means the current calendar month to date, or the previous full calendar month if the current month has too little evidence yet to be worth reporting — ask if genuinely ambiguous. A full-month period is also the trigger for the Monthly narrative variant (see SKILL.md, Chat Text Shape).
 - "Current status" means status as of the current date, based on the requested period plus the latest available relevant evidence.
 - State the period in the title, but match the convention to what the
   report actually is — real reporters use both, don't force one:
@@ -89,6 +90,11 @@ BA/UI-UX/Engineering/QA streams on a different project) break down by
 stream before anything cross-cutting. A flat report across several
 unrelated people's work reads
 as muddled and buries who owns what.
+
+For a full-month period (or an explicit request for a monthly/narrative/
+paragraph-form report), use the Monthly narrative variant instead (see
+SKILL.md, Chat Text Shape) — two short paragraphs covering the same
+content categories in prose, not this numbered-section bulleted list.
 
 Keep each section short:
 
