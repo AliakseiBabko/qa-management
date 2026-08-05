@@ -107,6 +107,11 @@ class RetainedPolicyTests(unittest.TestCase):
         self.assertIn("validate_repo.py", self.text)
         self.assertIn("check_sensitive_data.py", self.text)
 
+    def test_drive_network_sandbox_retry_rule_present(self):
+        self.assertIn("WinError 10013", self.text)
+        self.assertIn("network/escalated permissions", self.normalized)
+        self.assertIn("Do not treat that first sandbox failure", self.normalized)
+
     def test_dev_tool_provider_exception_present(self):
         self.assertIn("technically necessary", self.normalized)
         self.assertIn("Co-Authored-By", self.text)
