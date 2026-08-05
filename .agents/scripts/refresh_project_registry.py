@@ -41,7 +41,6 @@ from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder,
 REGISTRY_HEADER = [
     "Проект",
     "People",
-    "Статус",
     "Горизонт совместной работы",
     "Бизнес-риск продукта клиента",
     "Наименьший вклад в проект",
@@ -179,7 +178,7 @@ def build_registry_row(project: str, pm_rows: list[list[str]]) -> tuple[list[str
     qa_quality = dashboard_value(pm_rows, "Качество QA-процесса")
     contribution, people, contribution_warnings = contribution_summary(pm_rows, project)
     warnings.extend(contribution_warnings)
-    row = [project, ", ".join(people), status, horizon, biz_risk, contribution, qa_quality]
+    row = [project, ", ".join(people), horizon, biz_risk, contribution, qa_quality]
     return row, warnings
 
 
@@ -225,7 +224,7 @@ def main() -> int:
             continue
         rows.append(row)
         people_count = len(row[1].split(", ")) if row[1] else 0
-        print(f"{project}: refreshed ({people_count} people, status={row[2]})")
+        print(f"{project}: refreshed ({people_count} people)")
 
     services["sheets"].spreadsheets().values().clear(
         spreadsheetId=registry_sheet["id"], range="A1:G200"

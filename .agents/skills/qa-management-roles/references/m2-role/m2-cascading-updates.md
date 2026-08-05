@@ -41,15 +41,18 @@ The same refresh discipline applies no matter which document the change
 enters through. `_project_registry` is mechanically generated from
 `project_metrics` only (`refresh_project_registry.py` never reads
 `project_risk` directly), so a `project_risk` update refreshes the
-registry only when it also changes one of the `project_metrics` rows the
-registry mirrors (`Статус проекта`, `Горизонт совместной работы`,
-`Бизнес-риск продукта клиента`, `Вклад в проект: <Имя>`,
-`Качество QA-процесса`) — for example, a risk review that concludes a
-project should move to `Не активен`, or that changes a person's `Вклад в
-проект` conclusion. When a `project_risk` pass does touch one of those
-`project_metrics` rows, update that row and rerun
-`refresh_project_registry.py` in the same pass, same as any other
-`project_metrics` change — do not treat `project_risk` as a dead end just
+registry only when it also changes one of the `project_metrics` rows that
+feed it: the four columns it mirrors (`Горизонт совместной работы`,
+`Бизнес-риск продукта клиента`, `Вклад в проект: <Имя>`, `Качество
+QA-процесса`), or `Статус проекта` itself — which isn't a mirrored column
+(the registry has no Статус column at all, see `google-workspace/m2-layout.md`)
+but still gates whether the project appears in the rebuilt registry at all.
+For example, a risk review that concludes a project should move to `Не
+активен`, or that changes a person's `Вклад в проект` conclusion. When a
+`project_risk` pass does touch one of those `project_metrics` rows, update
+that row and rerun `refresh_project_registry.py` in the same pass, same as
+any other `project_metrics` change — do not treat `project_risk` as a dead
+end just
 because the script doesn't read it directly.
 
 ## Cross-Lane Step: Project Knowledge
