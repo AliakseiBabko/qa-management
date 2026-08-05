@@ -275,8 +275,9 @@ documents:
           own rule — direct column routing; broader risk-conclusion changes
           still go through the m2_input gate like any other source.
 
-  individual_metrics_internal:
-    # Internal-only per-person metrics; never shared outward.
+  individual_risk:
+    # Internal-only per-person risk read (renamed from individual_metrics_internal
+    # 2026-08-05); living one-row-per-person record, never shared outward.
     scope: person
     downstream:
       - to: project_metrics

@@ -48,7 +48,7 @@ PROJECT_FILE_ROLES = {
 PERSON_FILE_ROLES = {
     "individual_metrics": ("individual_metrics", SHEET_MIME),
     "individual_development_plan": ("individual_development_plan", DOC_MIME),
-    "individual_metrics_internal": ("individual_metrics_internal", SHEET_MIME),
+    "individual_risk": ("individual_risk", SHEET_MIME),  # renamed from individual_metrics_internal 2026-08-05
 }
 
 

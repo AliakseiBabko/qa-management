@@ -15,7 +15,7 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 
 1. Read `references/individual-metrics-schema.md`. Read
    `references/internal-variant.md` too if also writing or updating the
-   private `individual_metrics_internal` Sheet.
+   private `individual_risk` Sheet.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-metrics-calibration.md`
    and `../qa-management-roles/references/m2-role/m2-metrics-attribution.md`

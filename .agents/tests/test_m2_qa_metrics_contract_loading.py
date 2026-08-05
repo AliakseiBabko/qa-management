@@ -9,7 +9,7 @@ document contracts:
 - `m2-individual-qa-metrics-report/references/document-contract.md`
   (14,581 bytes) -> a thin index plus `individual-metrics-schema.md`
   (mandatory) and `internal-variant.md` (situational - only when writing
-  the private individual_metrics_internal Sheet).
+  the private individual_risk Sheet).
 
 The one genuinely duplicated concept found in the audit - the Automation
 Metric Layering rule, near-identically restated in both original
@@ -48,7 +48,9 @@ INDIVIDUAL_MODULES = [
 ]
 
 PROJECT_ORIGINAL_BYTES = 19587
-INDIVIDUAL_ORIGINAL_BYTES = 14581
+INDIVIDUAL_ORIGINAL_BYTES = 17797  # re-anchored 2026-08-05: individual_metrics_internal renamed
+# to individual_risk and reshaped from an append-only log to a living one-row-per-person
+# record (internal-variant.md rewrite), a legitimate content change, not drift.
 
 
 def _all_skill_md_texts() -> dict[Path, str]:
@@ -268,7 +270,7 @@ class NoMandatoryWholeFileReadTests(unittest.TestCase):
             "1. Read `references/individual-metrics-schema.md`. Read\n"
             "   `references/internal-variant.md` too if also writing or "
             "updating the\n"
-            "   private `individual_metrics_internal` Sheet.\n"
+            "   private `individual_risk` Sheet.\n"
             "2. Identify the target person and project scope.\n"
         )
         self.assertFalse(
@@ -360,8 +362,8 @@ class KeyAnchorsPresentInOwningModuleTests(unittest.TestCase):
 
     def test_internal_individual_metrics_anchor(self):
         text = (INDIVIDUAL_REFS / "internal-variant.md").read_text(encoding="utf-8")
-        self.assertIn("individual_metrics_internal", text)
-        self.assertIn("Сторона", text)
+        self.assertIn("individual_risk", text)
+        self.assertIn("Риск с нашей стороны", text)
 
     def test_registry_project_rollup_anchor(self):
         text = (PROJECT_REFS / "project-metrics-schema.md").read_text(encoding="utf-8")

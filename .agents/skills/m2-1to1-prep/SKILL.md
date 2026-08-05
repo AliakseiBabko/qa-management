@@ -55,7 +55,7 @@ project."
    preliminary-analysis questions, filtered to ones this person can
    actually answer (skip questions aimed at other stakeholders, PM/client
    coordination, or M2's own judgment calls).
-5. That person's `individual_metrics_internal`, if it exists — use it to
+5. That person's `individual_risk`, if it exists — use it to
    decide *what to probe*, never to decide *what to say*. A private doubt
    ("improvement might be situational, not durable") becomes a neutral,
    open question ("walk me through how the last few weeks have gone") —
@@ -144,11 +144,11 @@ message drafted from this skill:
   doesn't come from a specific gap in Source Order - it's a standing ask
   for every first-contact message, not situational.
 - Same guardrail as the full question list: never reveal
-  `individual_metrics_internal` content or its existence.
+  `individual_risk` content or its existence.
 
 ## Guardrails
 
-- Never phrase a question so it reveals `individual_metrics_internal`
+- Never phrase a question so it reveals `individual_risk`
   content, or that such a note exists.
 - Do not include project-level strategy/staffing/client questions unless
   this person is genuinely the only source for that specific fact.

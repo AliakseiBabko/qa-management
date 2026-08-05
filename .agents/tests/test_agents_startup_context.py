@@ -160,7 +160,7 @@ class RemovedContentStaysRemovedTests(unittest.TestCase):
             self.assertNotIn(marker, self.text)
 
     def test_detailed_folder_tree_is_gone(self):
-        self.assertNotIn("individual_metrics_internal.gsheet", self.text)
+        self.assertNotIn("individual_risk.gsheet", self.text)
         self.assertNotIn("qa_process_metrics.gsheet", self.text)
 
     def test_telemetry_command_syntax_is_gone(self):

@@ -7,7 +7,7 @@ Prints, for --project <Name>:
   action_items (Sheets)
 - project_development_plan, m2_input (Docs)
 - for every person under people/<Person>/shared: individual_metrics,
-  individual_metrics_internal (Sheets), individual_development_plan (Doc)
+  individual_risk (Sheets), individual_development_plan (Doc)
 
 Prints, for --registries:
 - _people_registry, _project_registry, _timeline (Sheets)
@@ -42,7 +42,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 DOC_MIME = "application/vnd.google-apps.document"
 
 PROJECT_DOCS = {"project_metrics", "project_risk", "evidence_log", "qa_process_metrics", "action_items", "project_development_plan", "m2_input"}
-PERSON_DOCS = {"individual_metrics", "individual_metrics_internal", "individual_development_plan"}
+PERSON_DOCS = {"individual_metrics", "individual_risk", "individual_development_plan"}
 REGISTRY_DOCS = {"_people_registry", "_project_registry", "_timeline"}
 
 # Project Knowledge lane (30_Project_Knowledge, --lane project_knowledge) -
@@ -307,14 +307,14 @@ def dump_project(services: dict[str, Any], m2_root_id: str, project: str, eviden
             services, project_folder["id"], "individual_development_plan", DOC_MIME, person
         )
         private_id = role_parent_id(
-            services, project_folder["id"], "individual_metrics_internal", SHEET_MIME, person
+            services, project_folder["id"], "individual_risk", SHEET_MIME, person
         )
         if metrics_id:
             dump_sheet(services, metrics_id, "individual_metrics")
         if plan_id:
             dump_doc(services, plan_id, "individual_development_plan")
         if private_id:
-            dump_sheet(services, private_id, "individual_metrics_internal")
+            dump_sheet(services, private_id, "individual_risk")
 
 def project_people_counts(services: dict[str, Any], m2_root_id: str) -> dict[str, str]:
     sheet = find_sheet_in_folder(services["drive"], m2_root_id, "_project_registry")

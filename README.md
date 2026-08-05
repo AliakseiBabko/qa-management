@@ -132,7 +132,7 @@ Each project folder follows this shape:
 │  ├─ m2_input/m2_input.gdoc
 │  ├─ status_reports/
 │  └─ people/<Person>/
-│     ├─ individual_metrics_internal.gsheet
+│     ├─ individual_risk.gsheet
 │     └─ <Person> 1to1.gsheet
 ├─ team_shared/                  # share only with this project's QA team
 │  └─ qa_process_metrics.gsheet
@@ -869,7 +869,7 @@ These are what actually runs day to day, once a project's folder already exists:
   `individual_development_plan` as Google Docs (narrative documents, not
   Sheets).
 - `scaffold_project_dashboard.py` — creates the missing M2-only artifacts
-  for a project (`qa_process_metrics`, `individual_metrics_internal` per
+  for a project (`qa_process_metrics`, `individual_risk` per
   person, `m2_input`, and a placeholder `project_metrics` only if one
   doesn't exist yet). Structure only, no fabricated judgment — the actual
   `project_metrics` rows and `m2_input` rounds still need M2's real read
