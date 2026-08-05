@@ -9,9 +9,9 @@ Same 7 columns. Append-only by calendar month: dedup on (Проект, Метр�
 month adds new rows. `Тренд` starts as a simple month-over-month
 comparison once two months of history exist.
 
-If `project_metrics`'s `Статус проекта` row is `На паузе`, freeze this
+If `project_metrics`'s `Статус проекта` row is `Не активен`, freeze this
 Sheet entirely — don't add a new `Период`, don't chase the team for data
-covering paused months. Resume once `Статус проекта` goes back to
+covering inactive months. Resume once `Статус проекта` goes back to
 `Активен`. This is different from the 2+ month uncollectable-metric rule
 below (that's about one metric not fitting the project; this is about the
 whole process being on hold).

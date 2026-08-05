@@ -57,16 +57,17 @@ Scope: input sources, evidence-handling rules, the risk-level dictionary, and ri
     genuinely in question, an active client-driven replacement/staffing
     crisis, or an equivalent already-materialized threat. Reserve this;
     do not set it just because one dimension or one named risk is severe.
-- If `project_metrics`'s `Статус проекта` is `На паузе` (client-driven pause,
-  not an official stop/cancellation — see `Templates\метрики_проекта_qa.md`
-  §1.0), `Общий уровень риска` stays frozen at its last real value rather
-  than being remapped onto the pause. A pause is not a point on the
-  Низкий/Средний/Высокий scale (it answers a different question — "is work
-  progressing," not "does something threaten the engagement") — don't force
-  it into `Высокий` just because delivery has stopped, and don't lower it to
-  `Низкий` just because the immediate MVP-instability risk that produced the
-  current value is no longer the active concern. `Следующий review` gets no
-  fixed date while paused — reactivation is a manual M2 decision (see §1.0),
+- If `project_metrics`'s `Статус проекта` is `Не активен` (covers both a
+  client-driven pause and an official stop/cancellation — one status, not
+  two, see `Templates\метрики_проекта_qa.md` §1.0), `Общий уровень риска`
+  stays frozen at its last real value rather than being remapped onto the
+  inactivity. Inactivity is not a point on the Низкий/Средний/Высокий scale
+  (it answers a different question — "is work progressing," not "does
+  something threaten the engagement") — don't force it into `Высокий` just
+  because delivery has stopped, and don't lower it to `Низкий` just because
+  the immediate MVP-instability risk that produced the current value is no
+  longer the active concern. `Следующий review` gets no fixed date while
+  inactive — the return to `Активен` is a manual M2 decision (see §1.0),
   not a calendar event, so leave it stated as "no cadence, awaiting manual
   reactivation" rather than a stale or invented date.
 - English aliases are for migration/interpretation only and must not appear as risk values in generated outputs.

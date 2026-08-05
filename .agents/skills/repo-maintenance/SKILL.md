@@ -160,6 +160,15 @@ module set)**
   (does the description actually describe the skill, is the graph edge's
   kind right, does README need updating for this specific skill) stays
   here.
+- On Windows, if `python` or `py` fails before script startup with
+  `ERROR_NO_SUCH_LOGON_SESSION` / "A specified logon session does not
+  exist", do not treat that as a validator result. It is usually the
+  Microsoft Store App Execution Alias shim being launched from a
+  non-interactive agent token. Call the real interpreter directly,
+  currently
+  `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe`,
+  or put that directory ahead of `...\Microsoft\WindowsApps` in `PATH`;
+  then rerun the same validator/test command.
 - If the change touched closure/graph/queue logic, run the unit tests:
   `python -m unittest discover -s .agents/tests` - they encode the
   known false-closure paths (diamond traversal, scope isolation,

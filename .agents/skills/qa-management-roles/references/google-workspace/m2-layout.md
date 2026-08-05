@@ -75,12 +75,15 @@ project M2 owns, sourced from each project's `project_metrics` (see
 `Статус`, `Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
 `Наименьший вклад в проект`, `Качество QA-процесса`.
 
-`Статус` (`Активен` / `На паузе`) mirrors `project_metrics`'s `Статус
-проекта` row (`Templates\метрики_проекта_qa.md` §1.0) — manual-only, no
-script sets or clears it, no scheduled cadence flips it back; it changes
-only when M2 edits `project_metrics` directly, and the next
-`refresh_project_registry.py` run just picks up that value like any other
-mirrored field.
+`Статус` mirrors `project_metrics`'s `Статус проекта` row
+(`Templates\метрики_проекта_qa.md` §1.0) — exactly two values, `Активен`
+or `Не активен`, no third "paused" state. It's manual-only: no script sets
+or clears it, no scheduled cadence flips it back; it changes only when M2
+edits `project_metrics` directly. Because `Не активен` projects are
+excluded from the rebuilt registry entirely (see below), a project's
+`Статус` cell in the live registry is effectively always `Активен` — the
+column exists for schema consistency with `project_metrics`, not because
+`Не активен` rows are ever visible here.
 
 `Наименьший вклад в проект` is the one column that isn't a direct copy —
 `project_metrics` can have several `Вклад в проект: <Имя>` rows, but the
@@ -92,13 +95,19 @@ that level, e.g. `Смешанный (<Имя>)` — two people tied at the
 worst level both get named. If the whole team shares one status, just
 state it with no name attached (there's no one specific person to flag).
 
-Active projects only — when a project is **officially stopped or
-cancelled**, remove its row from the live registry rather than marking it
-inactive in place; archived projects don't belong in a dashboard meant for
-current attention. A **client-driven pause that hasn't been officially
-ended** (e.g. a client-requested hold with an explicit "not a
-cancellation") is not this case — it stays in the registry with `Статус` =
-`На паузе` until M2 confirms it's actually stopped or reactivates it.
+Active projects only — a project not currently active, for whatever
+reason (client-driven pause, official stop/cancellation), gets excluded
+from the live registry rather than kept and marked inactive in place;
+inactive projects don't belong in a dashboard meant for current attention.
+Mechanism: set `Статус проекта` to `Не активен`
+(`Templates\метрики_проекта_qa.md` §1.0), rerun
+`refresh_project_registry.py` - excludes the project automatically, no
+manual deletion. Keep the project folder in place as history/current
+record; add a closure or status summary to `project_risk`/
+`project_development_plan` first if the reason is worth recording.
+Flipping the status back to `Активен` (reactivation, or correcting a
+mistaken flip) brings the project back into the registry on the next
+refresh.
 Columns are `Проект`, `People`,
 `Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
 or folder-navigation link; those don't belong in a summary dashboard.

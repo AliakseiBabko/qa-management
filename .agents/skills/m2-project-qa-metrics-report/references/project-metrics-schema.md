@@ -76,17 +76,24 @@ raw file path (traceability lives in `evidence_log`).
 
 Row types, all living in this one Sheet:
 
-0. **`Статус проекта`** — one row, `Активен` or `На паузе`. Manual-only:
-   no script sets or clears `На паузе`, and there is no scheduled review
-   that would — reactivation happens only when M2 explicitly changes it,
-   which then flows through `refresh_project_registry.py`'s normal mirror
-   on its next run. While `На паузе`: `project_risk`'s `Общий уровень
-   риска` stays frozen at its last real value rather than being remapped
-   onto the pause (a pause isn't a point on that scale); `qa_process_metrics`
-   stops taking new monthly periods (see its Schema section below); and the
-   project stays in `_project_registry` (a pause is not the "project
-   stopped" case that rule is about). Every project gets this row, default
-   `Активен`. See catalogue §1.0.
+0. **`Статус проекта`** — one row, `Активен` or `Не активен`. Exactly two
+   states, never a third "paused" value in between - a temporary
+   client-driven pause and an official stop/cancellation are both recorded
+   as `Не активен`; the reason and its detail belong in this row's
+   `Пояснение` and in `project_risk`/`project_development_plan`, not in a
+   separate enum value. Manual-only: no script sets or clears `Не активен`,
+   and there is no scheduled review that would - reactivation (or simply
+   correcting a mistaken flip) happens only when M2 explicitly changes it
+   back to `Активен`, which then flows through
+   `refresh_project_registry.py`'s normal mirror on its next run. While
+   `Не активен`: `project_risk`'s `Общий уровень риска` stays frozen at its
+   last real value rather than being remapped onto the inactivity (it isn't
+   a point on that scale); `qa_process_metrics` stops taking new monthly
+   periods (see its Schema section below); and `refresh_project_registry.py`
+   excludes the project from the rebuilt registry automatically - no manual
+   row deletion or folder move needed, the project's live documents stay in
+   place. Every project gets this row, default `Активен`. See catalogue
+   §1.0.
 1. **`Горизонт совместной работы`** — one row. Expected end date of the
    engagement/current phase; where meaningful change could happen
    (contract end, vendor switch, tender). See catalogue §2.1.

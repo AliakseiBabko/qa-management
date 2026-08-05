@@ -140,6 +140,13 @@ Before committing a structural change, run
 candidate, not just your diff). See `repo-maintenance` for the full
 checklist.
 
+On Windows, if `python` or `py` fails before script startup with
+`ERROR_NO_SUCH_LOGON_SESSION` / "A specified logon session does not
+exist", it is usually the Microsoft Store App Execution Alias shim, not
+Python itself. Bypass the shim by calling the real interpreter directly,
+currently `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe`,
+or put that directory ahead of `...\Microsoft\WindowsApps` in `PATH`.
+
 ## Multi-Agent Convention
 
 This repository is used by Codex, Antigravity, and Claude Code. Canonical
