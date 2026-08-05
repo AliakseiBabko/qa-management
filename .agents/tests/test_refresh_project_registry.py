@@ -19,7 +19,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from refresh_project_registry import build_registry_row, contribution_summary, project_status_warning
+from refresh_project_registry import (
+    REGISTRY_HEADER,
+    build_registry_row,
+    contribution_summary,
+    project_status_warning,
+)
 
 
 def contribution_row(date: str, name: str, status: str, explanation: str = "x") -> list[str]:
@@ -172,7 +177,7 @@ class BuildRegistryRowInactiveExclusionTests(unittest.TestCase):
         row, warnings = build_registry_row("<Project>", rows)
         self.assertIsNotNone(row)
         self.assertEqual(row[0], "<Project>")
-        self.assertEqual(row[2], "Активен")
+        self.assertNotIn("Активен", row, "Статус is not a registry column - only used as a gate")
         self.assertEqual(warnings, [])
 
     def test_inactive_status_excludes_the_project(self) -> None:
@@ -185,7 +190,6 @@ class BuildRegistryRowInactiveExclusionTests(unittest.TestCase):
         rows = [contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
         row, warnings = build_registry_row("<Project>", rows)
         self.assertIsNotNone(row)
-        self.assertEqual(row[2], "Активен")
 
     def test_non_canonical_status_still_warns_even_though_excluded_is_not_triggered(self) -> None:
         rows = [status_row("Стоп")]
@@ -198,6 +202,15 @@ class BuildRegistryRowInactiveExclusionTests(unittest.TestCase):
         rows = [status_row("Не активен")]
         _, warnings = build_registry_row("<Project>", rows)
         self.assertEqual(warnings, [], "Не активен is a canonical value, not a warning case")
+
+    def test_registry_header_has_no_status_column(self) -> None:
+        self.assertNotIn("Статус", REGISTRY_HEADER)
+
+    def test_row_length_matches_header_length(self) -> None:
+        rows = [status_row("Активен"), contribution_row("2026-01-01", "<Имя1>", "Позитивный")]
+        row, _ = build_registry_row("<Project>", rows)
+        assert row is not None
+        self.assertEqual(len(row), len(REGISTRY_HEADER))
 
 
 if __name__ == "__main__":

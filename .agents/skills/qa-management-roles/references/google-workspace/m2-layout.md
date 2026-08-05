@@ -39,9 +39,11 @@ Standard project folder shape:
 - `private\evidence_log` Google Sheet, with CSV fallback `evidence_log.csv`
 - `people\<Person>\shared\individual_development_plan` Google Doc, with Markdown fallback
 - `people\<Person>\shared\individual_metrics` Google Sheet, with CSV fallback
-- `private\people\<Person>\individual_metrics_internal` Google Sheet, with CSV
-  fallback — M2-only, never shared with the employee (see
-  `m2-individual-qa-metrics-report`'s references/internal-variant.md).
+- `private\people\<Person>\individual_risk` Google Sheet, with CSV
+  fallback — M2-only, never shared with the employee. Living, one-row-per-
+  person current-state record (same shape as `project_risk`/`Светофор
+  рисков`, not a log) - see `m2-individual-qa-metrics-report`'s
+  references/internal-variant.md.
 - `private\m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
   own dated rounds of questions/answers ahead of each project-level
   rollup (see `m2-role/m2-project-rollups.md` Project-Level Rollups and
@@ -72,18 +74,19 @@ Keep `_project_registry` in `20_M2_Project_Management` as a top-level,
 one-row-per-project "war room" dashboard — the airplane view across every
 project M2 owns, sourced from each project's `project_metrics` (see
 `Templates\метрики_проекта_qa.md` §4). Columns: `Проект`, `People`,
-`Статус`, `Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
-`Наименьший вклад в проект`, `Качество QA-процесса`.
+`Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
+`Наименьший вклад в проект`, `Качество QA-процесса`. No `Статус` column -
+every row in the live registry is by definition active, so a status
+column would only ever read `Активен` and carries no information (see
+below).
 
-`Статус` mirrors `project_metrics`'s `Статус проекта` row
-(`Templates\метрики_проекта_qa.md` §1.0) — exactly two values, `Активен`
-or `Не активен`, no third "paused" state. It's manual-only: no script sets
-or clears it, no scheduled cadence flips it back; it changes only when M2
-edits `project_metrics` directly. Because `Не активен` projects are
-excluded from the rebuilt registry entirely (see below), a project's
-`Статус` cell in the live registry is effectively always `Активен` — the
-column exists for schema consistency with `project_metrics`, not because
-`Не активен` rows are ever visible here.
+`project_metrics`'s `Статус проекта` row (`Templates\метрики_проекта_qa.md`
+§1.0 — exactly two values, `Активен` or `Не активен`, no third "paused"
+state) isn't mirrored as a registry column at all; it's read purely as a
+gate. Manual-only: no script sets or clears it, no scheduled cadence flips
+it back; it changes only when M2 edits `project_metrics` directly. `Не
+активен` excludes the project from the rebuilt registry entirely (see
+below) - that's the only effect the value has on the registry.
 
 `Наименьший вклад в проект` is the one column that isn't a direct copy —
 `project_metrics` can have several `Вклад в проект: <Имя>` rows, but the
