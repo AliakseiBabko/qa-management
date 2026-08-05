@@ -118,6 +118,37 @@ Optional sections when evidence supports them, in either shape:
   conversation exists (see `presale-upsell-rules.md`); omit rather than
   padding with generic upsell language on a project with no such signal.
 
+**Monthly narrative variant** — use instead of the bulleted shapes above
+when the period is a full calendar month, or the user explicitly asks for
+a monthly overview/narrative/paragraph form. Two short paragraphs, not a
+bulleted digest:
+
+```text
+<Project>, обзор за <месяц год>
+
+<Paragraph 1 — what happened: progress, delivered work, quality/metrics
+signal, notable events during the month.>
+
+<Paragraph 2 — forward-looking: plans, staffing questions, risks/
+concerns, next steps.>
+```
+
+- Same evidence discipline as the bulleted shapes — no invented content,
+  same "Data note" fallback for a weak period (see document-contract.md,
+  Missing Evidence).
+- Same M2 Focus content categories apply (staffing, risk/blocker
+  movement, plan progress, client communication) — they just get woven
+  into prose instead of separate bulleted sections.
+- For a multi-person project, name the people/streams naturally within
+  the prose rather than switching to per-person blocks — the paragraph
+  form is what the user asked for; don't silently revert to the bulleted
+  per-stream shape just because there's more than one person to cover.
+- A third short paragraph is acceptable if the month genuinely has that
+  much material (e.g. several people, a real staffing change, and a
+  material risk shift all in the same month) — but that is the ceiling;
+  don't let it grow into the long analytical report this skill explicitly
+  avoids.
+
 ## Guardrails
 
 - Do not invent progress, blockers, feedback, dates, metrics, or ownership.
