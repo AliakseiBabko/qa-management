@@ -1,7 +1,9 @@
 # Document Contract
 
-Primary final output is a Google Sheet in `20_M2_Project_Management`, with local
-CSV fallback. Preserve the CSV template layout as the Sheet layout/schema.
+Primary final output is a Google Sheet workbook in `20_M2_Project_Management`,
+with an optional mirrored workbook in a user-provided external Drive folder
+and local CSV fallback. Preserve the CSV template layout as each monthly
+sheet/tab layout/schema.
 
 ## Purpose
 
@@ -13,25 +15,51 @@ Use this reference for M2 monthly KPI report Google Sheet generation, with CSV f
 
 ## Expected Output
 
-One CSV per M2 manager and reporting month.
+One Google Sheet workbook per M2 manager per destination. Each reporting
+month is a separate sheet/tab in that workbook, named exactly `YYYY-MM`.
 
-Suggested target folder:
+Primary QA Management target folder:
 
 `G:\My Drive\QA_Management\20_M2_Project_Management`
 
-Suggested naming pattern:
+Primary workbook title:
 
-`m2_monthly_report_<Manager>_YYYY-MM.csv`
+`m2_monthly_report_<Manager>`
+
+Optional external destination:
+
+- If the user provides an external Drive folder or workbook, maintain a
+  second workbook there with the same tab layout and the same `YYYY-MM`
+  monthly tab naming.
+- External folder IDs and copied workbook IDs are runtime data. Do not
+  commit real external IDs, file titles containing real person names, or
+  destination owner details into this public repository.
+- If the external workbook does not exist yet and the user has
+  `canAddChildren`/edit access to the destination folder, create it by
+  copying the primary workbook or template workbook once. After that,
+  update the existing external workbook directly instead of creating a new
+  copy every month.
 
 ## Versioning
 
-- Do not overwrite an existing final monthly report by default.
-- If the target manager/month file already exists, create the next versioned file with a `_vN` suffix before `.csv`, for example `_v2` or `_v3`.
-- Update an existing monthly report in place only when the user explicitly asks for revision.
+- Do not create a new Google Sheet file for every month. Add or update the
+  month tab in the existing workbook.
+- When creating a new monthly report, create a new tab named `YYYY-MM`.
+- If the `YYYY-MM` tab already exists, update that tab in place only when
+  the user explicitly asks for a revision; otherwise stop and ask whether
+  to revise the existing tab, duplicate it to `YYYY-MM_vN`, or leave it
+  unchanged.
+- Apply the same tab operation to both the QA Management workbook and the
+  external workbook when both are configured. If one copy is missing, first
+  confirm whether to create/copy it or proceed with only the available
+  workbook.
+- CSV fallback remains one file per manager/month because CSV has no tabs:
+  `m2_monthly_report_<Manager>_YYYY-MM.csv`.
 
 ## Layout
 
-Use the 2D CSV grid in `Templates\m2_monthly_report.csv`; it mirrors the workbook layout rather than a normalized table.
+Use the 2D CSV grid in `Templates\m2_monthly_report.csv`; it mirrors one
+monthly workbook tab rather than a normalized table.
 
 Preserve:
 

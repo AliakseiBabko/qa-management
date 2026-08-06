@@ -20,7 +20,7 @@ Use Markdown/plain text. Do not use CSV for this report family.
 
 ## Target Folder
 
-For saved regular reports:
+For saved regular (bulleted, weekly/on-demand) reports:
 
 `G:\My Drive\QA_Management\20_M2_Project_Management\<Project>\private\status_reports`
 
@@ -31,6 +31,29 @@ Suggested naming pattern:
 For multi-project reports:
 
 `status_multi-project_YYYY-MM-DD.md`
+
+For saved **Monthly narrative variant** reports specifically, use the
+shared M2-level folder instead of the per-project one — these are read
+together across projects for the same month, not filed with one project's
+own working evidence:
+
+`G:\My Drive\QA_Management\20_M2_Project_Management\M2\monthly_status_reports`
+
+**One Google Doc per calendar month, covering every project reported that
+month** — not one file per project. Doc title: `YYYY-MM` (e.g. `2026-07`).
+Structure inside: a top-level heading naming the month, then one
+`HEADING_2` section per project (project name only), each holding that
+project's Introduction/Current state/Problems/Plans content as
+`HEADING_3` subsections. When a new project's report is ready for a month
+whose doc already exists, append its `HEADING_2` section to that same
+doc rather than creating a second file; when the next calendar month
+starts, create a new `YYYY-MM` doc rather than appending to the previous
+month's.
+
+This keeps `20_M2_Project_Management`'s own root reserved for
+`_project_registry`/`_timeline`/`_timeline_looker_view`, and keeps every
+final M2-level output document (the monthly narrative report doc per
+month, the M2 monthly KPI/bonus report) together under `M2\`.
 
 ## Versioning
 
@@ -93,8 +116,9 @@ as muddled and buries who owns what.
 
 For a full-month period (or an explicit request for a monthly/narrative/
 paragraph-form report), use the Monthly narrative variant instead (see
-SKILL.md, Chat Text Shape) — two short paragraphs covering the same
-content categories in prose, not this numbered-section bulleted list.
+SKILL.md, Chat Text Shape) — the fixed Introduction/Current state/
+Problems/Plans structure in prose, not this numbered-section bulleted
+list.
 
 Keep each section short:
 
