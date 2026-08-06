@@ -1202,3 +1202,9 @@ Source examples:
 
 The M1 workbook contains real report examples. The M2 workbook is treated as an example/calculator
 unless explicitly provided as a real report for a target month.
+
+M2 monthly reports use one workbook per manager per destination, with one
+tab per reporting month named `YYYY-MM`. When an external destination
+workbook is configured by the user, update both the QA Management workbook
+and the external workbook in the same pass; do not create a fresh copied
+spreadsheet for every month.

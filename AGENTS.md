@@ -93,6 +93,11 @@ cleaned automatically; it never gets written to `.local/`.
   block, immediately rerun the same command with network/escalated
   permissions. Do not treat that first sandbox failure as evidence that
   Drive access is unavailable.
+- If PowerShell SecretStore commands fail with a
+  `SecureStoreFile`/`FileSystemWatcher` initialization error, rerun the
+  same SecretStore read with escalated permissions. The vault may be
+  healthy while the sandbox blocks access to the Windows profile-backed
+  store; never print secret values while checking this.
 
 ## Canonical Data Boundary
 

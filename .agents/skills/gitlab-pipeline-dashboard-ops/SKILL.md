@@ -80,6 +80,47 @@ After that, `Set-Secret -Name <Name> -Secret "<token>"` and
 run the `Set-Secret` line themselves in their own terminal so the secret
 never enters the conversation transcript.
 
+**Gotcha:** SecretStore data lives under the user's Windows profile, not
+inside the repo workspace. If `Get-SecretInfo`, `Get-Secret`, or
+`Get-SecretStoreConfiguration` fails with a
+`SecureStoreFile`/`FileSystemWatcher` initialization error, rerun the same
+read with escalated permissions instead of treating the vault as missing
+or broken. Listing secret metadata is safe; never print the token itself.
+
+**Gotcha:** when testing several candidate secret names in PowerShell,
+capture loop output before formatting it. A direct loop followed by a
+pipeline can parse as an empty pipe element in non-interactive shells.
+Use this shape:
+
+```powershell
+$results = foreach ($name in @("<SecretName>", "<FallbackSecretName>")) {
+  try {
+    $Headers = @{ "PRIVATE-TOKEN" = (Get-Secret -Name $name -AsPlainText) }
+    $user = Invoke-RestMethod -Uri "$GitLabApiBase/user" -Headers $Headers -Method Get -TimeoutSec 15
+    [pscustomobject]@{
+      SecretName = $name
+      Auth = "OK"
+      UserId = $user.id
+      Username = $user.username
+      Name = $user.name
+    }
+  } catch {
+    [pscustomobject]@{
+      SecretName = $name
+      Auth = "FAILED"
+      Error = $_.Exception.Message
+    }
+  }
+}
+$results | Format-List
+```
+
+To verify both token ownership and project access without exposing the
+token, call `GET /user` first, then `GET /projects/:id` (or the resolved
+URL-encoded project path) with the same headers. Report the returned user
+identity and whether the project request succeeded; do not report or log
+the token value.
+
 ## Triggering And Following A Pipeline Via API
 
 ```powershell
@@ -195,6 +236,100 @@ live cross-check tells them apart.
 6. Report as a table per dashboard (panel, metric(s), verdict, note) plus
    a short summary of anything RED (broken) or worth a second look — not
    a wall of raw query output.
+
+## Building A CI Performance Evidence Pack From Prometheus
+
+For a completed load-test job, distinguish three data sources before
+asking DevOps for extra access:
+
+- **GitLab artifacts** are the source of truth for JMeter's own results:
+  `results.jtl`, generated HTML report files, and `statistics.json` if
+  present.
+- **Prometheus** is the source of truth for scraped infrastructure and
+  application telemetry. It can answer historical queries for the test
+  window as long as the window is still inside retention; this does not
+  require SSH access to Kubernetes nodes.
+- **Grafana dashboards** are only a visualization layer. A dashboard that
+  uses InfluxQL-style queries (`SHOW TAG VALUES`, `SELECT ... FROM ...`)
+  against a Prometheus datasource is an old/backend-mismatched dashboard,
+  not proof that current metrics live in InfluxDB.
+
+If Prometheus is reachable from the agent or CI job, collect the missing
+bottleneck-analysis data by querying Prometheus directly:
+
+1. Read the job metadata from GitLab: job name, status, runner, branch,
+   `started_at`, `finished_at`, pipeline ID, commit, and artifact
+   availability.
+2. Download JMeter artifacts to an OS temp directory or CI artifact
+   workspace, never into this public repo. Parse `statistics.json` first,
+   then fall back to `results.jtl`.
+3. Determine the actual test window from the JTL timestamps, not only
+   GitLab's job timestamps. Include a baseline and cooldown query window:
+   `[test_start - 5m, test_end + 2m]`.
+4. If the job pushes JMeter metrics to Pushgateway, extract the
+   Prometheus labels from the job trace or pipeline variables (usually
+   labels such as environment/instance and profile/job name). Prometheus
+   may scrape the final pushed values after the GitLab job finish time;
+   query a short cooldown window or latest value before concluding the
+   final Pushgateway sample is missing.
+5. Query Prometheus with `/api/v1/query_range` for time-window data and
+   `/api/v1/query` for end/latest snapshots. Report query expressions and
+   time bounds in the evidence pack so the result is reproducible.
+
+Minimum Prometheus metric groups for useful bottleneck analysis:
+
+- JMeter pushed metrics: sample count, errors, error rate, throughput,
+  response-time avg/p90/p95/p99/max by sampler.
+- Node exporter: node CPU, memory, disk IO/filesystem, and network.
+- Container/Kubernetes: pod CPU, memory working set, restart count,
+  resource requests/limits, and CPU throttling
+  (`container_cpu_cfs_*`).
+- Ingress/service-mesh: request rate, response codes, request duration,
+  retries, upstream latency, and circuit breaker/open-connection signals
+  when present.
+- JVM/Micrometer for tested services: heap/non-heap, GC pauses, thread
+  pools, HTTP server request duration, process CPU, and connection-pool
+  metrics such as HikariCP active/idle/pending/max.
+- Database exporters used by the system under test: active connections,
+  locks, slow/long queries if exposed, cache hit ratio, transaction rate,
+  deadlocks, replication lag, disk/IO pressure, and exporter scrape
+  errors.
+- Queue/broker metrics when the scenario uses messaging: broker CPU/memory
+  plus producer/consumer rates, lag, request latency, under-replicated
+  partitions, and error counters where applicable.
+
+Prometheus API access is usually enough to build the post-test report if
+these metric families are already scraped. Ask DevOps for additional
+access or changes only when one of these is true:
+
+- the CI runner/container cannot resolve or reach the Prometheus API;
+- Prometheus requires auth and no read-only CI secret exists;
+- the needed metric family is absent from Prometheus;
+- app pods do not expose metrics, or ServiceMonitor/PodMonitor/scrape
+  config is missing;
+- retention or scrape interval is too short/coarse for the test duration;
+- logs/traces are needed because metrics show a symptom but not the
+  failing request path.
+
+Recommended CI flow:
+
+1. Record test start timestamp immediately before running JMeter.
+2. Run the load test and always save `results.jtl`.
+3. Generate `statistics.json`/HTML from JMeter and push final JMeter
+   metrics to Pushgateway, if that path exists.
+4. Wait one or two Prometheus scrape intervals before querying final
+   values, to avoid reporting stale pre-final Pushgateway data.
+5. Query Prometheus for baseline, test, and cooldown windows.
+6. Attach a single report artifact containing: JMeter summary, failed
+   sample breakdown, Prometheus charts/tables, query expressions, time
+   bounds, runner/container limits, and a short bottleneck hypothesis
+   section.
+
+Treat low node CPU/memory saturation as only one signal. If response
+times are high while node resources are not saturated, investigate app
+internals and dependencies first: CPU throttling, JVM GC/thread pools,
+connection pools, database locks/IO, service-mesh retries, queue lag, and
+test-client constraints.
 
 ## Guardrails
 
