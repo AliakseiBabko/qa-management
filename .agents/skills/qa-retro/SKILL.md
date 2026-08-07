@@ -24,8 +24,12 @@ repeated yet, nothing to change."
    (candidate `direct`/`script` edges left open in a project's touched
    set - confirm each is a real omission before treating it as a
    finding; `judgment`/`gated` edges are never auto-flagged, they need
-   per-case review), and lists repo commits over the same window. No
-   rows since last retro and no feedback = say so and stop; don't
+   per-case review), a telemetry-staleness check (real queue-backed runs
+   completed in the window with no matching operator-runs.csv/
+   agent-sessions.csv activity - if this fires, treat it as a real
+   finding worth its own fix, not just a trace: it already happened once
+   for 2+ weeks undetected), and lists repo commits over the same window.
+   No rows since last retro and no feedback = say so and stop; don't
    manufacture findings.
 2. Read `../qa-management-roles/references/google-workspace/operational-registries.md`'s
    `_skill_invocations` section for the `feedback:` note convention this

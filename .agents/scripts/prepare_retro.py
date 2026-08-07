@@ -11,7 +11,15 @@ Reads `_skill_invocations`, finds the most recent row with
 2. a cascade-closure check across that same window (see
    `find_direct_script_misses` below) - previously a manual, easy-to-skip
    step every retro pass had to remember to do itself;
-3. repo commits over the same window (`git log` since the marker row's
+3. a telemetry-staleness check (see `check_telemetry_staleness` below) -
+   real queue-backed runs that completed in the window versus whether
+   operator-runs.csv/agent-sessions.csv actually got a row in that same
+   window. A real incident motivated this: the mandatory telemetry
+   closing step silently stopped for 2+ weeks (24 completed queue runs,
+   zero operator-runs.csv rows) and nothing caught it until a direct user
+   review of the raw CSV - not even a retro pass in between, because
+   nothing was comparing these two signals against each other;
+4. repo commits over the same window (`git log` since the marker row's
    date), because rule changes already made by hand are part of the same
    picture.
 
@@ -88,6 +96,96 @@ def find_direct_script_misses(window_rows: list, graph: dict) -> list[tuple[str,
     return misses
 
 
+def check_telemetry_staleness(
+    queue_completed_dates: list[str],
+    operator_runs_dates: list[str],
+    agent_session_dates: list[str],
+    since_date: str | None,
+) -> list[str]:
+    """Pure comparison: within the retro window, did real queue-backed work
+    complete without a corresponding mandatory telemetry row appearing in
+    the same window? Returns human-readable warning strings, empty if
+    nothing looks stale.
+
+    This is a coarse presence check, not exact per-run attribution -
+    operator-runs.csv rows never store which queue run_id they measured
+    (redacted by design, see operator_telemetry_common.py), so there is no
+    way to match one specific completed run to one specific CSV row. What
+    IS checkable, and is exactly the signal that would have caught the
+    real incident this exists for: real queue runs completed in the
+    window vs whether operator-runs.csv/agent-sessions.csv got ANY row at
+    all in that same window. The real incident: 24 queue runs completed
+    2026-07-24 through 2026-08-06 with zero operator-runs.csv rows in that
+    entire stretch - a gap no retro pass in between caught, because
+    nothing was comparing these two signals against each other. Found only
+    via a direct user review of the raw CSV.
+
+    Dates are compared by their leading YYYY-MM-DD (queue timestamps carry
+    a time component, "%Y-%m-%d %H:%M" - only the date matters here).
+    since_date=None (no prior retro marker) skips the check entirely -
+    there's no meaningful "window" to compare against yet."""
+    if not since_date:
+        return []
+
+    def in_window(d: str) -> bool:
+        return bool(d) and d[:10] >= since_date
+
+    completed_in_window = [d for d in queue_completed_dates if in_window(d)]
+    if not completed_in_window:
+        return []
+
+    warnings: list[str] = []
+    if not any(in_window(d) for d in operator_runs_dates):
+        warnings.append(
+            f"{len(completed_in_window)} queue-backed run(s) completed since {since_date} "
+            "but operator-runs.csv has zero rows dated in that window - the mandatory "
+            "completed_run_review step looks like it stopped being run."
+        )
+    if not any(in_window(d) for d in agent_session_dates):
+        warnings.append(
+            f"{len(completed_in_window)} queue-backed run(s) completed since {since_date} "
+            "but agent-sessions.csv has zero rows dated in that window - the mandatory "
+            "session telemetry row looks like it stopped being recorded."
+        )
+    return warnings
+
+
+def _read_queue_completed_dates() -> list[str]:
+    """Best-effort: all non-blank Completed timestamps across the intake
+    queue. Never raises - a queue read failure degrades to an empty list
+    (the staleness check then has nothing to compare and stays silent,
+    same fail-open posture as the rest of this gathering script)."""
+    try:
+        from qa_manage import find_queue, read_queue
+
+        services = get_services()
+        sheet = find_queue(services)
+        if not sheet:
+            return []
+        rows = read_queue(services, sheet)
+        return [r.get("Completed", "") for r in rows if r.get("Completed", "").strip()]
+    except Exception:  # noqa: BLE001 - deliberately broad, see docstring
+        return []
+
+
+def _read_operator_runs_dates() -> list[str]:
+    try:
+        import operator_telemetry_common as common
+        _, rows = common.read_rows()
+        return [r.get("date", "") for r in rows]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _read_agent_session_dates() -> list[str]:
+    try:
+        import operator_telemetry_common as common
+        _, rows = common.read_agent_session_rows()
+        return [r.get("date", "") for r in rows]
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def main() -> int:
     services = get_services()
     sheet = get_skill_invocations_sheet(services)
@@ -161,6 +259,21 @@ def main() -> int:
         print(log or "  (none)")
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         print(f"Could not read git log: {exc}")
+
+    staleness_warnings = check_telemetry_staleness(
+        _read_queue_completed_dates(),
+        _read_operator_runs_dates(),
+        _read_agent_session_dates(),
+        since_date,
+    )
+    print()
+    if staleness_warnings:
+        print("Telemetry staleness check:")
+        for w in staleness_warnings:
+            print(f"  WARNING: {w}")
+    elif since_date:
+        print("Telemetry staleness check: no gap - queue completions in this "
+              "window have matching operator-runs.csv/agent-sessions.csv activity.")
 
     print()
     print("Next (qa-retro): group by target skill/reference/graph node; "

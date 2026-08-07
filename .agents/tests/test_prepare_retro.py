@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from prepare_retro import find_direct_script_misses
+from prepare_retro import check_telemetry_staleness, find_direct_script_misses
 
 GRAPH = {
     "documents": {
@@ -106,6 +106,73 @@ class FindDirectScriptMissesTests(unittest.TestCase):
 
     def test_empty_window_returns_empty(self):
         self.assertEqual(find_direct_script_misses([], GRAPH), [])
+
+
+class CheckTelemetryStalenessTests(unittest.TestCase):
+    def test_no_prior_retro_marker_skips_the_check(self):
+        # since_date=None - no meaningful window to compare against yet.
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["2026-08-01 10:00"],
+            operator_runs_dates=[],
+            agent_session_dates=[],
+            since_date=None,
+        )
+        self.assertEqual(warnings, [])
+
+    def test_no_completions_in_window_is_silent(self):
+        # Real incident this guards: nothing to flag if the queue itself
+        # was genuinely idle in the window - only flag when real
+        # completed work exists with no matching telemetry.
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["2026-07-01 10:00"],  # before the window
+            operator_runs_dates=[],
+            agent_session_dates=[],
+            since_date="2026-08-01",
+        )
+        self.assertEqual(warnings, [])
+
+    def test_real_incident_shape_flags_both_csvs(self):
+        # The actual incident: 24 queue runs completed with zero rows in
+        # either telemetry CSV for that whole window.
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["2026-07-24 22:56", "2026-08-06 23:19"],
+            operator_runs_dates=["2026-07-20", "2026-07-23"],  # all before window
+            agent_session_dates=["2026-07-22"],  # before window
+            since_date="2026-07-24",
+        )
+        self.assertEqual(len(warnings), 2)
+        self.assertTrue(any("operator-runs.csv" in w for w in warnings))
+        self.assertTrue(any("agent-sessions.csv" in w for w in warnings))
+
+    def test_matching_operator_runs_activity_clears_that_warning_only(self):
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["2026-08-02 10:00"],
+            operator_runs_dates=["2026-08-02"],  # in window - covers this CSV
+            agent_session_dates=[],  # still nothing - stays flagged
+            since_date="2026-08-01",
+        )
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("agent-sessions.csv", warnings[0])
+
+    def test_date_only_prefix_comparison_ignores_time_component(self):
+        # Queue timestamps carry "%H:%M"; CSV dates don't - comparison
+        # must key off the leading YYYY-MM-DD only, not fail on format.
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["2026-08-01 23:59"],
+            operator_runs_dates=["2026-08-01"],
+            agent_session_dates=["2026-08-01"],
+            since_date="2026-08-01",
+        )
+        self.assertEqual(warnings, [])
+
+    def test_blank_completed_dates_are_ignored(self):
+        warnings = check_telemetry_staleness(
+            queue_completed_dates=["", "  ", "2026-07-01 10:00"],
+            operator_runs_dates=[],
+            agent_session_dates=[],
+            since_date="2026-08-01",
+        )
+        self.assertEqual(warnings, [])
 
 
 if __name__ == "__main__":
