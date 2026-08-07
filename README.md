@@ -826,11 +826,18 @@ These are what actually runs day to day, once a project's folder already exists:
 - `prepare_retro.py` — read-only gatherer for the `qa-retro` improvement
   loop: finds the last `source_type=retro` row in `_skill_invocations`,
   prints every invocation row since it (flagging `feedback:` notes — the
-  captured user corrections that are the loop's primary input) plus repo
-  commits over the same window. Judgment (grouping, the once=trace /
-  twice+=propose-an-edit threshold, drafting diffs) stays with the
-  qa-retro skill; the retro logs its own `retro` row when done, which
-  becomes the next run's window start.
+  captured user corrections that are the loop's primary input), a
+  cascade-closure check across that window (`find_direct_script_misses`
+  — groups rows by project, unions each project's `Documents touched`
+  across the whole window, and flags any `direct`/`script`-kind
+  downstream edge left open anywhere in that project's window;
+  `judgment`/`gated` edges are deliberately not auto-flagged, too noisy
+  to be a useful signal), plus repo commits over the same window.
+  Judgment (grouping, the once=trace / twice+=propose-an-edit threshold,
+  drafting diffs, confirming a flagged candidate is a real omission) stays
+  with the qa-retro skill; the retro logs its own `retro` row when done,
+  which becomes the next run's window start. Pure logic is unit-tested:
+  `python -m unittest discover -s .agents/tests`.
 - `apply_person_card.py` — parses a person card (the Job Title/M-level/
   Prof.Level/Mentor/DC block M2 pastes in conversation) per the Person Card
   Intake mapping in `google-workspace/people-registry.md`, looks up `_people_registry`
