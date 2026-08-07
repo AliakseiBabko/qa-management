@@ -145,6 +145,18 @@ resolve," and must not be broadened into one.
   `pipeline_common._insert_blocks` already does — don't skip that step just
   because the insertion point "looks like" plain body text; the paragraph
   mark you're inserting before is never guaranteed to be `NORMAL_TEXT`.
+- A second, easier-to-miss manifestation of the same root cause: a single
+  isolated `HEADING_2`/`HEADING_3` paragraph with no run around it — this
+  happened twice in one session, in two different knowledge-base
+  documents, each time landing mid-paragraph inside ordinary narrative
+  text. The consecutive-run detector above won't catch this shape, since
+  it requires 2+ headings in a row. Check for it separately: fetch every
+  heading-styled paragraph and flag any whose text doesn't match one of
+  the document's own known/expected section headings (the fixed template
+  list, or an established H3 sub-heading you already recognize) — a real
+  heading's text is always drawn from that known set, so a heading-styled
+  paragraph containing ordinary prose is definitionally wrong regardless
+  of whether it's alone or part of a run.
 - When replacing one paragraph's text in place via `deleteContentRange` +
   `insertText`, get the paragraph's own `startIndex`/`endIndex` from a fresh
   `documents().get()` call and delete range `[startIndex, endIndex - 1)` -

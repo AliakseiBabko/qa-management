@@ -17,7 +17,15 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    unclear, resolve it before proceeding (same discipline as every other
    intake skill).
 3. Read the project's current `pk_knowledge_base` (if it exists) so new
-   content can be judged against what's already captured.
+   content can be judged against what's already captured. Before
+   concluding a project has no knowledge base yet, check for a
+   same-named doc anywhere under the project's own root folder, not just
+   inside its `knowledge_base/` subfolder - this has already happened
+   twice for real projects (a `knowledge_base` doc created in the
+   project root instead of its subfolder), and a subfolder-scoped search
+   alone looks identical to "never created" when the doc is simply
+   misfiled. If found outside `knowledge_base/`, move it there rather
+   than creating a second doc.
 4. Read `../qa-management-roles/references/google-workspace/operational-registries.md`
    (the `_skill_invocations` conventions step 6 writes into) and
    `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
@@ -93,6 +101,12 @@ Repeated live-investigation patterns:
    Known Constraints, Glossary) and update Open Questions/Source Index/
    Change Log. Record `no_change` explicitly when the source adds nothing
    durable - do not force an update just because a source was processed.
+   Insert new content at the end of the target section (or its relevant
+   H3 sub-heading if the section already has them) - never at a heading's
+   own start index, and never into Change Log as a substitute for
+   deciding where content belongs. See
+   `../project-knowledge-roles/SKILL.md`, "Structural Format" for the
+   Change Log one-liner rule and the sub-heading threshold.
 4. **Run the closing quality gate (mandatory) before finishing.** With
    `pk_summary` written and `pk_knowledge_base` updated, do one more pass
    comparing them before moving on:
@@ -150,7 +164,14 @@ Repeated live-investigation patterns:
    only create it when there's real, project-specific content to write.
 6. **Log `_skill_invocations`** via `pipeline_common.log_skill_invocation()`
    with `source_type` set to the source's actual type and `Documents
-   touched` listing everything actually written this pass.
+   touched` listing everything actually written this pass. If the source
+   was a real file under `00_Inbox` processed by hand (direct Docs/Sheets
+   API calls, not the `qa_manage.py` queue/scan pipeline), archive it to
+   `90_Storage/Processed_Sources/<year>/<month>/<run-id-style-slug>/`
+   yourself before closing out the pass - a hand-run pass never touches
+   `_intake_queue`, so `qa_manage.py`'s archive command has nothing to
+   act on and the file silently sits in `00_Inbox` looking unprocessed.
+   This has already happened for real sources.
    Before moving to the next source, check whether the user corrected a
    routing, wording, or judgment call in this pass. If so, log a
    separate `feedback:`-prefixed row in the same pass, following
