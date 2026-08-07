@@ -964,7 +964,7 @@ These are what actually runs day to day, once a project's folder already exists:
   `show_project_state_full_project`), and the append/validate/diff-guard
   helpers the three scripts below share. Recording a `completed_run_review`
   (or equivalent) row after every real intake/rollup pass finishes is a
-  mandatory closing step (see AGENTS.md's intake-workflow bullet), not just
+  mandatory closing step (see AGENTS.md's "Start Here" section), not just
   ad hoc measurement.
 - `measure_operator_outputs.py` — runs one read-only case from the catalog
   above (or `--dry-run`s it, printing the redacted command with nothing
@@ -1020,7 +1020,13 @@ These are what actually runs day to day, once a project's folder already exists:
   `antigravity_cli` → high, `antigravity_db` → medium, manual → `manual`).
   Never touches `operator-runs.csv`; `--linked-operator-run-ids` entries
   not found there are a warning, not a failure. Same append-only/diff-guard
-  model as the other CSV.
+  model as the other CSV. Refuses (unless `--manual` or
+  `--allow-duplicate-snapshot`) to append a row whose `actual_*` fields are
+  byte-identical to the same `session_id`'s most recent existing row - a
+  real incident produced 4 such rows in one 16-minute window (4 queue-run
+  closeouts back-to-back with no new conversation turns between them),
+  each individually accurate but indistinguishable from a bug on direct
+  CSV review and adding zero new usage data.
 - `record_task_outcome.py` — appends one row to
   `.agents/telemetry/task-outcomes.csv`, the pass-level derived closure and
   workload deliverable counterpart to `operator-runs.csv` and `agent-sessions.csv`:

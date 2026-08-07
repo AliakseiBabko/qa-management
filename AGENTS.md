@@ -85,6 +85,18 @@ cleaned automatically; it never gets written to `.local/`.
   `.agents/scripts/qa_manage.py dashboard` - it names the next run and
   the exact next command. Use `guide <run-id>` for what to do on a
   specific run, `classify`/`pack` when `guide` points there.
+- Finished a real pass (queue-backed intake run, or a no-queue
+  direct-note/conversational rollup)? Record its mandatory closing
+  telemetry row - `.agents\scripts\closeout_telemetry.py` for a
+  queue-backed run, `.agents\scripts\record_agent_session.py` for a
+  no-queue pass. Not optional instrumentation - see
+  `.agents\telemetry\README.md`. (This bullet was cut from an earlier,
+  more detailed AGENTS.md during this file's own July 2026 compaction
+  into a router; telemetry recording silently stopped the same week and
+  stayed stopped for 2+ weeks until caught by a direct user review - the
+  bullet is back specifically because removing it from startup context
+  was enough on its own to stop the practice, even though the README
+  still documented it as mandatory.)
 - About to write an ad hoc Drive/Sheets/Docs script? Read README's
   **Current pipeline scripts** section first - most tasks already map to
   an existing one.
