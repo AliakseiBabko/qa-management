@@ -41,7 +41,11 @@ and generalizable, not private judgment about one named colleague.
   needs enough concrete detail that someone else could recognize a similar
   situation and use the takeaway. An outcome that's still unresolved is
   fine to log (mark it as ongoing/unresolved explicitly), but the
-  situation and approach still need to be concrete.
+  situation and approach still need to be concrete. This is the same
+  narrative-shape test as
+  `../qa-management-roles/references/transcript-signal-triage.md`
+  (name-recognition is the attention cue, situation-with-structure is the
+  actual filter) applied specifically to management cases.
 - **Boundary vs M1 (people-management):** never log a case whose only real
   content is a judgment about one named person's competence, reliability,
   or performance - that belongs in `individual_risk`/`individual_metrics`,

@@ -17,7 +17,10 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
 ## Required Start
 
 1. Read `../qa-management-roles/references/aliases.md` before treating an
-   unfamiliar project/person name from the transcript as new.
+   unfamiliar project/person name from the transcript as new, and
+   `../qa-management-roles/references/transcript-signal-triage.md` before
+   deciding what's worth extracting - a status meeting runs through
+   several projects and mixes real updates with routine/no-news segments.
 2. Read `../qa-management-roles/references/m2-role/m2-project-rollups.md`
    and `../qa-management-roles/references/m2-role/m2-cascading-updates.md`
    - the routing rules below apply directly.

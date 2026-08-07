@@ -25,7 +25,10 @@ folder.
 ## Required Start
 
 1. Read the raw transcript, transcript summary, or explicit user notes first.
-2. Read `references/analysis-contract.md`.
+2. Read `references/analysis-contract.md` and
+   `../qa-management-roles/references/transcript-signal-triage.md` (the
+   name-recognition-is-not-sufficient / situation-with-structure filter
+   this skill's own signal separation in step 4 below applies).
 3. Load only the needed references:
    - `references/topic-selection.md`
    - `references/risk-signals.md`
