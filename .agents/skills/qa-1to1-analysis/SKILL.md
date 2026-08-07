@@ -42,6 +42,12 @@ folder.
    - people-risk signals
    - project-risk signals
    - actions or follow-ups
+   - management-case candidates - a concrete client/stakeholder/team
+     situation with a real approach-and-outcome shape, generalizable
+     beyond this one project or person (not the same as a risk signal,
+     which is about this project/person's current state) - see
+     `pm-case-knowledge-roles/SKILL.md` for what counts. Most 1:1s
+     produce none; don't force it.
 5. State uncertainty explicitly when the source lacks evidence.
 
 ## Deliverable
@@ -54,6 +60,8 @@ Prepare structured findings that another skill can consume:
 4. people-management signals
 5. project-management signals
 6. possible action items
+7. management-case candidates, if any (routed onward by the M1/M2 apply
+   skill to `pm-case-knowledge-intake`, not written here)
 
 ## Guardrails
 

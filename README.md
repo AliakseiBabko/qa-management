@@ -35,6 +35,11 @@ Current Drive layout:
 - `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
   team member) — see M1 Person Layout below
 - `20_M2_Project_Management/`: project-based M2 project-management outputs
+- `30_Project_Knowledge/`: project-based, learning/onboarding project
+  understanding — distinct from M1/M2 management reporting above; see
+  Project Knowledge Layout below
+- `40_PM_Case_Library/`: flat, cross-project, personal-reference
+  management-pattern case library — see PM Case Library Layout below
 - `80_Exports/` (optional): created only when an explicit immutable package
   or copy is prepared for external sharing; internal extracts do not belong here
 - `90_Storage/`: the single non-actionable storage root:
@@ -247,6 +252,40 @@ canonical roots; `show_project_state.py --lane project_knowledge` reads
 this lane's Drive state live (`--registries`/`--summary`/`--person` are
 M2-only concepts and are rejected for this lane).
 
+## PM Case Library Layout
+
+A fourth lane, distinct from all three above: `40_PM_Case_Library`, a flat,
+cross-project, personal-reference collection of real management
+situations (client/team/stakeholder behavior, what was tried, what
+happened, the takeaway) — organized by pattern, not by project, so
+similar situations across different projects/clients can be compared
+side by side.
+
+```
+40_PM_Case_Library/
+  pm_case_index                         (Sheet - one row per logged case)
+  pm_case_library                       (Doc - the living case library,
+                                          organized by theme)
+```
+
+No per-project subfolder — unlike the M1/M2/Project Knowledge lanes, this
+one is intentionally flat (see `pm_case_workspace_layout.py`). Personal
+reference only for v1 (not shared with other M2s). Two skills:
+`pm-case-knowledge-roles` (shared judgment — what counts as a case, the
+M1/M2/Project-Knowledge boundary, the same theme/H3-threshold and
+Change-Log-one-liner structural rules as Project Knowledge's knowledge
+bases) and `pm-case-knowledge-intake` (writes the two documents).
+
+**Not a primary intake lane** — unlike the M1/M2/Project-Knowledge
+source types, a case has no `source_type` of its own and never enters
+`qa_manage.py`'s queue/classify/guide/pack pipeline directly. It is a
+secondary, occasional output that `qa-1to1-analysis`/`m2-1to1-apply`,
+`m2-strategy-chat-analysis`, `m2-status-meeting-intake`, and
+`project-knowledge-intake` each route to when their own real pass
+surfaces a case-shaped situation that doesn't belong in their own
+document — most passes route nothing, and that's the normal outcome, not
+a gap.
+
 ## Source extraction
 
 Use the dependency-free extractor when Office source documents need to be converted into
@@ -413,6 +452,16 @@ These are what actually runs day to day, once a project's folder already exists:
   duplicating them. `find_*` functions never create anything; `ensure_*`
   functions create what's missing (a project folder is only created when a
   source is actually being processed into it, never by a read command).
+- `pm_case_workspace_layout.py` — not a script to run; canonical folder
+  layout for the PM Case Library (`40_PM_Case_Library`). The simplest of
+  the three layout modules - flat, no per-project subfolder at all, since
+  this lane is deliberately cross-project (real cases from any project
+  land in one shared, theme-organized library). Reuses
+  `m2_workspace_layout.py`'s generic Drive helpers the same way
+  `project_knowledge_workspace_layout.py` does. `find_root`/`find_document`
+  never create anything - the root folder and both documents are created
+  only when a real case is actually being logged for the first time, never
+  speculatively.
 - `resolve_drive_path.py` — read-only lookup: resolves a local path under
   the user's Google Drive-for-Desktop mirror (`G:\My Drive\QA_Management\...`)
   to its real Drive file/folder (`id`, `mimeType`, `webViewLink`), walking
