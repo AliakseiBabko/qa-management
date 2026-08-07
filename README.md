@@ -472,6 +472,15 @@ These are what actually runs day to day, once a project's folder already exists:
   normal - so this is the way to get from "a local path the user pasted or
   dropped in 00_Inbox" to something the Docs/Sheets API (or an export URL)
   can actually open, with no browser automation involved.
+- `read_google_doc.py` — read-only: prints (or saves) a Google Doc's full
+  plain text, given either a local Drive-mirror path (`.gdoc`, resolved the
+  same way `resolve_drive_path.py` does) or a raw Docs document ID
+  (`--id`). Flattens both paragraphs and table cells — a real gap in some
+  of this repo's other ad hoc Docs-API text extractors, which only handle
+  paragraphs. Exists so reading an arbitrary project doc (an ops runbook,
+  a knowledge base, anything not already covered by `show_project_state.py`'s
+  specific document set) doesn't mean re-deriving the
+  `documents().get()` → text-flattening logic from scratch each time.
 - `migrate_workspace_root_layout.py` — legacy-to-current source lifecycle migration.
   `audit` is read-only; `apply` fails closed if any item lacks a queue-backed
   disposition. It moves active sources to `00_Inbox`, processed originals to
