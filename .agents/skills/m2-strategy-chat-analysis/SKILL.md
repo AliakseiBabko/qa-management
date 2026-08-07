@@ -105,12 +105,20 @@ editing an already-logged file in place makes new content invisible to it.
      repeated). If M2 answers a
      round directly in conversation, write it with `add_answer()`, which
      requires a round to actually be pending.
-5. Update the `evidence_log` row `detect_strategy_chats.py` already created
+5. If the chat contains a concrete, generalizable management case (client/
+   stakeholder behavior with a real approach-and-outcome shape, useful
+   beyond this one project) — not just a routine status/staffing fact —
+   route it to `pm-case-knowledge-intake` (load
+   `../pm-case-knowledge-roles/SKILL.md` first). Most passes have nothing
+   to route; a multi-month strategy chat producing zero cases is normal,
+   not a gap.
+6. Update the `evidence_log` row `detect_strategy_chats.py` already created
    for this file (same `date`/`source` — don't append a duplicate): replace
-   `routed_to` ("pending M2 review") with every document actually touched,
-   and extend `notes` to summarize what changed and what was left as an
+   `routed_to` ("pending M2 review") with every document actually touched
+   (including `pm_case_library` if step 5 wrote one), and extend `notes`
+   to summarize what changed and what was left as an
    open question, on top of the date-range note the script wrote.
-6. Close the cascade: run `.agents\scripts\check_cascade_closure.py
+7. Close the cascade: run `.agents\scripts\check_cascade_closure.py
    --touched <routed_to list>` and resolve every OPEN item (update, run
    the named script, or an explicit "no change needed" with a reason)
    before declaring the intake done.

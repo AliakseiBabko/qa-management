@@ -121,7 +121,7 @@ Google Drive is the business-data source of truth:
 Full folder layout and per-document detail are canonical in README's
 **M1 Person Layout**, **M2 Project Layout**, and **Project Knowledge
 Layout** sections, and in `qa-management-roles`'s role references - not
-duplicated here. Keep these three distinct:
+duplicated here. Keep these four distinct:
 
 - **M1** people data (`10_M1_People_Management`) is person-based,
   people-management-owned.
@@ -133,6 +133,13 @@ duplicated here. Keep these three distinct:
   intermediate store for M1/M2 material: a source whose purpose is M1 or
   M2 management routes to its appropriate M1/M2 lane, never into Project
   Knowledge merely for convenience.
+- **PM Case Library** (`40_PM_Case_Library`) is a flat, cross-project,
+  personal-reference collection of real management situations (client/
+  team/stakeholder behavior, approach, outcome, takeaway) organized by
+  pattern rather than by project - not a per-project store like the three
+  above. It never substitutes for M1/M2's own current-state records
+  (`individual_risk`, `project_risk`, `m2_input`, `evidence_log`) for an
+  actively-managed project or person - see `pm-case-knowledge-roles`.
 
 ## Core Judgment Rules
 

@@ -39,13 +39,23 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
    preliminary-analysis gate applies as for any other source.
 4. Log concrete, datable next steps into that project's `action_items`;
    run `refresh_timeline_registry.py` after.
-5. Log one `evidence_log` row per affected project, `source_type =
-   meeting_transcript` (see
+5. Skip projects mentioned that belong to a different M2 for steps 2-4
+   above - name-recognition only, per `aliases.md`.
+6. Regardless of whether a project's own routing happened (step 2) or it
+   was skipped (step 5): if its discussion surfaces a concrete,
+   generalizable management case - not just a routine status fact - route
+   it to `pm-case-knowledge-intake` (load `../pm-case-knowledge-roles/SKILL.md`
+   first). This is exactly the case where a useful case can still exist
+   even though nothing else about a skipped project gets processed - a
+   real client/stakeholder situation from another M2's project is fair
+   game for the PM Case Library. Most meetings, and most skipped-project
+   mentions, still produce nothing - don't force it.
+7. Log one `evidence_log` row per affected project (step 2's projects
+   only, not skipped ones), `source_type = meeting_transcript` (see
    `../qa-management-roles/references/google-workspace/operational-registries.md`'s
-   canonical `source_type` list).
-6. Skip projects mentioned that belong to a different M2 - name-recognition
-   only, per `aliases.md`.
-7. Per affected project, close the cascade: run
+   canonical `source_type` list) - include `pm_case_library` in `routed_to`
+   if step 6 wrote one for that project.
+8. Per affected project, close the cascade: run
    `.agents\scripts\check_cascade_closure.py --touched <routed_to list>`
    and resolve every OPEN item (update, run the named script, or an
    explicit "no change needed" with a reason) before declaring the intake

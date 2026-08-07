@@ -186,5 +186,11 @@ Repeated live-investigation patterns:
 - Do not route a management fact (people-risk, project-risk, staffing)
   found inside a Project Knowledge source into `pk_knowledge_base` -
   flag it and route separately through the normal M1/M2 chain instead.
+  If the fact isn't really an M1/M2 current-state update either but is a
+  concrete, generalizable management situation (client/stakeholder
+  behavior, an approach that worked or didn't, a takeaway useful beyond
+  this project) - route it to `pm-case-knowledge-intake` instead. See
+  that skill and `pm-case-knowledge-roles/SKILL.md` for what counts as a
+  real case; most sources produce none, don't force it.
 - Do not skip logging `pk_source_index` for a source that turned out to
   add nothing new - a `no_change` outcome is still a recorded outcome.

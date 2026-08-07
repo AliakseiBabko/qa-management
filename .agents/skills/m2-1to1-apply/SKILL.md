@@ -44,10 +44,15 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    `pipeline_common.add_answer()` rather than leaving the round stale. Only
    do this when the transcript genuinely settles the question, not when
    it's merely related.
-4. Log `evidence_log`: `source_type` = `qa_1to1`, `routed_to`
+4. If `qa-1to1-analysis` flagged a management-case candidate, route it to
+   `pm-case-knowledge-intake` now (load `../pm-case-knowledge-roles/SKILL.md`
+   first) - it confirms the case has real shape and writes
+   `pm_case_library`/`pm_case_index` itself; this skill never edits those
+   directly. Most passes have no candidate to route - that's normal.
+5. Log `evidence_log`: `source_type` = `qa_1to1`, `routed_to`
    listing every document actually touched (person-level and project-level
-   both, when both changed).
-5. Close the cascade: run `.agents\scripts\check_cascade_closure.py
+   both, when both changed) - include `pm_case_library` if step 4 wrote one.
+6. Close the cascade: run `.agents\scripts\check_cascade_closure.py
    --touched <routed_to list>`. Resolve every OPEN item it reports —
    update the document, run the named script, or state "no change needed"
    with a reason — before declaring the intake done.

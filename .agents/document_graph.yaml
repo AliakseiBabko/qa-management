@@ -481,6 +481,27 @@ documents:
     scope: project
     downstream: []
 
+  # ---- PM Case Library (40_PM_Case_Library) ----
+  # Cross-project, personal-reference management-pattern case library -
+  # distinct from the Project Knowledge lane above (which is per-project
+  # technical/business understanding). A single flat pair of documents,
+  # not one per project - scope: workspace, same as _m1_pr_calendar.
+  # Never a required downstream target from any source's `entry:` list:
+  # a case is an optional, occasional secondary output of processing a
+  # 1:1/meeting/PK source, not a mandatory one, so it must not appear as
+  # a required edge that would make cascade-closure demand it every time.
+  pm_case_index:
+    scope: workspace
+    append_only: true
+    downstream: []
+    note: >-
+      One row per logged case, same ground-truth role evidence_log/
+      pk_source_index play in their own lanes.
+
+  pm_case_library:
+    scope: workspace
+    downstream: []
+
 # Documents produced on a calendar cadence, not per intake. Excluded from
 # per-intake closure checks; listed so the graph stays the complete map.
 periodic:
