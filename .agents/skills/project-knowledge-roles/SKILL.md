@@ -110,6 +110,18 @@ happened yet.
   project's current, cross-source understanding of a topic. The same fact
   can appear in both, but the summary should never be the only place a
   durable fact lives.
+- **Check the knowledge base before asserting a fact in any output, not
+  just before adding one.** Drafting a message, summary, or recommendation
+  that states a specific operational/technical fact from conversation
+  memory alone risks restating a belief the knowledge base has already
+  corrected. This showed up in practice as an outgoing question to a
+  colleague that asserted an environment detail (a resource-contention
+  claim) already corrected in the project's own knowledge base earlier in
+  the same session - the fact was one lookup away and the lookup simply
+  didn't happen before the message went out. Before a specific claim about
+  the project leaves the conversation (a drafted message, a stated
+  recommendation, an escalation), do the same quick knowledge-base check
+  that would be done before writing the fact down for the first time.
 - **Do a core-section extraction before writing "unknown".** Business
   Goals, System/Architecture, Core Workflows, Data/Integrations, and QA
   Scope are not optional skim targets. Before leaving one of these
