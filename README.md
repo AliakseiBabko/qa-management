@@ -832,7 +832,16 @@ These are what actually runs day to day, once a project's folder already exists:
   across the whole window, and flags any `direct`/`script`-kind
   downstream edge left open anywhere in that project's window;
   `judgment`/`gated` edges are deliberately not auto-flagged, too noisy
-  to be a useful signal), plus repo commits over the same window.
+  to be a useful signal), a telemetry-staleness check
+  (`check_telemetry_staleness` — real queue-backed runs completed in the
+  window vs whether operator-runs.csv/agent-sessions.csv got any row at
+  all in that same window; coarse presence check, not per-run
+  attribution, since operator-runs.csv rows never store which queue
+  run_id they measured. Added after a real incident: the mandatory
+  telemetry step silently stopped for 2+ weeks — 24 completed queue runs,
+  zero operator-runs.csv rows — and no retro pass in between caught it,
+  because nothing was comparing these two signals against each other),
+  plus repo commits over the same window.
   Judgment (grouping, the once=trace / twice+=propose-an-edit threshold,
   drafting diffs, confirming a flagged candidate is a real omission) stays
   with the qa-retro skill; the retro logs its own `retro` row when done,
