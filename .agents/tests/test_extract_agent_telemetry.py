@@ -31,7 +31,6 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import extract_agent_telemetry as ext  # noqa: E402
-import finalize_operator_run as finalize  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -476,80 +475,6 @@ class RouterTests(unittest.TestCase):
         # assert the module docstring says so, so the guidance can't drift
         # silently out of the help text.
         self.assertIn("tmp/telemetry", ext.__doc__ or "")
-
-
-# ---------------------------------------------------------------------------
-# finalize_operator_run.py --telemetry-json merge
-# ---------------------------------------------------------------------------
-
-class FinalizeTelemetryMergeTests(unittest.TestCase):
-    def _run_dry_run(self, row: dict, telemetry: dict) -> dict:
-        with TemporaryDirectory() as td:
-            row_path = Path(td) / "row.json"
-            telemetry_path = Path(td) / "telemetry.json"
-            row_path.write_text(json.dumps(row), encoding="utf-8")
-            telemetry_path.write_text(json.dumps(telemetry), encoding="utf-8")
-
-            argv_backup = sys.argv
-            try:
-                sys.argv = ["finalize_operator_run.py", "--from-json", str(row_path),
-                           "--telemetry-json", str(telemetry_path), "--dry-run"]
-                buf = io.StringIO()
-                with contextlib.redirect_stdout(buf):
-                    rc = finalize.main()
-            finally:
-                sys.argv = argv_backup
-            self.assertEqual(rc, 0)
-            printed = buf.getvalue().split("[dry-run]")[0]
-            return json.loads(printed)
-
-    def _base_row(self) -> dict:
-        import operator_telemetry_common as common
-        row = {k: "" for k in common.CSV_HEADER}
-        row.update({
-            "case_id": "dashboard_overview", "run_id": "run-merge-1", "date": "2026-01-01",
-            "runtime": "codex", "command_name": "qa_manage.py dashboard",
-            "command_args_redacted": "qa_manage.py dashboard --json", "json_mode": "yes",
-            "status": "ok", "elapsed_ms": "100", "stdout_bytes": "500", "stderr_bytes": "0",
-            "output_chars": "480", "truncated": "no",
-        })
-        return row
-
-    def test_actual_token_fields_merged_from_telemetry_json(self):
-        merged = self._run_dry_run(self._base_row(), {
-            "actual_input_tokens": 111, "actual_output_tokens": 22,
-            "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 3,
-            "actual_reasoning_tokens": 7,
-        })
-        self.assertEqual(merged["actual_input_tokens"], 111)
-        self.assertEqual(merged["actual_output_tokens"], 22)
-        self.assertEqual(merged["actual_reasoning_tokens"], 7)
-        self.assertEqual(merged["total_tokens"], "143")
-
-    def test_model_label_merged_only_when_row_lacks_one(self):
-        row = self._base_row()
-        row["model_label"] = "already-set"
-        merged = self._run_dry_run(row, {"model_label": "from-telemetry"})
-        self.assertEqual(merged["model_label"], "already-set")
-
-        merged2 = self._run_dry_run(self._base_row(), {"model_label": "from-telemetry"})
-        self.assertEqual(merged2["model_label"], "from-telemetry")
-
-    def test_directly_reported_cost_merged_without_recomputation(self):
-        merged = self._run_dry_run(self._base_row(), {
-            "actual_input_tokens": 100, "actual_output_tokens": 50,
-            "estimated_cost_usd": "0.123456",
-        })
-        # A telemetry-reported cost (e.g. Cline's own totalCost) is trusted
-        # as-is, not overwritten by the pricing-table estimate step.
-        self.assertEqual(merged["estimated_cost_usd"], "0.123456")
-
-    def test_unknown_model_label_yields_blank_cost_not_failure(self):
-        merged = self._run_dry_run(self._base_row(), {
-            "actual_input_tokens": 100, "actual_output_tokens": 50,
-            "model_label": "some-totally-unknown-model",
-        })
-        self.assertEqual(merged.get("estimated_cost_usd", ""), "")
 
 
 class NoRawLogLeakageTests(unittest.TestCase):

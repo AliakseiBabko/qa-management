@@ -978,22 +978,28 @@ These are what actually runs day to day, once a project's folder already exists:
   committed row always keeps the `{target}` placeholder, never the real
   value.
 - `finalize_operator_run.py` — the enrichment step over
-  `measure_operator_outputs.py --append-csv`: merges actual token telemetry
-  (CLI flags or a `--telemetry-json` file), computes `total_tokens` and
-  `estimated_cost_usd` when the model/pricing is known, and computes
+  `measure_operator_outputs.py --append-csv`: computes
   `reduction_ratio_vs_baseline` against an existing baseline row already in
   the CSV. Always appends exactly one new row and diff-guards afterward to
-  confirm no other row changed.
+  confirm no other row changed. `operator-runs.csv` carries no
+  `actual_*`/`total_tokens`/`estimated_cost_usd` columns (removed — every
+  row ever recorded had them blank, and structurally most rows can't
+  honestly attribute a shared session's token total back to one command;
+  see `operator_telemetry_common.py`'s `CSV_HEADER` comment). This
+  script's `estimate_cost()`/`compute_total_tokens()` functions are kept
+  only because `record_agent_session.py` imports them for
+  `agent-sessions.csv`, the real populated home for token/cost data.
 - `check_operator_csv.py` — validates `.agents/telemetry/operator-runs.csv`:
   header match, required/numeric fields, enum values, duplicate `run_id`s,
   and a best-effort ASCII-only leak guard on the redacted-args/notes
   fields. `--diff-guard --run-id <id>` asserts the working CSV only added
   that one row versus `HEAD`.
 - `extract_agent_telemetry.py` — best-effort actual-token extraction from
-  local agent-runtime session logs, for `finalize_operator_run.py
-  --telemetry-json`. Ported from the erp-web-tests benchmark-playwright-debugging
-  skill's extractor, re-normalized to this repo's own `actual_*` CSV field
-  names. Supports `claude`/`claude-code` (`~/.claude/projects/*/<session>.jsonl`,
+  local agent-runtime session logs, for `record_agent_session.py` (feeds
+  `agent-sessions.csv`'s `actual_*` fields, not `operator-runs.csv`, which
+  carries no such columns). Ported from the erp-web-tests
+  benchmark-playwright-debugging skill's extractor, re-normalized to this
+  repo's own `actual_*` CSV field names. Supports `claude`/`claude-code` (`~/.claude/projects/*/<session>.jsonl`,
   verified against this repo's own sessions), `codex`
   (`~/.codex/sessions/<Y>/<M>/<D>/rollout-*-<session>.jsonl`, including
   session_meta-linked continuation files — confirmed against a real Codex

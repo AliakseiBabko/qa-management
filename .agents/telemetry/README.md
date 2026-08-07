@@ -246,13 +246,11 @@ python .agents/scripts/measure_operator_outputs.py --case dashboard_overview --a
 python .agents/scripts/measure_operator_outputs.py --case completed_run_review \
     --target <run-id> --runtime "Claude Code" --model-label claude-sonnet-5 --append-csv
 
-# Enrich with actual token telemetry after the fact - extract_agent_telemetry.py
-# writes a small JSON blob (actual_* counts only, never raw log content) that
-# finalize_operator_run.py then merges into the row.
-python .agents/scripts/extract_agent_telemetry.py --runtime claude \
-    --session-id <session-uuid> --out tmp/telemetry/telemetry.json
-python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \
-    --telemetry-json tmp/telemetry/telemetry.json
+# Actual token telemetry goes to agent-sessions.csv, not operator-runs.csv -
+# see "Recording an agent session" below. operator-runs.csv carries no
+# actual_*/total_tokens/estimated_cost_usd columns (removed - every row
+# ever recorded had them blank, and structurally most rows can't honestly
+# attribute a shared session's token total back to one command).
 ```
 
 ### Automatic extraction support by runtime
@@ -283,12 +281,12 @@ python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.js
 Whenever automatic extraction isn't available for your runtime/session
 (unsupported runtime, extraction error, or you'd rather read the
 runtime's own usage UI), pass actual token counts manually via
-`finalize_operator_run.py --actual-input-tokens ... --actual-output-tokens ...`
-(for an `operator-runs.csv` row) or `record_agent_session.py --manual
---actual-input-tokens ...` (for a session row) - either is a first-class
-supported path, not a fallback of last resort. `actual_*` token fields
-stay blank only when extraction was never run or no reliable telemetry
-source exists for that session - never invented.
+`record_agent_session.py --manual --actual-input-tokens ...` (for a
+session row - `operator-runs.csv` carries no `actual_*` columns at all,
+see "Two CSVs" above) - a first-class supported path, not a fallback of
+last resort. `actual_*` token fields stay blank only when extraction was
+never run or no reliable telemetry source exists for that session -
+never invented.
 
 Manual `record_agent_session.py --manual` rows must include at least one
 `--actual-*-tokens` value; otherwise the script refuses to append a row
@@ -332,8 +330,7 @@ informational cross-referencing, not a structural guarantee, and a typo
 shouldn't block recording real session telemetry. The row is still
 appended; the warning prints to stderr.
 
-`total_tokens` sums the five `actual_*` fields the same way as
-`operator-runs.csv`. `estimated_cost_usd` prefers a runtime-REPORTED cost
+`total_tokens` sums the five `actual_*` fields. `estimated_cost_usd` prefers a runtime-REPORTED cost
 (e.g. Cline's own `totalCost`, passed straight through) over a
 pricing-table estimate; an unrecognized `model_label` yields a blank cost,
 never a failure - same contract as `finalize_operator_run.py`.
@@ -380,12 +377,13 @@ not once per row.
 3. Append one row per completed measurement/session only - never rewrite an
    existing row, in either CSV. `finalize_operator_run.py`,
    `record_agent_session.py`, and `check_operator_csv.py [--sessions]
-   --diff-guard` all enforce this. In particular: **never backfill an
-   existing `operator-runs.csv` row's `actual_*` fields from a
-   multi-purpose agent session** - several rows commonly share one long
+   --diff-guard` all enforce this. `operator-runs.csv` carries no
+   `actual_*`/`total_tokens`/`estimated_cost_usd` columns at all
+   (removed) precisely because several rows commonly share one long
    session, and a session's cumulative total cannot be honestly
-   attributed back to any single command within it (this is exactly why
-   `agent-sessions.csv` exists as its own table - see "Two CSVs" above).
+   attributed back to any single command within it - that question
+   belongs to `agent-sessions.csv`, its own table, exclusively (see "Two
+   CSVs" above).
    **Uncommitted vs. committed rows are not the same case**: a row you just
    appended in the working tree, not yet committed, is still a draft - if a
    field turns out to be objectively wrong (e.g. a `model_label` that
@@ -410,8 +408,10 @@ not once per row.
      (`record_agent_session.py`) instead. An `operator-runs.csv` row is
      optional here and measures only whichever single command you ran,
      never a substitute for the session-level row.
-   Never invent actual token numbers to fill either row faster: leave
-   `actual_*` token fields blank unless you have real agent-log data for
-   that pass (`extract_agent_telemetry.py` or manual entry from the
-   runtime's own reporting) - the deterministic byte/char/token estimate
-   columns on `operator-runs.csv` rows are always populated regardless.
+   Never invent actual token numbers to fill an `agent-sessions.csv` row
+   faster: leave `actual_*` fields blank unless you have real agent-log
+   data for that pass (`extract_agent_telemetry.py` or manual entry from
+   the runtime's own reporting) - the deterministic byte/char/token
+   estimate columns on `operator-runs.csv` rows are always populated
+   regardless (that table has no `actual_*` fields to leave blank in the
+   first place).

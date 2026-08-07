@@ -57,6 +57,24 @@ AGENT_SESSION_CSV_PATH = TELEMETRY_ROOT / "agent-sessions.csv"
 # the column anyway (copied for symmetry with agent-sessions.csv's real
 # actual_input_tokens) and it sat hardcoded blank on every single row
 # ever recorded - removed once that was noticed on a real CSV review.
+#
+# No actual_*/total_tokens/estimated_cost_usd columns either, deliberately
+# (removed on the same review, same real-CSV evidence): every row this
+# table ever recorded had these blank, and not incidentally - the
+# module's own original design note explains why: "never backfill an
+# existing operator-runs.csv row's actual_* fields from a multi-purpose
+# agent session - several rows commonly share one long session, and a
+# session's cumulative total cannot be honestly attributed back to any
+# single command within it." That's exactly why agent-sessions.csv exists
+# as its own table (see AGENT_SESSION_CSV_HEADER below) - it already
+# answers this question, with real populated data. Carrying dead columns
+# here that duplicate agent-sessions.csv's job isn't "optional
+# enrichment," it's dead weight. baseline_command/reduction_ratio_vs_baseline
+# stay - unlike the token columns, those are genuinely computed whenever
+# a baseline-comparison case (guide/classify/pack/show_project_state_targeted)
+# actually gets measured; they were blank in the reviewed CSV only
+# because none of those specific cases had been run yet, not because the
+# mechanism is broken.
 CSV_HEADER = [
     "case_id",
     "run_id",
@@ -75,13 +93,6 @@ CSV_HEADER = [
     "result_count",
     "truncated",
     "approximate_output_tokens",
-    "actual_input_tokens",
-    "actual_cache_creation_tokens",
-    "actual_cache_read_tokens",
-    "actual_output_tokens",
-    "actual_reasoning_tokens",
-    "total_tokens",
-    "estimated_cost_usd",
     "baseline_command",
     "reduction_ratio_vs_baseline",
     "notes_file",
@@ -99,10 +110,7 @@ REQUIRED_FIELDS = [
 NUMERIC_FIELDS = [
     "elapsed_ms", "stdout_bytes", "stderr_bytes", "output_chars",
     "preview_chars", "result_count",
-    "approximate_output_tokens", "actual_input_tokens",
-    "actual_cache_creation_tokens", "actual_cache_read_tokens",
-    "actual_output_tokens", "actual_reasoning_tokens", "total_tokens",
-    "estimated_cost_usd", "reduction_ratio_vs_baseline",
+    "approximate_output_tokens", "reduction_ratio_vs_baseline",
 ]
 
 VALID_RUNTIME = {"Codex", "Claude Code", "Antigravity", "manual_script"}
