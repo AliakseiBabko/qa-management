@@ -9,6 +9,17 @@ owner notes) — a formal knowledge-transfer session is one possible input,
 never a prerequisite. Leave a section blank/marked "unknown" rather than
 guessing.
 
+Once a section (H2) grows past roughly 800 words or ~3 distinct
+sub-topics, split it with Heading 3 sub-headings keyed to how the content
+actually clusters (a module, a workshop topic, a subsystem) — a periodic
+housekeeping pass, not a per-intake requirement. Insert new content at
+the end of the target section/sub-section, never at a heading's own start
+index (Docs API heading-inheritance bug, see
+`project-knowledge-roles/SKILL.md`, "Structural Format"). Change Log
+entries are dated one-liners only — what changed and which section(s),
+never the fact itself; if an entry runs past ~2 lines, that content
+belongs in the topical section, not here.
+
 ## <Project> — Knowledge Base
 
 ### Overview

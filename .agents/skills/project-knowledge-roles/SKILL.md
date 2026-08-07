@@ -121,6 +121,51 @@ happened yet.
   Keep "unknown" only when the re-read still finds no evidence, and make
   the resulting Open Question specific.
 
+## Structural Format: Sub-Headings And Change Log Discipline
+
+Found via a 2026-08-07 audit of PKF's knowledge base (282K chars under 14
+flat H2 sections, no sub-structure at all): a knowledge base that only
+ever gets bigger without ever getting more structured stops being
+findable long before anyone notices, because every individual intake
+pass still looks reasonable in isolation. Two concrete rules fix this:
+
+- **Change Log entries are dated one-line pointers, never a content
+  destination.** An entry says what changed and which section(s) it
+  touched - it does not restate the fact itself. If you're tempted to
+  write more than ~2 lines for one entry, that content belongs in the
+  topical section, not here. This rule exists because of a real failure
+  mode: past PKF passes, trying to avoid the heading-inheritance bug
+  below, appended entire new facts to Change Log as a workaround instead
+  of inserting them into System/Architecture or Known Constraints where
+  they belonged - by the time this was caught, 29 real facts (a project
+  constraint, several open questions, a whole topic area) were sitting
+  under "Change Log" and invisible to anyone searching the section they
+  actually belonged to. Never use Change Log as a safe parking spot for
+  content you're unsure how to insert - solve the insertion problem
+  instead (see the next rule).
+- **Once a topical section (Overview, System/Architecture, Core
+  Workflows, etc.) grows past roughly 800 words or accumulates more than
+  ~3 distinct sub-topics, split it with Heading 3 sub-headings** keyed to
+  how the source material actually clusters (a module name, a workshop
+  topic, a subsystem) - not a generic scaffold imposed up front. Adding
+  the right sub-heading needs the whole section's content in view to
+  choose a sensible split, so this is a periodic housekeeping pass (do it
+  when a section visibly has become an undifferentiated block, or when
+  `qa-retro` flags one), not a requirement on every single intake. A
+  single intake pass appending 2-3 sentences to an already-organized
+  section just appends under the right existing H3 - it does not need to
+  re-derive the whole section's structure each time.
+- **Insert new content at the end of the target section (or target H3
+  sub-section), never at a heading's own start index.** This is the fix
+  for the Docs API heading-inheritance bug documented in
+  `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
+  ("Docs API Editing") - inserting text exactly at a heading paragraph's
+  `startIndex` makes the new content silently inherit that heading's
+  style. Appending at the end of the preceding section's content (right
+  before the *next* heading) avoids the bug entirely and matches how a
+  human would read the document (newest fact last within its topic, not
+  first).
+
 ## Guardrails
 
 - Do not infer or guess a project name from a source's content - if the
