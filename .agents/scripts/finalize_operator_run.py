@@ -1,37 +1,26 @@
 """Phase 11 operator telemetry: append one enriched row to operator-runs.csv.
 
 The enrichment step over measure_operator_outputs.py --append-csv: this
-script can merge actual token telemetry (from CLI args, a JSON file written
-by extract_agent_telemetry.py, or manual entry after reading your own agent
-transcript), compute total_tokens/estimated_cost_usd when possible, and
-compute reduction_ratio_vs_baseline against an existing baseline row already
-in the CSV. It always appends exactly one new row and never rewrites an
-existing one - see operator_telemetry_common.diff_guard_new_row_only(),
+script can compute reduction_ratio_vs_baseline against an existing baseline
+row already in the CSV. It always appends exactly one new row and never
+rewrites an existing one - see operator_telemetry_common.diff_guard_new_row_only(),
 run automatically after appending.
+
+operator-runs.csv carries no actual_*/total_tokens/estimated_cost_usd
+columns (removed - see operator_telemetry_common.py's CSV_HEADER comment):
+every row ever recorded had them blank, and structurally, most rows can't
+honestly attribute a shared multi-command session's token total back to
+one command anyway. estimate_cost()/compute_total_tokens() below are kept
+only because record_agent_session.py imports them for agent-sessions.csv,
+which is the real, populated home for token/cost data - use that path
+(extract_agent_telemetry.py + record_agent_session.py) for actual token
+telemetry, not this script.
 
 Usage
 -----
   # From a measure_operator_outputs.py --json output, saved to a file
   python .agents/scripts/measure_operator_outputs.py --case dashboard_overview --json > tmp/telemetry/row.json
   python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json
-
-  # Same, but also attach actual token telemetry measured separately
-  python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \\
-      --actual-input-tokens 1200 --actual-output-tokens 340
-
-  # Normal automatic-extraction flow: extract_agent_telemetry.py writes a
-  # small JSON blob (actual_* counts only, never raw log content) that this
-  # script merges in. This is the enrichment path over
-  # measure_operator_outputs.py --append-csv's direct append - it never
-  # rewrites the row that --append-csv already wrote; it appends a NEW,
-  # separately-run-id'd row carrying the enriched fields. Run
-  # measure_operator_outputs.py WITHOUT --append-csv first (--json to a
-  # file) so its row's fields feed --from-json here instead of being
-  # double-appended.
-  python .agents/scripts/extract_agent_telemetry.py --runtime codex \\
-      --session-id <session-id> --out tmp/telemetry/telemetry.json
-  python .agents/scripts/finalize_operator_run.py --from-json tmp/telemetry/row.json \\
-      --telemetry-json tmp/telemetry/telemetry.json
 
   # Attach a baseline for reduction_ratio_vs_baseline (baseline row_id must
   # already be in the CSV)
@@ -145,7 +134,6 @@ def main() -> int:
         if flag not in ("--from-json",):
             parser.add_argument(flag, dest=field, default=None)
     parser.add_argument("--baseline-run-id", default=None, help="Existing CSV run_id to compute reduction_ratio_vs_baseline against.")
-    parser.add_argument("--telemetry-json", default=None, help="JSON file with actual_* token fields (e.g. from extract_agent_telemetry.py) to merge in.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and print the row; do not write the CSV.")
     args = parser.parse_args()
 
@@ -166,32 +154,6 @@ def main() -> int:
     row.setdefault("runtime", "manual_script")
     row.setdefault("json_mode", "no")
     row.setdefault("truncated", "no")
-
-    if args.telemetry_json:
-        telemetry = json.loads(Path(args.telemetry_json).read_text(encoding="utf-8"))
-        for key in ("actual_input_tokens", "actual_cache_creation_tokens",
-                    "actual_cache_read_tokens", "actual_output_tokens", "actual_reasoning_tokens"):
-            if key in telemetry:
-                row[key] = telemetry[key]
-        # model_label/estimated_cost_usd from telemetry are optional and only
-        # ever set by an adapter when directly available - a per-runtime CLI
-        # flag (e.g. --model-label) still wins if the row already has one; a
-        # telemetry-supplied estimated_cost_usd is a runtime-REPORTED figure
-        # (e.g. Cline's own totalCost), never a pricing-table estimate - that
-        # stays computed below, once, keyed off model_label.
-        if telemetry.get("model_label") and not row.get("model_label"):
-            row["model_label"] = telemetry["model_label"]
-        if telemetry.get("estimated_cost_usd") and not row.get("estimated_cost_usd"):
-            row["estimated_cost_usd"] = telemetry["estimated_cost_usd"]
-
-    row["total_tokens"] = compute_total_tokens(row)
-    if row["total_tokens"] and not row.get("estimated_cost_usd"):
-        cost_inputs = {k: (int(row[k]) if str(row.get(k, "")).strip() not in ("", "n/a") else 0)
-                       for k in ("actual_input_tokens", "actual_output_tokens",
-                                 "actual_cache_creation_tokens", "actual_cache_read_tokens")}
-        cost = estimate_cost(row.get("model_label", ""), cost_inputs)
-        if cost:
-            row["estimated_cost_usd"] = cost
 
     row["reduction_ratio_vs_baseline"] = compute_reduction_ratio(row, args.baseline_run_id) or row.get("reduction_ratio_vs_baseline", "")
 
