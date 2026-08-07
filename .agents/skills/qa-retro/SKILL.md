@@ -20,7 +20,11 @@ repeated yet, nothing to change."
 
 1. Run `.agents\scripts\prepare_retro.py`. It finds the last `retro` row
    in `_skill_invocations`, prints every row since it (flagging
-   `feedback:` notes), and lists repo commits over the same window. No
+   `feedback:` notes), a cascade-closure check across that same window
+   (candidate `direct`/`script` edges left open in a project's touched
+   set - confirm each is a real omission before treating it as a
+   finding; `judgment`/`gated` edges are never auto-flagged, they need
+   per-case review), and lists repo commits over the same window. No
    rows since last retro and no feedback = say so and stop; don't
    manufacture findings.
 2. Read `../qa-management-roles/references/google-workspace/operational-registries.md`'s
