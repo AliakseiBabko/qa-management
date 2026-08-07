@@ -34,7 +34,11 @@ editing an already-logged file in place makes new content invisible to it.
 ## Required Start
 
 1. Check `../qa-management-roles/references/aliases.md` before treating an
-   unfamiliar project/person name from the chat as new.
+   unfamiliar project/person name from the chat as new, and
+   `../qa-management-roles/references/transcript-signal-triage.md` before
+   deciding what's worth extracting at all - a strategy chat mixes real
+   decisions with routine chatter, and a familiar project/person name
+   alone doesn't make a passage worth logging.
 2. Run `.agents\scripts\detect_strategy_chats.py` first. It finds
    `_strategy` files not yet in the project's `evidence_log`, classifies
    the project from the filename prefix, resolves the message date range

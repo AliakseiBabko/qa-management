@@ -12,7 +12,10 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
 
 ## Required Start
 
-1. Read `../project-knowledge-roles/SKILL.md` in full.
+1. Read `../project-knowledge-roles/SKILL.md` in full, and
+   `../qa-management-roles/references/transcript-signal-triage.md` before
+   deciding what's worth extracting at all - a known project/person name
+   is only the attention cue, not itself a reason to extract.
 2. Confirm the project scope - never infer or guess a project name; if
    unclear, resolve it before proceeding (same discipline as every other
    intake skill).
