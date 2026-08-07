@@ -176,6 +176,29 @@ Python itself. Bypass the shim by calling the real interpreter directly,
 currently `C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\python.exe`,
 or put that directory ahead of `...\Microsoft\WindowsApps` in `PATH`.
 
+**Never pass a Git-Bash-style POSIX path (`/tmp/foo.txt`, `/c/tmp/foo.txt`)
+as a file argument to Python, even when launching Python from the Bash
+tool.** Python here is a native Windows binary - it does not go through
+Git Bash's path translation at all, and the two malformed-path shapes
+fail in different, easy-to-misread ways:
+- `/tmp/foo.txt` (no drive letter) does *not* error - Windows silently
+  resolves a bare leading slash to "root of the current drive," so it
+  writes/reads `C:\tmp\foo.txt` instead of Git Bash's own `/tmp` (which
+  Git Bash maps elsewhere entirely). A write "succeeds" with no error at
+  a location that isn't the one you meant, so a later `python ... read
+  same posix path` can then fail (or silently read stale/unrelated
+  content) while looking like a transient bug.
+- `/c/tmp/foo.txt` (Git Bash's drive-letter mount syntax) fails outright
+  with `FileNotFoundError` - Windows has no literal folder named `c` at
+  any drive root; only Git Bash's own builtins understand that syntax.
+
+Always use a native Windows path for any argument a Python script will
+`open()`, e.g. `r'C:\tmp\foo.txt'` or `C:\Users\<user>\...`. The Bash
+tool's own commands (`ls`, `cat`, `grep`, `find`) still take the `/c/...`
+form as usual - only Python's (and other native-Windows-binaries')
+argument parsing needs the native form; don't convert every path in a
+mixed bash+python command, just the ones a Python `open()` call will see.
+
 `check_sensitive_data.py` builds part of its watch list from Google Drive.
 If it reaches Google API code and then fails with `WinError 10013` or a
 socket/network permission error, rerun it with network/escalated
