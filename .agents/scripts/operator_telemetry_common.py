@@ -48,6 +48,15 @@ AGENT_SESSION_CSV_PATH = TELEMETRY_ROOT / "agent-sessions.csv"
 # One row per measured command invocation. Every column here is either a
 # count, a boolean-ish yes/no, an enum, or a redacted label - never raw
 # command output or source text.
+#
+# No approximate_input_tokens column, deliberately: this table measures a
+# read-only command's OUTPUT footprint (does dashboard/guide/etc. reduce
+# what an agent has to read?), not an LLM prompt's input size - the
+# "input" here is just the CLI invocation itself, a few dozen characters,
+# not a meaningful measurement. A prior version of this schema carried
+# the column anyway (copied for symmetry with agent-sessions.csv's real
+# actual_input_tokens) and it sat hardcoded blank on every single row
+# ever recorded - removed once that was noticed on a real CSV review.
 CSV_HEADER = [
     "case_id",
     "run_id",
@@ -65,7 +74,6 @@ CSV_HEADER = [
     "preview_chars",
     "result_count",
     "truncated",
-    "approximate_input_tokens",
     "approximate_output_tokens",
     "actual_input_tokens",
     "actual_cache_creation_tokens",
@@ -90,7 +98,7 @@ REQUIRED_FIELDS = [
 # Fields that, when non-blank, must parse as a number (int or float).
 NUMERIC_FIELDS = [
     "elapsed_ms", "stdout_bytes", "stderr_bytes", "output_chars",
-    "preview_chars", "result_count", "approximate_input_tokens",
+    "preview_chars", "result_count",
     "approximate_output_tokens", "actual_input_tokens",
     "actual_cache_creation_tokens", "actual_cache_read_tokens",
     "actual_output_tokens", "actual_reasoning_tokens", "total_tokens",

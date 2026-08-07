@@ -165,7 +165,6 @@ def run_case(case_id: str, target: str | None, keep_raw: bool) -> dict:
         "preview_chars": preview_chars,
         "result_count": result_count if result_count is not None else "",
         "truncated": "yes" if truncated else "no",
-        "approximate_input_tokens": "",
         "approximate_output_tokens": approximate_output_tokens,
         "baseline_command": (
             CASES[case["baseline_of"]]["command_name"] if case.get("baseline_of") else ""
