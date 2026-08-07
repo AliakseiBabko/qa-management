@@ -140,6 +140,7 @@ from operator_telemetry_common import (  # noqa: E402
     AGENT_SESSION_CSV_HEADER,
     append_agent_session_row,
     diff_guard_agent_session_new_row_only,
+    read_agent_session_rows,
     read_rows,
     validate_agent_session_row,
 )
@@ -284,6 +285,37 @@ def load_registry_watchlist() -> tuple[set[str], list[str]]:
         ]
 
 
+def find_zero_delta_snapshot(session_id: str, row: dict) -> str | None:
+    """Returns the session_run_id of the most recent existing row for this
+    session_id if the new row's ACTUAL_TOKEN_FIELDS are byte-identical to
+    it - meaning nothing new was captured since that snapshot (calling this
+    script again immediately, with no new turns in between, just re-reads
+    the same underlying log state at the same point). Returns None
+    otherwise, or if this session_id has no prior rows.
+
+    Real-data motivation: 4 rows were once appended this way within one
+    16-minute window (4 queue-backed closeouts run back-to-back with no
+    new conversation turns between them), each with the literal same 5
+    actual_* values. Each snapshot was individually accurate, but
+    indistinguishable from a bug to anyone scanning the raw CSV, and it
+    inflates a naive row count without adding any real usage data (see
+    the telemetry README's "Cumulative Session Snapshots" note -
+    summarize_agent_telemetry.py's dedup already handles this correctly
+    under the hood, but the raw file itself looks broken on direct
+    review). This is a warn-and-require-override guard, not a silent
+    skip - a caller who genuinely wants the extra row (e.g. purely for
+    its own objective/linked_operator_run_ids cross-reference, not new
+    usage data) can still write it with --allow-duplicate-snapshot."""
+    _, rows = read_agent_session_rows()
+    same_session = [r for r in rows if r.get("session_id") == session_id]
+    if not same_session:
+        return None
+    last = same_session[-1]
+    if all(str(last.get(f, "")) == str(row.get(f, "")) for f in ACTUAL_TOKEN_FIELDS):
+        return last.get("session_run_id", "")
+    return None
+
+
 def _warn_on_unknown_linked_run_ids(linked_ids: list[str]) -> list[str]:
     """Cross-references linked_operator_run_ids against operator-runs.csv's
     actual run_ids. Returns warning strings (never raises) - see the module
@@ -419,6 +451,11 @@ def main() -> int:
                         help="Additionally reject a known real name/project (from _people_registry/"
                              "_project_registry) in --objective/--notes. Requires Drive access; degrades "
                              "to a warning (not a failure) if the registry can't be loaded.")
+    parser.add_argument("--allow-duplicate-snapshot", action="store_true",
+                        help="Append even if this session_id's actual_* token fields are byte-"
+                             "identical to its most recent existing row (nothing new captured "
+                             "since that snapshot - see find_zero_delta_snapshot's docstring). "
+                             "Without this flag such an append is refused, not silently written.")
     parser.add_argument("--append-csv", action="store_true", help="Append the row to agent-sessions.csv.")
     parser.add_argument("--dry-run", action="store_true", help="Print the row; do not write the CSV.")
     args = parser.parse_args()
@@ -452,6 +489,20 @@ def main() -> int:
         for e in errors:
             print(f"  - {e}", file=sys.stderr)
         return 1
+
+    if not args.manual and not args.allow_duplicate_snapshot:
+        dup_of = find_zero_delta_snapshot(args.session_id, row)
+        if dup_of:
+            print(
+                f"Error: this row's actual_* token fields are byte-identical to session_id="
+                f"{args.session_id!r}'s most recent row (session_run_id={dup_of!r}) - nothing new "
+                "was captured since that snapshot, most likely because no conversation turns "
+                "happened between the two extractions. Appending it anyway would just add row-count "
+                "noise, not new usage data. Pass --allow-duplicate-snapshot if you genuinely want the "
+                "row anyway (e.g. purely to record its own objective/linked_operator_run_ids).",
+                file=sys.stderr,
+            )
+            return 1
 
     if args.dry_run:
         import json

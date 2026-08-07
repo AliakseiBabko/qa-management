@@ -552,6 +552,160 @@ class LinkedRunIdWarningTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# find_zero_delta_snapshot: the duplicate-cumulative-snapshot guard
+# ---------------------------------------------------------------------------
+
+class FindZeroDeltaSnapshotTests(unittest.TestCase):
+    def _seed(self, csv_path, **overrides):
+        row = _base_session_row(**overrides)
+        common.append_agent_session_row(row)
+
+    def test_no_prior_rows_returns_none(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                new_row = _base_session_row(session_id="fresh-session")
+                result = record.find_zero_delta_snapshot("fresh-session", new_row)
+        self.assertIsNone(result)
+
+    def test_identical_actual_fields_flags_the_prior_session_run_id(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                self._seed(session_csv, session_run_id="session-claude-2026-01-01-aaaa1111",
+                           session_id="shared-session", actual_input_tokens="10",
+                           actual_output_tokens="5")
+                new_row = _base_session_row(session_run_id="session-claude-2026-01-01-bbbb2222",
+                                             session_id="shared-session", actual_input_tokens="10",
+                                             actual_output_tokens="5")
+                result = record.find_zero_delta_snapshot("shared-session", new_row)
+        self.assertEqual(result, "session-claude-2026-01-01-aaaa1111")
+
+    def test_different_actual_fields_returns_none(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                self._seed(session_csv, session_run_id="session-claude-2026-01-01-aaaa1111",
+                           session_id="shared-session", actual_input_tokens="10",
+                           actual_output_tokens="5")
+                new_row = _base_session_row(session_run_id="session-claude-2026-01-01-bbbb2222",
+                                             session_id="shared-session", actual_input_tokens="10",
+                                             actual_output_tokens="99")
+                result = record.find_zero_delta_snapshot("shared-session", new_row)
+        self.assertIsNone(result)
+
+    def test_only_compares_against_the_same_session_id(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                self._seed(session_csv, session_run_id="session-claude-2026-01-01-aaaa1111",
+                           session_id="session-a", actual_input_tokens="10",
+                           actual_output_tokens="5")
+                new_row = _base_session_row(session_run_id="session-claude-2026-01-01-cccc3333",
+                                             session_id="session-b", actual_input_tokens="10",
+                                             actual_output_tokens="5")
+                result = record.find_zero_delta_snapshot("session-b", new_row)
+        self.assertIsNone(result)
+
+    def test_only_compares_against_the_most_recent_row(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                self._seed(session_csv, session_run_id="session-claude-2026-01-01-aaaa1111",
+                           session_id="shared-session", actual_input_tokens="10",
+                           actual_output_tokens="5")
+                self._seed(session_csv, session_run_id="session-claude-2026-01-01-bbbb2222",
+                           session_id="shared-session", actual_input_tokens="20",
+                           actual_output_tokens="8")
+                # Matches the FIRST row's numbers, not the most recent one - should not flag.
+                new_row = _base_session_row(session_run_id="session-claude-2026-01-01-cccc3333",
+                                             session_id="shared-session", actual_input_tokens="10",
+                                             actual_output_tokens="5")
+                result = record.find_zero_delta_snapshot("shared-session", new_row)
+        self.assertIsNone(result)
+
+
+class DuplicateSnapshotCliTests(unittest.TestCase):
+    def _run_cli(self, argv: list[str]) -> tuple[int, str, str]:
+        argv_backup = sys.argv
+        try:
+            sys.argv = ["record_agent_session.py"] + argv
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = record.main()
+        finally:
+            sys.argv = argv_backup
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_identical_extraction_twice_is_refused_without_the_flag(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            fake_totals = {
+                "actual_input_tokens": 10, "actual_output_tokens": 5,
+                "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+                "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+            }
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv), \
+                 mock.patch.object(ext, "extract", return_value=dict(fake_totals)):
+                rc1, _, _ = self._run_cli([
+                    "--runtime", "claude", "--session-id", "same-session",
+                    "--objective", "first closeout", "--append-csv",
+                ])
+                self.assertEqual(rc1, 0)
+                rc2, _, err2 = self._run_cli([
+                    "--runtime", "claude", "--session-id", "same-session",
+                    "--objective", "second closeout, no new turns", "--append-csv",
+                ])
+                _, rows = common.read_agent_session_rows()
+        self.assertEqual(rc2, 1)
+        self.assertIn("byte-identical", err2)
+        self.assertIn("--allow-duplicate-snapshot", err2)
+        self.assertEqual(len(rows), 1)  # the second call must not have appended
+
+    def test_allow_duplicate_snapshot_flag_permits_the_append(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            fake_totals = {
+                "actual_input_tokens": 10, "actual_output_tokens": 5,
+                "actual_cache_creation_tokens": 0, "actual_cache_read_tokens": 0,
+                "actual_reasoning_tokens": 0, "extraction_method": "claude_log",
+            }
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv), \
+                 mock.patch.object(ext, "extract", return_value=dict(fake_totals)):
+                self._run_cli([
+                    "--runtime", "claude", "--session-id", "same-session",
+                    "--objective", "first closeout", "--append-csv",
+                ])
+                rc2, _, _ = self._run_cli([
+                    "--runtime", "claude", "--session-id", "same-session",
+                    "--objective", "second closeout, deliberately duplicated",
+                    "--allow-duplicate-snapshot", "--append-csv",
+                ])
+                _, rows = common.read_agent_session_rows()
+        self.assertEqual(rc2, 0)
+        self.assertEqual(len(rows), 2)
+
+    def test_manual_rows_bypass_the_duplicate_check(self):
+        with TemporaryDirectory() as td:
+            session_csv = Path(td) / "agent-sessions.csv"
+            with mock.patch.object(common, "AGENT_SESSION_CSV_PATH", session_csv):
+                self._run_cli([
+                    "--runtime", "manual", "--session-id", "same-session", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual", "--objective", "first manual entry", "--append-csv",
+                ])
+                rc2, _, _ = self._run_cli([
+                    "--runtime", "manual", "--session-id", "same-session", "--manual",
+                    "--actual-input-tokens", "10", "--actual-output-tokens", "5",
+                    "--confidence", "manual", "--objective", "second manual entry, same numbers",
+                    "--append-csv",
+                ])
+                _, rows = common.read_agent_session_rows()
+        self.assertEqual(rc2, 0)
+        self.assertEqual(len(rows), 2)
+
+
+# ---------------------------------------------------------------------------
 # CLI-level: dry-run, --append-csv, no raw log leakage
 # ---------------------------------------------------------------------------
 

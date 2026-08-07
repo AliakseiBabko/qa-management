@@ -5,8 +5,13 @@ Measurement layer for the QA-management operator workflow: does
 `show_project_state` actually reduce output size and token usage versus an
 older full-read/manual workflow - and, since Phase 13.1's follow-up fixes,
 a mandatory closing step for every real pass, not just ad hoc measurement
-runs (see AGENTS.md's intake-workflow bullet). Which row is mandatory
-depends on whether the pass had a queue `run_id`:
+runs (see AGENTS.md's "Start Here" section - this exact cross-reference
+went dead once already, in July 2026's AGENTS.md compaction, and
+telemetry recording silently stopped for 2+ weeks as a direct result;
+if this bullet is ever removed from AGENTS.md again without a
+replacement, expect the same silent-stop failure mode, not a harmless
+trim). Which row is mandatory depends on whether the pass had a queue
+`run_id`:
 
 - **Queue-backed intake run** (went through `start`/.../`complete`): record
   the `operator-runs.csv` `completed_run_review` row, an `agent-sessions.csv`
@@ -333,6 +338,15 @@ appended; the warning prints to stderr.
 pricing-table estimate; an unrecognized `model_label` yields a blank cost,
 never a failure - same contract as `finalize_operator_run.py`.
 
+A non-`--manual` append is **refused** (not silently written) if its
+`actual_*` fields are byte-identical to the same `session_id`'s most
+recent existing row - nothing new was captured since that snapshot, most
+likely because no conversation turns happened between two closeouts run
+back-to-back. Pass `--allow-duplicate-snapshot` to write it anyway (e.g.
+purely for its own `objective`/`linked_operator_run_ids`). `--manual`
+rows are never subject to this check - a manually-entered value is
+user-asserted, not re-derived from a log snapshot that could repeat.
+
 ## Validating the CSVs
 
 ```sh
@@ -387,7 +401,7 @@ not once per row.
    in the repo - `extract_agent_telemetry.py --out` writes only small
    numeric-summary JSON, conventionally under `tmp/telemetry/`.
 5. Every real pass records one mandatory closing telemetry row (see
-   AGENTS.md's intake-workflow bullet) - not optional instrumentation -
+   AGENTS.md's "Start Here" section) - not optional instrumentation -
    and WHICH CSV depends on whether the pass had a queue `run_id`:
    - Queue-backed intake run → one `operator-runs.csv` row
      (`completed_run_review`, tied to that `run_id`).
