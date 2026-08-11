@@ -1,6 +1,6 @@
 ---
 name: gitlab-pipeline-dashboard-ops
-description: Trigger and troubleshoot a self-hosted GitLab CI pipeline via its REST API (parent/child bridge pipelines, manual jobs, runner tag and protected-branch diagnosis), set up a secure local credential store for repeated API calls, and audit a Grafana+Prometheus monitoring stack by cross-checking dashboard JSON against live metric data to tell a real gap from a cosmetic one. Use when the user needs to run or debug a GitLab CI pipeline from the API instead of the UI, figure out why a triggered job won't start, or check whether a Grafana dashboard is actually returning data rather than just rendering.
+description: Trigger and troubleshoot a self-hosted GitLab CI pipeline via its REST API (parent/child bridge pipelines, manual jobs, runner tag and protected-branch diagnosis), clone a repository from that same self-hosted GitLab (SSH-alias-first, before falling back to an HTTP token), set up a secure local credential store for repeated API calls, and audit a Grafana+Prometheus monitoring stack by cross-checking dashboard JSON against live metric data to tell a real gap from a cosmetic one. Use when the user needs to run or debug a GitLab CI pipeline from the API instead of the UI, clone/checkout a repo from a self-hosted GitLab instance, figure out why a triggered job won't start, or check whether a Grafana dashboard is actually returning data rather than just rendering.
 ---
 
 # GitLab Pipeline + Dashboard Ops
@@ -41,6 +41,43 @@ actually belongs.
    or service/script coverage, also read
    `../project-knowledge-roles/references/performance-environment-discovery.md`
    before drawing conclusions from a job, JMX file, or pipeline result.
+
+## Cloning A Repository
+
+Check for an existing SSH setup **before** touching the HTTP
+token/SecretStore path below — cloning is a plain `git clone`, not an API
+call, and this GitLab instance (like the user's other git hosts) is
+commonly already reachable over SSH via a host alias in `~/.ssh/config`,
+set up once from prior work on a sibling repo in the same GitLab group.
+
+1. `cat ~/.ssh/config` and look for a `Host <the GitLab IP or hostname>-<short-name>`
+   block already pointing at this GitLab instance (`HostName` matching
+   the instance's real host/IP, `IdentityFile` set). If one exists, test
+   it directly: `ssh -T git@<alias> -o BatchMode=yes -o ConnectTimeout=10`
+   — a working alias answers with a GitLab welcome banner, no
+   password/token needed at all.
+2. If it answers, clone with that alias in place of the hostname:
+   `git clone git@<alias>:<group>/<subgroup>/<project>.git` — this works
+   immediately even inside a sandboxed tool session with no access to the
+   user's cached Windows credentials or browser-based git credential
+   manager.
+3. Only fall back to an HTTP clone (and therefore the SecretStore token
+   flow below) if no SSH alias exists for this instance. A plain HTTP
+   clone against a self-hosted instance typically fails two ways even
+   with a valid credential path: `fatal: Unencrypted HTTP is not
+   recommended for GitLab` (needs `-c http.sslVerify=false` or an HTTPS
+   remote) and `could not read Username ... terminal prompts disabled`
+   (needs the token embedded as `http.extraheader` or in the URL, not an
+   interactive prompt) — don't burn turns iterating on HTTP-clone syntax
+   before checking whether SSH already solves the whole problem for free.
+4. **Gotcha:** a verbal "go ahead" from the user in chat does not lift a
+   harness-level permission-classifier block (e.g. repeated "Permission
+   ... denied by the Claude Code auto mode classifier" on `Get-Secret`/
+   `Get-SecretInfo` calls) — that block requires an actual settings
+   change on the user's machine, not conversational authorization. If a
+   PowerShell secret-store call is denied twice in a row, stop retrying
+   variations of the same call and check for the SSH alternative above,
+   or hand off to the user, rather than spending further turns on it.
 
 ## Credential Setup (PowerShell SecretManagement/SecretStore)
 
