@@ -40,6 +40,9 @@ Current Drive layout:
   Project Knowledge Layout below
 - `40_PM_Case_Library/`: flat, cross-project, personal-reference
   management-pattern case library — see PM Case Library Layout below
+- `50_QA_Department_Standards/`: flat, personal-reference department
+  standards (current tools/process requirements/direction) plus a
+  personal lessons-learned log — see QA Department Standards Layout below
 - `80_Exports/` (optional): created only when an explicit immutable package
   or copy is prepared for external sharing; internal extracts do not belong here
 - `90_Storage/`: the single non-actionable storage root:
@@ -286,6 +289,42 @@ surfaces a case-shaped situation that doesn't belong in their own
 document — most passes route nothing, and that's the normal outcome, not
 a gap.
 
+## QA Department Standards Layout
+
+A fifth lane, distinct from all four above: `50_QA_Department_Standards`,
+a flat, personal-reference pair of documents. Not per-project (unlike
+Project Knowledge) and not a situation log (unlike the PM Case Library) —
+this is the current-state answer to "what does the department expect
+right now" (tools, process requirements, standing direction), plus a
+separate personal log of the user's own management lessons learned.
+
+```
+50_QA_Department_Standards/
+  qa_department_standards               (Doc - current department
+                                          tools/process/direction,
+                                          topic-organized, updated in
+                                          place — not append-only)
+  m2_lessons_learned                     (Doc - personal, append-only
+                                          retrospective log)
+```
+
+No per-project subfolder — flat, same as the PM Case Library (see
+`qa_dept_standards_workspace_layout.py`). Personal reference only, not
+shared. Two skills: `qa-department-standards-roles` (shared judgment —
+what counts as a real entry, the boundary vs Project
+Knowledge/PM-Case-Library/M1/M2, the topic-organized-vs-append-only
+structural split between the two documents) and
+`qa-department-standards-intake` (writes both documents).
+
+**Not a primary intake lane** — like the PM Case Library, this has no
+`source_type` of its own and never enters `qa_manage.py`'s
+queue/classify/guide/pack pipeline directly. It fires as a secondary,
+occasional output of `m2-status-meeting-intake`, `m2-strategy-chat-analysis`,
+and `m2-admin-note-intake` when their own real pass surfaces a genuine
+department-wide standards change, or as a standalone pass on direct
+M3/department-head relay or a direct request to log a lesson learned —
+most passes route nothing, and that's the normal outcome, not a gap.
+
 ## Source extraction
 
 Use the dependency-free extractor when Office source documents need to be converted into
@@ -461,6 +500,14 @@ These are what actually runs day to day, once a project's folder already exists:
   `project_knowledge_workspace_layout.py` does. `find_root`/`find_document`
   never create anything - the root folder and both documents are created
   only when a real case is actually being logged for the first time, never
+  speculatively.
+- `qa_dept_standards_workspace_layout.py` — not a script to run; canonical
+  folder layout for QA Department Standards (`50_QA_Department_Standards`).
+  Same flat shape as `pm_case_workspace_layout.py` - no per-project
+  subfolder, two documents directly under the root
+  (`qa_department_standards`, `m2_lessons_learned`). `find_root`/
+  `find_document` never create anything - both are created only when a
+  real entry is actually being logged for the first time, never
   speculatively.
 - `resolve_drive_path.py` — read-only lookup: resolves a local path under
   the user's Google Drive-for-Desktop mirror (`G:\My Drive\QA_Management\...`)

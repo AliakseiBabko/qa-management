@@ -502,6 +502,27 @@ documents:
     scope: workspace
     downstream: []
 
+  # ---- QA Department Standards (50_QA_Department_Standards) ----
+  # Personal reference of current department-wide QA tools/process
+  # requirements/direction, plus a separate personal lessons-learned log -
+  # distinct from Project Knowledge (per-project) and PM Case Library
+  # (cross-project situation patterns). Flat pair of documents, scope:
+  # workspace, same convention as the PM Case Library above. Never a
+  # required downstream target from any source's `entry:` list: both are
+  # optional, occasional secondary outputs, not mandatory ones.
+  qa_department_standards:
+    scope: workspace
+    downstream: []
+    note: >-
+      Current-state, topic-organized (not append-only) - an entry is
+      rewritten in place when the requirement changes; Change Log tracks
+      the history.
+
+  m2_lessons_learned:
+    scope: workspace
+    append_only: true
+    downstream: []
+
 # Documents produced on a calendar cadence, not per intake. Excluded from
 # per-intake closure checks; listed so the graph stays the complete map.
 periodic:
