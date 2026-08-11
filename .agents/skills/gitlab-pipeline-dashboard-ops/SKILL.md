@@ -37,6 +37,10 @@ actually belongs.
    attempting any API call. A credential found written into a Drive
    document is a policy violation to flag and fix (move it to the secret
    store, scrub the document), not a value to use as-is.
+3. If the task uses GitLab/JMeter evidence to decide performance-test scope
+   or service/script coverage, also read
+   `../project-knowledge-roles/references/performance-environment-discovery.md`
+   before drawing conclusions from a job, JMX file, or pipeline result.
 
 ## Credential Setup (PowerShell SecretManagement/SecretStore)
 
@@ -125,6 +129,15 @@ token, call `GET /user` first, then `GET /projects/:id` (or the resolved
 URL-encoded project path) with the same headers. Report the returned user
 identity and whether the project request succeeded; do not report or log
 the token value.
+
+When inheriting an existing workstation, first list secret metadata and test
+obvious project-local and generic token names from the project's own
+ops-runbook convention before asking the user to create a new token. Do not
+guess the token value, do not print candidate values, and do not treat a
+failed first name as evidence that no credential exists. The verification
+sequence is always: secret metadata exists -> token authenticates with
+`GET /user` -> token can read the target project -> only then call job,
+pipeline, artifact, or repository endpoints.
 
 **Gotcha:** if a PowerShell secret-store read (`Get-SecretInfo`,
 `Get-Secret`) gets denied by the harness's own auto-mode classifier when
@@ -359,6 +372,36 @@ times are high while node resources are not saturated, investigate app
 internals and dependencies first: CPU throttling, JVM GC/thread pools,
 connection pools, database locks/IO, service-mesh retries, queue lag, and
 test-client constraints.
+
+## GitLab Artifact Retrieval Fallbacks
+
+Job metadata can report an archive artifact while actual retrieval fails.
+Treat that as a separate artifact-store/API problem, not as proof that the
+test did not run.
+
+For a completed load-test job, try these in order:
+
+1. `GET /projects/:id/jobs/:job_id` - record `status`, timestamps,
+   runner, commit/ref, `artifacts_file`, `artifacts`, `artifacts_expire_at`,
+   and trace size.
+2. `GET /projects/:id/jobs/:job_id/artifacts` - archive download.
+3. Raw artifact endpoints for likely paths, if the job exposes named files
+   or the repository CI convention makes the paths known.
+4. `GET /projects/:id/jobs/:job_id/trace` - enough to recover variables,
+   pushed metric labels, artifact paths, and tool versions when archive
+   retrieval is broken.
+5. Browser/UI artifact URL only as a cross-check of API failure. A UI `500`
+   plus API `404`/`500` should be recorded as an artifact retrieval
+   constraint and handed to the platform owner with the job ID and artifact
+   metadata.
+6. Prometheus/Pushgateway fallback for aggregate JMeter metrics, using the
+   job timestamps plus cooldown window. This can support scope and
+   bottleneck analysis, but it cannot replace per-sample JTL analysis.
+
+If all artifact paths fail but Prometheus still has pushed JMeter metrics,
+write the knowledge-base conclusion precisely: CI/load-generation plumbing
+and aggregate metrics are confirmed; full JMeter report/JTL analysis is
+blocked by artifact retrieval.
 
 ## Guardrails
 

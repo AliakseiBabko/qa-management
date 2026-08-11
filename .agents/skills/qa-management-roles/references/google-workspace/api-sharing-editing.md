@@ -120,6 +120,29 @@ resolve," and must not be broadened into one.
 - When updating an existing Doc's content in bulk, clear the whole body
   (`deleteContentRange` over the full range) and reinsert with fresh
   paragraph styles, rather than patching pieces in place.
+- When generating Google Docs tables, use native table elements rather than
+  Markdown-style pipe tables. For any table that spans more than one page,
+  pin/repeat the first row as the table header so the column meanings remain
+  visible on each page. After populating a wide table, assess row height: if
+  roughly one third or more of the table rows wrap into tall multi-line rows
+  (about 10+ visual lines in a row), change the document or relevant section
+  to landscape orientation before handing it off. One or two tall rows can
+  stay portrait; a significant share of tall rows means the table needs
+  horizontal space for reviewability. Highlight the header row with a light
+  gray background color whether or not the header row is pinned/repeated;
+  repeated headers are easier to scan when the header styling is visually
+  distinct from data rows. Do not blindly keep evenly-distributed column
+  widths. Before setting widths, scan the table content for each column's
+  typical and maximum text length and likely wrapped-line count. The practical
+  goal of width redistribution is to minimize total table height after text
+  wrapping, not to make columns mathematically equal. Narrow
+  identifier/index/priority/status columns should be made narrow enough for
+  their real values, leaving more width to prose-heavy columns whose cells
+  would otherwise wrap into many lines. If one column contains only short
+  codes/one-word values while another contains one-to-three-sentence
+  questions or state descriptions, shift width toward the dense prose column
+  until the table's overall wrapped height is reduced, while keeping every
+  column still readable.
 - If you do patch just one heading's text via `deleteContentRange` +
   `insertText`, its paragraph style resets to normal text — you must reapply
   `updateParagraphStyle` (e.g. `HEADING_2`) afterward, or the heading silently
