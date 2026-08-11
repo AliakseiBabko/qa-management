@@ -31,6 +31,10 @@ happened yet.
    new source content as novel - a fact already captured shouldn't be
    re-added as if new, and a genuine correction should update the existing
    section rather than appending a contradicting one beside it.
+3. When the task is about performance-testing scope, deployed services,
+   JMeter/GitLab runs, environment reachability, or translating submodules
+   into physical test targets, read
+   `references/performance-environment-discovery.md` too.
 
 ## Core Rules
 
@@ -135,8 +139,8 @@ happened yet.
 
 ## Structural Format: Sub-Headings And Change Log Discipline
 
-Found via a 2026-08-07 audit of PKF's knowledge base (282K chars under 14
-flat H2 sections, no sub-structure at all): a knowledge base that only
+Found via an audit of one large project knowledge base (roughly 282K chars
+under 14 flat H2 sections, no sub-structure at all): a knowledge base that only
 ever gets bigger without ever getting more structured stops being
 findable long before anyone notices, because every individual intake
 pass still looks reasonable in isolation. Two concrete rules fix this:
@@ -146,7 +150,7 @@ pass still looks reasonable in isolation. Two concrete rules fix this:
   touched - it does not restate the fact itself. If you're tempted to
   write more than ~2 lines for one entry, that content belongs in the
   topical section, not here. This rule exists because of a real failure
-  mode: past PKF passes, trying to avoid the heading-inheritance bug
+  mode: past project-knowledge passes, trying to avoid the heading-inheritance bug
   below, appended entire new facts to Change Log as a workaround instead
   of inserting them into System/Architecture or Known Constraints where
   they belonged - by the time this was caught, 29 real facts (a project
