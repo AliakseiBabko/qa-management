@@ -84,6 +84,42 @@ For a project that is genuinely at the start and has not yet produced enough del
 - Staffing/expectation mismatch: a junior or newly onboarded QA is expected to operate at a senior/project-critical level without enough process support.
 - Process volatility: vague requirements, weak documentation, abrupt deadline changes, no stable release cadence, or undefined QA ownership.
 
+## Outstaff Delivery Escalation Action-Plan Format
+
+For a project following the department's Outstaff Delivery process
+standard (see `qa_department_standards`, Process Requirements, for the
+current rollout deadline and source reference), an internal risk (stop
+risk noticed before the client escalates) or a
+client escalation (negative feedback / official stop notice) requires a
+**second artifact** alongside this Sheet row, not a replacement for it:
+a numbered action plan posted to the project's strategy chat. This skill
+still owns the Sheet's risk-level record (Низкий/Средний/Высокий);
+drafting the action-plan text is in scope too when the user asks for it
+for one of these situations.
+
+Each numbered item:
+
+```text
+Экшен-план | <Имя сотрудника> | <Project>
+
+<Проблема, которую исправляет>
+Что делаем: <конкретное действие>
+Дедлайн: <ДД.ММ.ГГГГ>
+Ответственный: <M2 / M1 / другой>
+```
+
+- Internal risk: tag Sales + PC + the employee's Head/RM in the strategy
+  chat when the plan is posted; check in at least 2×/week until every
+  item is done; escalate to `Replacement` if the plan stalls repeatedly.
+- Client escalation: same plan shape, but relayed to the client through
+  Sales (or the employee to their lead); request an interim and then a
+  final client read on whether they see improvement; an official stop
+  notice means running `Replacement` proactively in parallel, not waiting
+  for the plan's outcome.
+- Do not conflate this plan with the Sheet's `Комментарий`/action-plan
+  cell content — the chat post is the real-time working artifact; the
+  Sheet stays the current-state summary.
+
 ## Guardrails
 
 - Do not output people risk traffic lights here.

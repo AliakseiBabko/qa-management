@@ -75,7 +75,45 @@ not a saved Doc. Ask if genuinely unclear, but default to:
 
 ## Chat Text Shape
 
-Default structure (single QA / flat project):
+**Outstaff Delivery mandated weekly format** — required for the regular
+weekly status on any project following the department's Outstaff
+Delivery process standard (see `qa_department_standards`, Process
+Requirements, for the current rollout deadline and source reference).
+Use this instead of the bulleted default/per-person shapes below for
+those projects; ask if it's genuinely unclear whether a project is under
+this standard yet. One 🟢/🟡/🔴 status glyph in section 1, numbered
+sections below it:
+
+```text
+Еженедельный отчёт M2/DC | Проект: <Project>
+Период: <ДД.ММ.ГГГГ> – <ДД.ММ.ГГГГ>
+Команда: <Имя, роль (+ статус онбординга/день N, если применимо)>
+1. Общий статус: <🟢/🟡/🔴>
+• Основной фокус недели: ...
+• Обоснование статуса: ...
+2. Delivery
+• Текущий прогресс: ...
+• Блокеры: ...
+3. Коммуникация
+• Статус отношений с лидом: ...
+• Соответствие ожиданиям: ...
+4. Доступность
+• Митинги: ...
+• Отсутствия: ...
+5. Процессные триггеры
+• Upsale: <Нет / что> Risk Management: <Нет / что>
+```
+
+For someone mid-onboarding that week, add an Onboarding block (day
+count, task in progress, progress/blockers, communication) per the
+Outstaff Delivery Onboarding instruction reference linked from
+`qa_department_standards` — not duplicated here, since it triggers on
+onboarding milestones, not the weekly cadence. Same evidence discipline
+as the shapes below: no invented content, same "Data note" fallback for
+a weak period.
+
+Default structure (single QA / flat project, for projects not yet under
+the Outstaff Delivery standard):
 
 ```text
 <Project> status, <period>
