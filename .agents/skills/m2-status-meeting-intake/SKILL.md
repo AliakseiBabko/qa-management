@@ -53,11 +53,18 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
    real client/stakeholder situation from another M2's project is fair
    game for the PM Case Library. Most meetings, and most skipped-project
    mentions, still produce nothing - don't force it.
+6b. Separately, if the meeting surfaces a genuine department-wide
+   standards change (a tool/process requirement or direction the
+   department head/M3 states applies broadly, not one project's own
+   decision) - route it to `qa-department-standards-intake` (load
+   `../qa-department-standards-roles/SKILL.md` first). Most meetings
+   produce nothing here either.
 7. Log one `evidence_log` row per affected project (step 2's projects
    only, not skipped ones), `source_type = meeting_transcript` (see
    `../qa-management-roles/references/google-workspace/operational-registries.md`'s
    canonical `source_type` list) - include `pm_case_library` in `routed_to`
-   if step 6 wrote one for that project.
+   if step 6 wrote one for that project, and `qa_department_standards` if
+   step 6b wrote one.
 8. Per affected project, close the cascade: run
    `.agents\scripts\check_cascade_closure.py --touched <routed_to list>`
    and resolve every OPEN item (update, run the named script, or an

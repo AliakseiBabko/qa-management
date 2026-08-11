@@ -116,10 +116,17 @@ editing an already-logged file in place makes new content invisible to it.
    `../pm-case-knowledge-roles/SKILL.md` first). Most passes have nothing
    to route; a multi-month strategy chat producing zero cases is normal,
    not a gap.
+5b. Separately, if the chat surfaces a genuine department-wide standards
+   change (a tool/process requirement or direction stated as applying
+   broadly, not this project's own decision) — route it to
+   `qa-department-standards-intake` (load
+   `../qa-department-standards-roles/SKILL.md` first). Most passes
+   produce nothing here either.
 6. Update the `evidence_log` row `detect_strategy_chats.py` already created
    for this file (same `date`/`source` — don't append a duplicate): replace
    `routed_to` ("pending M2 review") with every document actually touched
-   (including `pm_case_library` if step 5 wrote one), and extend `notes`
+   (including `pm_case_library` if step 5 wrote one, and
+   `qa_department_standards` if step 5b wrote one), and extend `notes`
    to summarize what changed and what was left as an
    open question, on top of the date-range note the script wrote.
 7. Close the cascade: run `.agents\scripts\check_cascade_closure.py
