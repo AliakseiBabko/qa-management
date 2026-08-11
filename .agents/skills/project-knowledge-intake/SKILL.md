@@ -84,6 +84,38 @@ Repeated live-investigation patterns:
     the user.
   - For an online word processor (or anything the export route doesn't
     solve), ask the user to paste the raw text instead.
+- Inside a genuinely external Drive location (the narrow browser-fallback
+  case above), a **native** multi-tab Google Sheet exports reliably by
+  navigating straight to
+  `https://docs.google.com/spreadsheets/d/<id>/export?format=csv&gid=<gid>`
+  for each tab - get each tab's `gid` by clicking it (see the frame-click
+  gotcha below) and reading the resulting `#gid=...` from the page URL,
+  then navigate to the export URL and read the downloaded file from the
+  browser tool's own download directory (e.g. `.playwright-mcp/`).
+- **Gotcha:** an **uploaded, non-native** file (`.xlsx`/`.csv` sitting in
+  Drive, not a real Google Sheet) previewed via `/file/d/<id>/view` shows
+  a Sheets-style grid, and its context menu offers "Open with Google
+  Sheets" - but the resulting converted preview is not a real, exportable
+  Sheet: navigating to its `/export?format=csv` (or even the plain
+  `/edit`) URL reliably crashes the browser tool's connection entirely
+  ("Connection closed"/`ERR_HTTP_RESPONSE_CODE_FAILURE"`), costing a full
+  reconnect. For a small-to-medium uploaded file, skip export entirely -
+  read the content directly from the preview iframe's rendered text
+  (`document.body.innerText` on the frame whose URL contains
+  `/preview/sheet`) instead. This is fast, needs no menu navigation, and
+  never triggers the crash.
+- **Gotcha:** clicking a Google Sheet's own tab bar, or its File > Download
+  submenu, from a prior snapshot's element ref frequently fails to match
+  ("does not match any elements") even though the element is visibly
+  there - these controls live inside nested iframes the ref-based click
+  tool doesn't reliably resolve across a snapshot/click round-trip.
+  Iterate `page.frames()` and use `frame.getByRole('menuitem'|'button',
+  { name, exact: true })` inside one script call instead (find the frame,
+  then act, in the same call) - this succeeded consistently where
+  ref-based clicks and even the same locator split across two separate
+  tool calls did not (Google's custom menus close between calls with no
+  continuous hover). For a tab bar specifically, the target tab's `gid`
+  is recoverable from the page URL immediately after a successful click.
 
 ## Workflow
 
