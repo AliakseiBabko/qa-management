@@ -1209,6 +1209,19 @@ These are what actually runs day to day, once a project's folder already exists:
   `.claude/skills` and `validate_repo.py` does not require one; run the setup
   script once per working copy that uses Claude Code.
 
+- `confluence_client.py` — headless Confluence Cloud REST API client, no
+  browser/interactive login required. Basic Auth with an Atlassian API
+  token (`.local/atlassian/credentials.json` — email + token + base
+  URL, same gitignored trust boundary as `.local/google/`, see AGENTS.md).
+  `--page-id` fetches one page's title + body text (storage-format XHTML
+  converted to plain text via a small stdlib-only extractor, no bs4/
+  html2text dependency); `--children` lists a page/folder's direct
+  children; `--cql` runs an arbitrary CQL search (e.g.
+  `ancestor=<folder-id>` for every descendant page). Used as a library
+  (`get_session`/`get_page`/`get_children`/`search_cql`/`storage_to_text`)
+  by any pass that needs to pull a Confluence source instead of scraping
+  it through a live browser session.
+
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
 `google-workspace/pipeline-architecture.md`.
