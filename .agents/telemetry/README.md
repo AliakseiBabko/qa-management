@@ -104,12 +104,14 @@ analysis.
 unit/smoke-tested (`test_closeout_telemetry.py`, `test_record_agent_session.py`,
 `test_record_task_outcome.py`, `test_operator_telemetry.py`, plus manual
 `central_telemetry_adapter.py` smoke tests against the real ai-telemetry
-database, each cleaned up afterward) and, as of this note, **one real
-no-queue session dual-write has succeeded**: a genuine (non-test,
-non-queue) `record_agent_session.py --dual-write-central` call produced a
-matching `source_system='native'` row in ai-telemetry's `sessions` table
-for `project_id='qa-management'`. **Still outstanding: a real, queue-backed
-`closeout_telemetry.py` run has not yet been exercised in production** -
+database, each cleaned up afterward) and, as of this note, **the no-queue
+session dual-write path is production-verified**: multiple genuine
+(non-test, non-queue) `record_agent_session.py --dual-write-central`
+calls, from separate real no-queue passes, have each produced a matching
+`source_system='native'` row in ai-telemetry's `sessions` table for
+`project_id='qa-management'` - this is no longer a single one-off
+success. **Still outstanding: a real, queue-backed `closeout_telemetry.py`
+run has not yet been exercised in production** -
 that path (which dual-writes `sessions`/`tasks`/`command_runs` together,
 by default, no extra flag needed) still needs its own first real
 confirmation before it can be considered verified. After the next real
@@ -118,9 +120,9 @@ queue-backed closeout, verify it landed centrally the same way:
 qa-management's task/command-run counts tick up, or query the database
 directly for `source_system='native'` rows in those two tables. **`.agents/telemetry`
 remains this repo's own source of truth and must not be removed yet** -
-one verified path out of the full closeout flow is progress, not
-completion, and this note exists so the remaining confirmation doesn't
-get missed.
+the no-queue session path being production-verified is progress, not
+completion of the full closeout flow, and this note exists so the
+remaining queue-backed confirmation doesn't get missed.
 
 ## Three CSVs, three different questions
 
