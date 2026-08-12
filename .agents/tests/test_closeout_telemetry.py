@@ -186,6 +186,52 @@ class TestFullCloseoutHappyPath(unittest.TestCase):
                           ".agents/telemetry/task-outcomes.csv"])
 
 
+class TestCentralWriteReminder(unittest.TestCase):
+    """Phase 16 follow-up: a short post-success reminder to verify the
+    first real dual-write against ai-telemetry - human-readable output
+    only, no envelope/exit-code change (see TestJsonEnvelopeIsStrict for
+    the envelope-shape guarantee this must not touch)."""
+
+    REMINDER_SNIPPET = "verify with"
+
+    def _printed_lines(self, argv_extra: list[str]) -> list[str]:
+        with mock.patch.object(closeout, "run_subprocess", side_effect=_default_side_effect()), \
+             mock.patch("sys.argv", ["closeout_telemetry.py", "--run-id", RUN_ID, "--runtime", "claude",
+                                      "--session-id", SESSION_ID] + argv_extra), \
+             mock.patch("builtins.print") as mock_print:
+            rc = closeout.main()
+        self.assertEqual(rc, 0)
+        return [c.args[0] for c in mock_print.call_args_list]
+
+    def test_reminder_printed_when_dual_write_enabled_human_mode(self):
+        lines = self._printed_lines([])  # dual-write on by default (no --skip-central-write)
+        self.assertTrue(any(self.REMINDER_SNIPPET in line for line in lines))
+
+    def test_reminder_omitted_with_skip_central_write(self):
+        lines = self._printed_lines(["--skip-central-write"])
+        self.assertFalse(any(self.REMINDER_SNIPPET in line for line in lines))
+
+    def test_reminder_omitted_in_json_mode(self):
+        lines = self._printed_lines(["--json"])
+        self.assertFalse(any(self.REMINDER_SNIPPET in line for line in lines))
+        # --json output must still be exactly one parseable envelope, per
+        # TestJsonEnvelopeIsStrict - confirm the reminder didn't sneak a
+        # second print call in ahead of it.
+        json.loads(lines[-1])
+
+    def test_reminder_omitted_on_failed_closeout(self):
+        lines = self._printed_lines_with_failed_validators()
+        self.assertFalse(any(self.REMINDER_SNIPPET in line for line in lines))
+
+    def _printed_lines_with_failed_validators(self) -> list[str]:
+        with mock.patch.object(closeout, "run_subprocess", side_effect=_default_side_effect(validators_ok=False)), \
+             mock.patch("sys.argv", ["closeout_telemetry.py", "--run-id", RUN_ID, "--runtime", "claude",
+                                      "--session-id", SESSION_ID]), \
+             mock.patch("builtins.print") as mock_print:
+            closeout.main()
+        return [c.args[0] for c in mock_print.call_args_list]
+
+
 class TestRefusesNonCompletedRun(unittest.TestCase):
     def test_no_writes_attempted_for_incomplete_run(self):
         calls = []

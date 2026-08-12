@@ -440,7 +440,24 @@ def main() -> int:
         commit_sha=commit_sha,
         next_command=next_command,
     )
-    return emit(envelope)
+    rc = emit(envelope)
+
+    # Phase 16 follow-up: a short, generic reminder - no row ids, no
+    # business content, no change to rc/envelope - so the FIRST real
+    # (non-test) closeout that dual-writes doesn't go unverified against
+    # ai-telemetry. Human-readable output only: --json output stays a
+    # single parseable JSON object, and this never fires on a failed
+    # closeout (envelope["ok"] is False) since there's nothing meaningful
+    # to verify centrally yet.
+    if envelope["ok"] and dual_write_central and not args.json:
+        print(
+            "  reminder: this closeout dual-wrote to ai-telemetry - verify with "
+            "`python <ai-telemetry-repo>\\scripts\\report.py --summary` (or a direct "
+            "query for source_system='native' rows) - see .agents/telemetry/README.md's "
+            "\"Pending production verification\" note."
+        )
+
+    return rc
 
 
 if __name__ == "__main__":

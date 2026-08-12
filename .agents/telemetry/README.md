@@ -100,6 +100,23 @@ analysis.
   without `--dual-write-central`), the task row is still recorded, just
   without that link, and a generic warning prints - never a hard failure.
 
+**Pending production verification.** Phase 14/15's dual-write path is
+unit/smoke-tested (`test_closeout_telemetry.py`, `test_record_agent_session.py`,
+`test_record_task_outcome.py`, `test_operator_telemetry.py`, plus manual
+`central_telemetry_adapter.py` smoke tests against the real ai-telemetry
+database, each cleaned up afterward) but has **not yet been exercised by
+a real `closeout_telemetry.py` run** - as of this note, zero
+`source_system='native'` rows exist for `project_id='qa-management'` in
+ai-telemetry's `sessions`/`tasks`/`command_runs` tables. After the next
+real (non-test) `closeout_telemetry.py` run - which dual-writes by
+default, so no extra flag is needed - verify it actually landed
+centrally: `python ai-telemetry\scripts\report.py --summary` should show
+qa-management's session/task/command-run counts tick up, or query the
+database directly for `source_system='native'` rows. **`.agents/telemetry`
+remains this repo's own source of truth until that first real,
+successful production dual-write is confirmed** - this note exists so
+that confirmation doesn't get missed, not to imply removal is close.
+
 ## Three CSVs, three different questions
 
 - **`operator-runs.csv`** answers *"how large was this command's output?"*
