@@ -27,6 +27,12 @@ from operator_telemetry_common import (  # noqa: E402
     diff_guard_task_outcome_new_row_only,
     validate_task_outcome_row,
 )
+import central_telemetry_adapter  # noqa: E402 - Phase 14 dual-write, see --dual-write-central
+
+# local status -> ai-telemetry's tasks.status_normalized enum. 'gated' is
+# kept distinct from 'partial' on the central side too - same reasoning
+# as ai-telemetry's import_qa_management.py's own TASK_STATUS_MAP.
+CENTRAL_STATUS_MAP = {"ok": "ok", "error": "failed", "gated": "gated"}
 
 
 def _resolve_source_blob(run_id: str) -> tuple[str, str, str]:
@@ -228,6 +234,13 @@ def main() -> int:
     parser.add_argument("--append-csv", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--dual-write-central", action="store_true",
+        help="Phase 14: also write a best-effort copy of this row into the central ai-telemetry "
+             "database (project_id=qa-management, source_system=native), AFTER the local "
+             "task-outcomes.csv append already succeeded. Opt-in and off by default. A central-write "
+             "failure only prints a warning; see central_telemetry_adapter.py.",
+    )
     args = parser.parse_args()
 
     today_iso = dt.date.today().isoformat()
@@ -326,6 +339,43 @@ def main() -> int:
 
     print(f"Appended row for task_outcome_id={task_outcome_id} to {TASK_OUTCOME_CSV_HEADER}")
     print("Diff guard OK: only the new task-outcome row was added.")
+
+    if args.dual_write_central:
+        workload = {
+            "lane": row["lane"], "source_type": row["source_type"],
+            "source_count": row["source_count"], "source_blob_present": row["source_blob_present"],
+            "source_chars": row["source_chars"], "source_estimated_tokens": row["source_estimated_tokens"],
+            "record_apply_updated_count": row["record_apply_updated_count"],
+            "record_apply_no_change_count": row["record_apply_no_change_count"],
+            "record_apply_not_applicable_count": row["record_apply_not_applicable_count"],
+            "closure_edges_count": row["closure_edges_count"],
+            "closure_edges_updated_count": row["closure_edges_updated_count"],
+            "closure_edges_no_change_count": row["closure_edges_no_change_count"],
+            "closure_edges_gated_count": row["closure_edges_gated_count"],
+            "queue_run_hash": row["queue_run_hash"], "mirror_export_mode": row["mirror_export_mode"],
+        }
+        central = central_telemetry_adapter.record_task(
+            source_ref=task_outcome_id,
+            task_type=row["task_type"],
+            date=row["date"],
+            status_normalized=CENTRAL_STATUS_MAP.get(row["status"], "unknown"),
+            linked_session_source_ref=row["linked_session_run_id"] or None,
+            runtime_id=row["runtime"],
+            status_raw=row["status"],
+            workload_json=json.dumps(workload, ensure_ascii=True),
+            notes=row["notes"],
+        )
+        if central.get("ok"):
+            print(f"Central ai-telemetry: {central.get('outcome', 'recorded')} (id={central.get('id')})")
+            if central.get("link_resolved") is False:
+                sys.stderr.write(
+                    "Warning: central ai-telemetry task row recorded without a linked session row - "
+                    "no matching central session was found for this task's linked_session_run_id yet "
+                    "(it may not have been dual-written, or dual-write wasn't requested for it).\n"
+                )
+        else:
+            sys.stderr.write(f"Warning: central ai-telemetry dual-write skipped: {central.get('reason')}\n")
+
     return 0
 
 

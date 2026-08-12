@@ -144,6 +144,7 @@ from operator_telemetry_common import (  # noqa: E402
     read_rows,
     validate_agent_session_row,
 )
+import central_telemetry_adapter  # noqa: E402 - Phase 14 dual-write, see --dual-write-central
 
 DEFAULT_CONFIDENCE_BY_METHOD = {
     "claude_log": "high",
@@ -458,6 +459,16 @@ def main() -> int:
                              "Without this flag such an append is refused, not silently written.")
     parser.add_argument("--append-csv", action="store_true", help="Append the row to agent-sessions.csv.")
     parser.add_argument("--dry-run", action="store_true", help="Print the row; do not write the CSV.")
+    parser.add_argument(
+        "--dual-write-central", action="store_true",
+        help="Phase 14: also write a best-effort copy of this row into the central ai-telemetry "
+             "database (project_id=qa-management, source_system=native) via central_telemetry_adapter.py, "
+             "AFTER the local agent-sessions.csv append already succeeded. Opt-in and off by default - "
+             "existing/automated callers are unaffected unless they pass this explicitly. A central-write "
+             "failure only prints a warning; it never affects this script's own exit code or the local "
+             "CSV write, which has already happened by the time this runs. See "
+             "central_telemetry_adapter.py's own docstring for exactly what is/isn't dual-written yet.",
+    )
     args = parser.parse_args()
 
     args.linked_operator_run_ids = (
@@ -521,6 +532,34 @@ def main() -> int:
     print(f"Appended row for session_run_id={row['session_run_id']} to "
          ".agents/telemetry/agent-sessions.csv")
     print("Diff guard OK: only the new row was added. operator-runs.csv was not touched.")
+
+    if args.dual_write_central:
+        central = central_telemetry_adapter.record_session(
+            source_ref=row["session_run_id"],
+            runtime_id=row["runtime"],
+            session_id=row["session_id"],
+            date=row["date"],
+            objective=row["objective"],
+            model_label=row["model_label"],
+            started_at=row["started_at"],
+            ended_at=row["ended_at"],
+            elapsed_min=row["elapsed_min"],
+            actual_input_tokens=row["actual_input_tokens"],
+            actual_cache_creation_tokens=row["actual_cache_creation_tokens"],
+            actual_cache_read_tokens=row["actual_cache_read_tokens"],
+            actual_output_tokens=row["actual_output_tokens"],
+            actual_reasoning_tokens=row["actual_reasoning_tokens"],
+            total_tokens=row["total_tokens"],
+            estimated_cost_usd=row["estimated_cost_usd"],
+            extraction_method=row["extraction_method"],
+            confidence=row["confidence"],
+            notes=row["notes"],
+        )
+        if central.get("ok"):
+            print(f"Central ai-telemetry: {central.get('outcome', 'recorded')} (id={central.get('id')})")
+        else:
+            print(f"Warning: central ai-telemetry dual-write skipped: {central.get('reason')}", file=sys.stderr)
+
     return 0
 
 

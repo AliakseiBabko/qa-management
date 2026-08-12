@@ -184,7 +184,7 @@ def step_operator_run(run_id: str, runtime: str, model_label: str) -> str:
 
 
 def step_agent_session(run_id: str, runtime: str, session_id: str,
-                       model_label: str) -> tuple[str, list[str]]:
+                       model_label: str, dual_write_central: bool = False) -> tuple[str, list[str]]:
     """Step 2: task-windowed (Claude) or whole-session (every other
     runtime) agent-session row via record_agent_session.py. Returns
     (session_run_id, warnings)."""
@@ -195,6 +195,8 @@ def step_agent_session(run_id: str, runtime: str, session_id: str,
         "--runtime", runtime, "--session-id", session_id,
         "--objective", GENERIC_OBJECTIVE, "--check-registry", "--append-csv",
     ]
+    if dual_write_central:
+        argv.append("--dual-write-central")
     if windowed:
         argv += ["--from-run", run_id]
     else:
@@ -216,7 +218,8 @@ def step_agent_session(run_id: str, runtime: str, session_id: str,
     return match.group(1), warnings
 
 
-def step_task_outcome(run_id: str, runtime: str, session_run_id: str) -> str:
+def step_task_outcome(run_id: str, runtime: str, session_run_id: str,
+                      dual_write_central: bool = False) -> str:
     """Step 3: task-outcomes.csv row via record_task_outcome.py."""
     argv = [
         sys.executable, str(SCRIPTS_DIR / "record_task_outcome.py"),
@@ -224,6 +227,8 @@ def step_task_outcome(run_id: str, runtime: str, session_run_id: str) -> str:
         "--runtime", TASK_OUTCOME_RUNTIME_MAP.get(runtime, "manual"),
         "--check-registry", "--append-csv",
     ]
+    if dual_write_central:
+        argv.append("--dual-write-central")
     proc = run_subprocess(argv)
     if proc.returncode != 0:
         raise CloseoutError(f"record_task_outcome.py failed:\n{(proc.stderr or proc.stdout).strip()}")
@@ -353,6 +358,14 @@ def main() -> int:
     parser.add_argument("--model-label", default="")
     parser.add_argument("--commit", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--skip-central-write", action="store_true",
+        help="Phase 14: this script passes --dual-write-central to record_agent_session.py/"
+             "record_task_outcome.py by default, so the mandatory queue-backed closeout also "
+             "best-effort-writes into the central ai-telemetry database - never required for the "
+             "local closeout itself to succeed. Pass this flag to opt out on a machine without an "
+             "ai-telemetry checkout, or while testing.",
+    )
     args = parser.parse_args()
 
     runtime = canonical_runtime(args.runtime)
@@ -375,11 +388,14 @@ def main() -> int:
     progress: dict[str, Any] = {"operator_run_id": None, "session_run_id": None, "task_outcome_id": None}
     warnings: list[str] = []
     try:
+        dual_write_central = not args.skip_central_write
         progress["operator_run_id"] = step_operator_run(args.run_id, runtime, args.model_label)
-        session_run_id, session_warnings = step_agent_session(args.run_id, runtime, args.session_id, args.model_label)
+        session_run_id, session_warnings = step_agent_session(
+            args.run_id, runtime, args.session_id, args.model_label, dual_write_central
+        )
         progress["session_run_id"] = session_run_id
         warnings.extend(session_warnings)
-        progress["task_outcome_id"] = step_task_outcome(args.run_id, runtime, session_run_id)
+        progress["task_outcome_id"] = step_task_outcome(args.run_id, runtime, session_run_id, dual_write_central)
     except CloseoutError as exc:
         return emit(build_envelope(run_id=args.run_id, runtime=runtime, warnings=warnings,
                                    errors=[str(exc)], **progress))
