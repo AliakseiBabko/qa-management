@@ -138,6 +138,31 @@ class TestStepAgentSessionWindowing(unittest.TestCase):
         self.assertIn("not scoped", warnings[0].lower())
 
 
+class TestStepOperatorRunDualWrite(unittest.TestCase):
+    """Phase 15: step_operator_run's dual_write_central passthrough into
+    measure_operator_outputs.py's own --dual-write-central flag."""
+
+    def _run(self, dual_write_central=False):
+        captured = {}
+
+        def side_effect(argv):
+            captured["argv"] = argv
+            row = {"run_id": "completed_run_review-2026-07-23-aaaa1111", "status": "ok"}
+            return _proc(0, stdout=json.dumps(row) + "\nAppended row to file\n")
+
+        with mock.patch.object(closeout, "run_subprocess", side_effect=side_effect):
+            closeout.step_operator_run(RUN_ID, "claude", "", dual_write_central)
+        return captured["argv"]
+
+    def test_flag_omitted_by_default(self):
+        argv = self._run(dual_write_central=False)
+        self.assertNotIn("--dual-write-central", argv)
+
+    def test_flag_forwarded_when_requested(self):
+        argv = self._run(dual_write_central=True)
+        self.assertIn("--dual-write-central", argv)
+
+
 class TestFullCloseoutHappyPath(unittest.TestCase):
     def test_creates_all_three_rows_and_reports_validators(self):
         with mock.patch.object(closeout, "run_subprocess", side_effect=_default_side_effect()), \

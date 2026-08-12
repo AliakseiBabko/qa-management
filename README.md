@@ -1102,7 +1102,10 @@ These are what actually runs day to day, once a project's folder already exists:
   to `.agents/telemetry/operator-runs.csv`. A live `--target` (run id /
   project / query) is substituted only into the executed command — the
   committed row always keeps the `{target}` placeholder, never the real
-  value.
+  value. `--dual-write-central` (Phase 15, opt-in, requires `--append-csv`)
+  additionally best-effort-mirrors the row into ai-telemetry's
+  `command_runs` table via `central_telemetry_adapter.py` — see
+  `.agents/telemetry/README.md`.
 - `finalize_operator_run.py` — the enrichment step over
   `measure_operator_outputs.py --append-csv`: computes
   `reduction_ratio_vs_baseline` against an existing baseline row already in
@@ -1184,17 +1187,20 @@ These are what actually runs day to day, once a project's folder already exists:
   mislabel. `--commit` stages only the three telemetry CSVs, never business
   documents, the queue, or the mirror. Manual step-by-step invocation of the three
   scripts above remains available for anything this wrapper doesn't cover.
-- `central_telemetry_adapter.py` — Phase 14: not a CLI, a small importable
-  module `record_agent_session.py`/`record_task_outcome.py` call when
-  given `--dual-write-central`, best-effort-mirroring their already-local
-  CSV row into the central, cross-project `ai-telemetry` database
-  (`project_id=qa-management`, `source_system=native`) via that sibling
-  repo's own native-write recording scripts. Fails soft by design - any
-  central-write problem is a warning, never a failure of the local
-  closeout that already succeeded. `closeout_telemetry.py` passes
-  `--dual-write-central` by default (opt out with `--skip-central-write`);
-  the two individual scripts default it off. See
-  `.agents/telemetry/README.md`'s "This is legacy/local telemetry"
+- `central_telemetry_adapter.py` — Phase 14/15: not a CLI, a small
+  importable module `record_agent_session.py`/`record_task_outcome.py`/
+  `measure_operator_outputs.py` call when given `--dual-write-central`,
+  best-effort-mirroring their already-local CSV row into the central,
+  cross-project `ai-telemetry` database (`project_id=qa-management`,
+  `source_system=native`) via that sibling repo's own native-write
+  recording scripts. Also resolves a dual-written task row's central
+  `linked_session_row_id` via a targeted read-only query, when the
+  corresponding session was already dual-written. Fails soft by design -
+  any central-write or link-lookup problem is a warning, never a failure
+  of the local closeout that already succeeded. `closeout_telemetry.py`
+  passes `--dual-write-central` by default (opt out with
+  `--skip-central-write`); the three individual scripts default it off.
+  See `.agents/telemetry/README.md`'s "This is legacy/local telemetry"
   section for the full picture.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals

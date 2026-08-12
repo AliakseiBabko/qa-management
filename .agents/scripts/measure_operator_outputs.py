@@ -60,8 +60,19 @@ from operator_telemetry_common import (  # noqa: E402
     MUTATING_VERBS,
     is_ascii_safe,
 )
+import central_telemetry_adapter  # noqa: E402 - Phase 15 dual-write, see --dual-write-central
 
 TMP_TELEMETRY_DIR = REPO_ROOT / "tmp" / "telemetry"
+
+# This script's own --runtime vocabulary -> ai-telemetry's runtimes.runtime_id
+# vocabulary (claude/codex/antigravity/cline/manual - see that repo's
+# init_db.py seed list). Distinct spelling on this side ("Claude Code",
+# title case) is this CSV's own long-standing convention, unrelated to
+# ai-telemetry's - never conflated, always mapped explicitly.
+CENTRAL_RUNTIME_MAP = {
+    "Codex": "codex", "Claude Code": "claude", "Antigravity": "antigravity",
+    "manual_script": "manual",
+}
 
 
 def _extract_result_count(parsed: object) -> int | None:
@@ -215,6 +226,16 @@ def main() -> int:
     parser.add_argument("--keep-raw", action="store_true", help="Also write raw stdout to tmp/telemetry/ (gitignored, local only).")
     parser.add_argument("--list", action="store_true", help="List available case_ids and exit.")
     parser.add_argument("--json", action="store_true", help="Print the measured row as JSON to stdout.")
+    parser.add_argument(
+        "--dual-write-central", action="store_true",
+        help="Phase 15: also write a best-effort copy of this row into the central ai-telemetry "
+             "database (project_id=qa-management, source_system=native) via central_telemetry_adapter.py, "
+             "AFTER the local operator-runs.csv append already succeeded (requires --append-csv - a dry "
+             "run or a measurement not appended to the CSV has no local run_id to dual-write against). "
+             "Opt-in and off by default - existing/automated callers are unaffected unless they pass this "
+             "explicitly. A central-write failure only prints a warning; it never affects this script's "
+             "own exit code or the local CSV write, which has already happened by the time this runs.",
+    )
     args = parser.parse_args()
 
     if args.list:
@@ -282,6 +303,24 @@ def main() -> int:
         from operator_telemetry_common import append_row
         append_row(full_row)
         print("Appended row to .agents/telemetry/operator-runs.csv")
+
+        if args.dual_write_central:
+            central = central_telemetry_adapter.record_command_run(
+                source_ref=full_row["run_id"],
+                command_label=full_row["command_args_redacted"],
+                date=full_row["date"],
+                runtime_id=CENTRAL_RUNTIME_MAP.get(full_row["runtime"]),
+                elapsed_ms=full_row["elapsed_ms"],
+                output_chars=full_row["output_chars"],
+                approximate_output_tokens=full_row["approximate_output_tokens"],
+                baseline_command_label=full_row["baseline_command"] or None,
+                reduction_ratio_vs_baseline=full_row["reduction_ratio_vs_baseline"] or None,
+                notes=full_row["notes"] or None,
+            )
+            if central.get("ok"):
+                print(f"Central ai-telemetry: {central.get('outcome', 'recorded')} (id={central.get('id')})")
+            else:
+                print(f"Warning: central ai-telemetry dual-write skipped: {central.get('reason')}", file=sys.stderr)
 
     return 0 if row["status"] == "ok" else 1
 

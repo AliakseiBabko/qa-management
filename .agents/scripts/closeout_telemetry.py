@@ -161,7 +161,8 @@ def check_run_completed(run_id: str) -> None:
         )
 
 
-def step_operator_run(run_id: str, runtime: str, model_label: str) -> str:
+def step_operator_run(run_id: str, runtime: str, model_label: str,
+                      dual_write_central: bool = False) -> str:
     """Step 1: completed_run_review via measure_operator_outputs.py.
     Returns the created operator-runs.csv run_id."""
     argv = [
@@ -172,6 +173,8 @@ def step_operator_run(run_id: str, runtime: str, model_label: str) -> str:
     ]
     if model_label:
         argv += ["--model-label", model_label]
+    if dual_write_central:
+        argv.append("--dual-write-central")
     proc = run_subprocess(argv)
     if proc.returncode != 0:
         raise CloseoutError(f"measure_operator_outputs.py failed:\n{(proc.stderr or proc.stdout).strip()}")
@@ -389,7 +392,7 @@ def main() -> int:
     warnings: list[str] = []
     try:
         dual_write_central = not args.skip_central_write
-        progress["operator_run_id"] = step_operator_run(args.run_id, runtime, args.model_label)
+        progress["operator_run_id"] = step_operator_run(args.run_id, runtime, args.model_label, dual_write_central)
         session_run_id, session_warnings = step_agent_session(
             args.run_id, runtime, args.session_id, args.model_label, dual_write_central
         )

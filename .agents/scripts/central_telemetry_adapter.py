@@ -1,13 +1,13 @@
 """Adapter: qa-management -> ai-telemetry (central) dual-write helper.
 
-Phase 14 of ai-telemetry's own rollout (see that repo's README
+Phase 14/15 of ai-telemetry's own rollout (see that repo's README
 "Roadmap"). qa-management's own local `.agents/telemetry/*.csv`
 recording is UNCHANGED by this module - it is not read, not gated, not
 replaced. This adapter only ever ADDS a second, best-effort write into
 the shared ai-telemetry database, called explicitly by
-`record_agent_session.py`/`record_task_outcome.py` after their own local
-CSV append already succeeded (see those scripts' own `--dual-write-central`
-flag).
+`record_agent_session.py`/`record_task_outcome.py`/
+`measure_operator_outputs.py` after their own local CSV append already
+succeeded (see those scripts' own `--dual-write-central` flag).
 
 Fail-soft by construction: every public function here returns a result
 dict (`{"ok": True, ...}` or `{"ok": False, "reason": <short, generic
@@ -192,3 +192,28 @@ def record_task(
     result = _run_record_script("record_task.py", args)
     result["link_resolved"] = link_resolved
     return result
+
+
+def record_command_run(
+    *, source_ref: str, command_label: str, date: str, **optional_fields: Any
+) -> dict[str, Any]:
+    """Dual-write one `command_runs` row. `source_ref` should be
+    qa-management's own local `operator-runs.csv` `run_id` (stable within
+    project_id='qa-management' - `measure_operator_outputs.py` always has
+    one by the time it appends a row, generated or caller-supplied, so
+    this function takes no internal fallback: a caller with no stable id
+    of its own should mint and persist one itself before calling this,
+    the same way `measure_operator_outputs.py` already does, rather than
+    relying on this function to invent one silently). `command_label`
+    must already be redacted/generic - the caller's own leak guard
+    (`measure_operator_outputs.py`'s ASCII-safe check on
+    `command_args_redacted`) already ran on it before this is ever
+    called, and ai-telemetry's own `record_command_run.py` redact-checks
+    it again independently, as a second, unrelated layer. `optional_fields`
+    may include any of `record_command_run.py`'s own optional flags
+    (runtime_id, elapsed_ms, output_chars, approximate_output_tokens,
+    baseline_command_label, reduction_ratio_vs_baseline, notes) - notes
+    must likewise already be generic/redacted before being passed in."""
+    args = ["--source-ref", source_ref, "--command-label", command_label, "--date", date]
+    args = _add_optional_flags(args, optional_fields)
+    return _run_record_script("record_command_run.py", args)
