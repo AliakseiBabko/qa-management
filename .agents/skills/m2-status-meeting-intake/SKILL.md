@@ -28,6 +28,10 @@ description: Process a multi-project M2/M3 status-review meeting transcript (a l
    (the `evidence_log`/`source_type` conventions this skill writes into)
    and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
    (API safety for the `m2_input`/`action_items`/`evidence_log` writes below).
+4. Read `../qa-management-roles/references/live-source-access-rules.md`
+   too if a project's status mentions or links a live external source
+   (a dashboard, a wiki page) worth checking rather than taking secondhand
+   - it holds the API-vs-browser decision rule.
 
 ## Workflow
 
