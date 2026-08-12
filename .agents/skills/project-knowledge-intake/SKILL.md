@@ -33,6 +33,10 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
    (the `_skill_invocations` conventions step 6 writes into) and
    `../qa-management-roles/references/google-workspace/api-sharing-editing.md`
    (this skill writes Docs/Sheets directly).
+5. Read `../qa-management-roles/references/live-source-access-rules.md`
+   before investigating a live/interactive source (see next section) -
+   the general API-vs-browser decision rule and the current known-paths
+   map live there, not here.
 
 ## Live/Interactive Investigation Sources
 
@@ -61,19 +65,14 @@ Repeated live-investigation patterns:
   is **not** a real file - Drive for Desktop keeps no readable bytes for
   Google-native types locally, so `Read`/`cat`/`Get-Content` on it fails
   with an I/O error even though it looks like a normal small file. This is
-  not a live/interactive-investigation source needing browser automation -
-  resolve it straight to the real Drive file via
+  the API-first case from `live-source-access-rules.md`'s known-paths
+  table, not a live/interactive-investigation source needing browser
+  automation - resolve it straight to the real Drive file via
   `python resolve_drive_path.py "<local path>"` (see
   `../qa-management-roles/references/google-workspace/api-sharing-editing.md`,
   "Resolving A Local Drive-Mirror Path") and then read/export it through the
-  Docs/Sheets API directly. Never fall back to a live browser for a source
-  under this Drive mirror, even if `resolve_drive_path.py` or the follow-up
-  API call hits a snag - debug that instead. A live browser is reserved for
-  a genuinely different case: an external system outside this Drive account,
-  gated behind its own separate login (e.g. `<Project>` documents behind
-  their own credentials, unreachable by any Drive/Sheets/Docs API call this
-  OAuth client has) - a narrow, deliberate exception, not a general fallback
-  for local-mirror sources.
+  Docs/Sheets API directly, even if `resolve_drive_path.py` or the follow-up
+  API call hits a snag - debug that instead of falling back to a browser.
 - Browser-opened document editors can resist DOM scraping because content
   lazy-loads or renders per page. If automation is not quickly exposing
   the text, don't burn repeated tool calls fighting the renderer:
@@ -85,8 +84,10 @@ Repeated live-investigation patterns:
   - For an online word processor (or anything the export route doesn't
     solve), ask the user to paste the raw text instead.
 - Inside a genuinely external Drive location (the narrow browser-fallback
-  case above), a **native** multi-tab Google Sheet exports reliably by
-  navigating straight to
+  case in `live-source-access-rules.md`'s known-paths table - a
+  different account, gated behind its own separate login, unreachable by
+  this workspace's own OAuth client), a **native** multi-tab Google Sheet
+  exports reliably by navigating straight to
   `https://docs.google.com/spreadsheets/d/<id>/export?format=csv&gid=<gid>`
   for each tab - get each tab's `gid` by clicking it (see the frame-click
   gotcha below) and reading the resulting `#gid=...` from the page URL,

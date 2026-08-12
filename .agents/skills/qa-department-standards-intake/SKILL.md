@@ -11,7 +11,14 @@ another skill's own pass, or a standalone pass when the user directly
 states a requirement or a lesson to log. Load
 `../qa-department-standards-roles/SKILL.md` first - it holds the shared
 judgment (what counts as a real entry, the boundary vs Project
-Knowledge/PM Case Library/M1/M2, structural format).
+Knowledge/PM Case Library/M1/M2, structural format). If confirming or
+sourcing an entry means investigating a live external source (a wiki
+page, a live console) rather than working from what's already in the
+conversation, read
+`../qa-management-roles/references/live-source-access-rules.md` first -
+it holds the API-vs-browser decision rule and the current known-paths
+map (e.g. a Confluence source goes through `confluence_client.py`, not a
+browser session).
 
 ## When This Fires
 

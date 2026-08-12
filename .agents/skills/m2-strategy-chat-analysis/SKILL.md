@@ -64,6 +64,11 @@ editing an already-logged file in place makes new content invisible to it.
    Project-Level Rollups, registry role-conflict handling) apply directly, and
    this skill does write direct corrections into `_people_registry` and
    `individual_metrics`/`individual_development_plan` (see Workflow step 4).
+5. Read `../qa-management-roles/references/live-source-access-rules.md`
+   too if the chat links or references a live external source (a wiki
+   page, a dashboard) worth checking directly rather than taking the
+   chat's own description of it - it holds the API-vs-browser decision
+   rule and the current known-paths map.
 
 ## Workflow
 
