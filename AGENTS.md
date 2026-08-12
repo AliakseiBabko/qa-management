@@ -56,9 +56,12 @@ engagement.
 
 ## `.local/` Is A Narrow Exception, Not A Staging Area
 
-`.local/` is gitignored, but it exists for exactly one thing: the OAuth
-credential/token cache (`.local/google/credentials.json` and its token
-file). It is **not** a general place for audit exports, derived business
+`.local/` is gitignored, but it exists for exactly one thing: the
+credential/token cache for external services this repo authenticates to
+programmatically - the Google OAuth client/token
+(`.local/google/credentials.json` and its token file) and the Confluence
+API credentials (`.local/atlassian/credentials.json`, email + API token,
+see `.agents/scripts/confluence_client.py`). It is **not** a general place for audit exports, derived business
 data, transcripts, replacement mappings, or any other temporary sensitive
 output - gitignored means "not committed," not "safe to accumulate real
 data here." Transient sensitive processing (an in-memory watch list, a
