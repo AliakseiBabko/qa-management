@@ -1184,6 +1184,18 @@ These are what actually runs day to day, once a project's folder already exists:
   mislabel. `--commit` stages only the three telemetry CSVs, never business
   documents, the queue, or the mirror. Manual step-by-step invocation of the three
   scripts above remains available for anything this wrapper doesn't cover.
+- `central_telemetry_adapter.py` — Phase 14: not a CLI, a small importable
+  module `record_agent_session.py`/`record_task_outcome.py` call when
+  given `--dual-write-central`, best-effort-mirroring their already-local
+  CSV row into the central, cross-project `ai-telemetry` database
+  (`project_id=qa-management`, `source_system=native`) via that sibling
+  repo's own native-write recording scripts. Fails soft by design - any
+  central-write problem is a warning, never a failure of the local
+  closeout that already succeeded. `closeout_telemetry.py` passes
+  `--dual-write-central` by default (opt out with `--skip-central-write`);
+  the two individual scripts default it off. See
+  `.agents/telemetry/README.md`'s "This is legacy/local telemetry"
+  section for the full picture.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals
   by runtime (deduplicating cumulative session snapshots by default) and derived

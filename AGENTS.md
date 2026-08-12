@@ -99,7 +99,14 @@ cleaned automatically; it never gets written to `.local/`.
   stayed stopped for 2+ weeks until caught by a direct user review - the
   bullet is back specifically because removing it from startup context
   was enough on its own to stop the practice, even though the README
-  still documented it as mandatory.)
+  still documented it as mandatory.) `.agents/telemetry` is this repo's
+  own local record and stays mandatory as documented above - it is not
+  being removed. A separate, sibling repo,
+  `C:\Users\User\Documents\ai-telemetry`, is the newer central,
+  cross-project store; `closeout_telemetry.py` best-effort-dual-writes
+  into it automatically now - see `.agents\telemetry\README.md`'s "This
+  is legacy/local telemetry" section for exactly what is/isn't covered
+  yet.
 - About to write an ad hoc Drive/Sheets/Docs script? Read README's
   **Current pipeline scripts** section first - most tasks already map to
   an existing one.
