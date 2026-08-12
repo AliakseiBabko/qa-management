@@ -90,9 +90,19 @@ cleaned automatically; it never gets written to `.local/`.
   specific run, `classify`/`pack` when `guide` points there.
 - Finished a real pass (queue-backed intake run, or a no-queue
   direct-note/conversational rollup)? Record its mandatory closing
-  telemetry row - `.agents\scripts\closeout_telemetry.py` for a
-  queue-backed run, `.agents\scripts\record_agent_session.py` for a
-  no-queue pass. Not optional instrumentation - see
+  telemetry - `.agents\scripts\closeout_telemetry.py` for a queue-backed
+  run (unchanged). For a no-queue pass, TWO rows are involved, not one:
+  the LOCAL row is still mandatory and still comes from
+  `.agents\scripts\record_agent_session.py --append-csv` - this has not
+  changed and `.agents\scripts\record_telemetry.py current-session` does
+  NOT write to it. For the SEPARATE, equivalent CENTRAL row, prefer
+  `.agents\scripts\record_telemetry.py current-session` (Phase 17B - a
+  small wrapper that forwards to the central ai-telemetry project's own
+  auto-detecting recorder, resolving project/runtime/session with no
+  extra flags in the common case) over manually passing
+  `--dual-write-central` on the local command above - it is a second,
+  additive step for the central store, never a substitute for the local
+  one. Not optional instrumentation - see
   `.agents\telemetry\README.md`. (This bullet was cut from an earlier,
   more detailed AGENTS.md during this file's own July 2026 compaction
   into a router; telemetry recording silently stopped the same week and

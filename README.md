@@ -1202,6 +1202,19 @@ These are what actually runs day to day, once a project's folder already exists:
   `--skip-central-write`); the three individual scripts default it off.
   See `.agents/telemetry/README.md`'s "This is legacy/local telemetry"
   section for the full picture.
+- `record_telemetry.py` — Phase 17B: a thin wrapper, generated (not
+  hand-edited) by the central `ai-telemetry` project's own wrapper
+  generator from its canonical template, that subprocess-forwards to
+  that project's own `record_*.py` scripts, with `--project-id=qa-management`
+  baked in as the default. `current-session` is the kind to use at
+  closeout for a no-queue pass's equivalent central row (auto-detects
+  runtime/session with no extra flags in the common case, in place of
+  manually passing `--dual-write-central`) — does not replace the
+  mandatory local `record_agent_session.py --append-csv` row. See that
+  project's own README, "Near-automatic current-session recording", for
+  the full flag/kind list; this repo never edits this file by hand,
+  regenerate it via the central project's own generator if the wrapper
+  pattern itself changes.
 - `summarize_agent_telemetry.py` — read-only telemetry analysis and quality
   reporting script for `.agents/telemetry/agent-sessions.csv`. Computes raw totals
   by runtime (deduplicating cumulative session snapshots by default) and derived
