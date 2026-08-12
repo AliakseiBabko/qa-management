@@ -314,6 +314,91 @@ class TestMeasurement(unittest.TestCase):
         self.assertFalse(common.is_ascii_safe("qa_manage.py review {target} --json проект"))
 
 
+class TestDualWriteCentral(unittest.TestCase):
+    """Phase 15: --dual-write-central on measure_operator_outputs.py.
+    Mocks subprocess.run (the case's own read-only exec) AND
+    central_telemetry_adapter.record_command_run (the central write) so
+    these tests never touch a real ai-telemetry checkout/database, plus
+    common.CSV_PATH (redirected to a throwaway file) so they never touch
+    the real operator-runs.csv either."""
+
+    def _fake_case_result(self):
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stdout = json.dumps({"ok": True, "schema_version": 1, "data": {}}).encode("utf-8")
+        proc.stderr = b""
+        return proc
+
+    def _run_cli(self, argv: list[str], csv_path: Path):
+        argv_backup = sys.argv
+        try:
+            sys.argv = ["measure_operator_outputs.py"] + argv
+            with mock.patch.object(measure.subprocess, "run", return_value=self._fake_case_result()), \
+                 mock.patch.object(common, "CSV_PATH", csv_path):
+                return measure.main()
+        finally:
+            sys.argv = argv_backup
+
+    def test_flag_defaults_off_and_adapter_is_never_called(self):
+        with tempfile_dir() as td:
+            csv_path = td / "operator-runs.csv"
+            with mock.patch.object(measure.central_telemetry_adapter, "record_command_run") as rec:
+                rc = self._run_cli(["--case", "dashboard_overview", "--append-csv"], csv_path)
+            self.assertEqual(rc, 0)
+            rec.assert_not_called()
+            _, rows = common._read_csv_rows(csv_path, common.CSV_HEADER)
+            self.assertEqual(len(rows), 1)
+
+    def test_dual_write_central_calls_adapter_with_expected_fields(self):
+        with tempfile_dir() as td:
+            csv_path = td / "operator-runs.csv"
+            with mock.patch.object(
+                measure.central_telemetry_adapter, "record_command_run",
+                return_value={"ok": True, "outcome": "inserted", "id": "cmd-test"},
+            ) as rec:
+                rc = self._run_cli(
+                    ["--case", "dashboard_overview", "--append-csv", "--dual-write-central"], csv_path
+                )
+            self.assertEqual(rc, 0)
+            rec.assert_called_once()
+            kwargs = rec.call_args.kwargs
+            self.assertEqual(kwargs["command_label"], "qa_manage.py dashboard --json")
+            self.assertEqual(kwargs["runtime_id"], "manual")  # default --runtime is manual_script
+            self.assertTrue(kwargs["source_ref"])  # the generated run_id, non-empty
+            # Local CSV write is unaffected by (and unaware of) the central call.
+            _, rows = common._read_csv_rows(csv_path, common.CSV_HEADER)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["run_id"], kwargs["source_ref"])
+
+    def test_central_write_failure_does_not_break_local_write_or_exit_code(self):
+        with tempfile_dir() as td:
+            csv_path = td / "operator-runs.csv"
+            with mock.patch.object(
+                measure.central_telemetry_adapter, "record_command_run",
+                return_value={"ok": False, "reason": "ai-telemetry not found"},
+            ):
+                rc = self._run_cli(
+                    ["--case", "dashboard_overview", "--append-csv", "--dual-write-central"], csv_path
+                )
+            self.assertEqual(rc, 0)
+            _, rows = common._read_csv_rows(csv_path, common.CSV_HEADER)
+            self.assertEqual(len(rows), 1)
+
+
+def tempfile_dir():
+    from tempfile import TemporaryDirectory
+
+    class _Ctx:
+        def __enter__(self):
+            self._td = TemporaryDirectory()
+            return Path(self._td.name)
+
+        def __exit__(self, *exc):
+            self._td.cleanup()
+
+    return _Ctx()
+
+
 class TestLeakGuardPrimitives(unittest.TestCase):
     """contains_email_address / contains_watch_string are pure and
     registry-agnostic - no Drive access needed to test them. Only

@@ -38,7 +38,7 @@ scripts live in `.agents/scripts/` alongside every other pipeline script
 (this repo's convention - scripts are not nested under per-topic
 subfolders).
 
-## This is legacy/local telemetry - ai-telemetry is the central store (Phase 14)
+## This is legacy/local telemetry - ai-telemetry is the central store (Phase 14/15)
 
 `.agents/telemetry/*.csv` (this directory) is qa-management's own
 **local** telemetry - it stays exactly as documented above, is not going
@@ -49,36 +49,39 @@ aggregates telemetry from every AI-agent-assisted project on this
 machine (qa-management, price-scrapper, unicard-performance, cbs-devops,
 erp-web-tests), not just this one.
 
-**`.agents/telemetry` cannot be removed yet.** Central recording today is
-opt-in and only covers two of the three local CSVs (`agent-sessions.csv`
--> `sessions`, `task-outcomes.csv` -> `tasks` - `operator-runs.csv` has no
-dual-write path yet), and even where it is wired up, `record_agent_session.py`/
-`record_task_outcome.py` only dual-write when `--dual-write-central` is
-passed (or when called via `closeout_telemetry.py`, which passes it by
-default - see below). The local CSVs remain this repo's own source of
-truth for everything documented in this file; ai-telemetry is where that
-same data ALSO lands, best-effort, for cross-project analysis.
+**`.agents/telemetry` cannot be removed yet.** Central recording is
+opt-in per row: `record_agent_session.py`/`record_task_outcome.py`/
+`measure_operator_outputs.py` only dual-write when `--dual-write-central`
+is passed (or when called via `closeout_telemetry.py`, which passes it
+to all three by default - see below). The local CSVs remain this repo's
+own source of truth for everything documented in this file; ai-telemetry
+is where that same data ALSO lands, best-effort, for cross-project
+analysis.
 
 **How dual-write works:**
 - `.agents/scripts/central_telemetry_adapter.py` is a small, fail-soft
   adapter - it calls `ai-telemetry\scripts\record_session.py`/
-  `record_task.py` via subprocess with `--project-id qa-management
-  --source-system native` always set, and never raises: a missing
-  ai-telemetry checkout, a missing database, or any other central-write
-  problem comes back as a warning printed to stderr, never a failure of
-  the local closeout that was already written by the time the central
-  write is attempted.
-- `record_agent_session.py --dual-write-central` and
-  `record_task_outcome.py --dual-write-central` are both opt-in
+  `record_task.py`/`record_command_run.py` via subprocess with
+  `--project-id qa-management --source-system native` always set, and
+  never raises: a missing ai-telemetry checkout, a missing database, or
+  any other central-write problem comes back as a warning printed to
+  stderr, never a failure of the local closeout that was already written
+  by the time the central write is attempted.
+- All three local CSVs now have a dual-write path: `agent-sessions.csv`
+  -> `sessions`, `task-outcomes.csv` -> `tasks`, `operator-runs.csv` ->
+  `command_runs`.
+- `record_agent_session.py --dual-write-central`,
+  `record_task_outcome.py --dual-write-central`, and
+  `measure_operator_outputs.py --dual-write-central` are all opt-in
   (default off) at the individual-script level, so anything that calls
   them without the flag - including the existing automated test suite -
   is completely unaffected.
 - `closeout_telemetry.py` (the mandatory queue-backed closeout) passes
-  `--dual-write-central` to both of the scripts it wraps **by default**,
-  so a normal `closeout_telemetry.py` run now also best-effort-records
-  centrally without you needing to remember an extra flag. Pass
-  `--skip-central-write` to opt a single closeout out (e.g. on a machine
-  without an ai-telemetry checkout).
+  `--dual-write-central` to all three of the scripts it wraps **by
+  default**, so a normal `closeout_telemetry.py` run now also
+  best-effort-records centrally without you needing to remember an extra
+  flag. Pass `--skip-central-write` to opt a single closeout out (e.g. on
+  a machine without an ai-telemetry checkout).
 - The **no-queue direct-note/conversational-pass path** (calling
   `record_agent_session.py --append-csv` directly, per the bullet list
   above) does NOT dual-write automatically yet - pass
