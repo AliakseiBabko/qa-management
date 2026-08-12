@@ -195,6 +195,18 @@ and `m2-project-status-report` as an optional section — both only when a
 real diagnostic signal or conversation exists, never as generic
 service-menu filler.
 
+**Outstaff Delivery milestone reports**: for a project following the
+department's Outstaff Delivery process standard (logged in
+`qa_department_standards`), four skills draft the process's other
+chat-ready milestone artifacts alongside `m2-project-status-report`'s
+regular/onboarding-block reports: `m2-onboarding-report` (Day-1 start
+report, final onboarding report), `m2-offboarding-report` (stop
+retrospective), `m2-replacement-report` (the five staged Replacement
+posts: launch, screening, CV review, interview feedback, close-out), and
+`m2-shadow-onboarding-report` (weekly shadow-onboarding block, kickoff/
+independent-work milestone notices). All four are `status_reports`-family
+output, same folder/save convention as `m2-project-status-report`.
+
 Broad KT/session sources should be split by project before updating final files.
 Use `evidence_log` as the append-only trace of which source changed which project
 files — including conversational updates, not just automated syncs. Keep

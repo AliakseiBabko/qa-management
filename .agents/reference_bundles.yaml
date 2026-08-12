@@ -41,6 +41,10 @@ bundles:
       - m2-timeline
       - m2-project-qa-metrics-report
       - m2-project-status-report
+      - m2-onboarding-report
+      - m2-offboarding-report
+      - m2-replacement-report
+      - m2-shadow-onboarding-report
 
   m1-report-writer:
     description: >-

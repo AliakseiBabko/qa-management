@@ -104,13 +104,21 @@ sections below it:
 • Upsale: <Нет / что> Risk Management: <Нет / что>
 ```
 
-For someone mid-onboarding that week, add an Onboarding block (day
-count, task in progress, progress/blockers, communication) per the
-Outstaff Delivery Onboarding instruction reference linked from
-`qa_department_standards` — not duplicated here, since it triggers on
-onboarding milestones, not the weekly cadence. Same evidence discipline
-as the shapes below: no invented content, same "Data note" fallback for
-a weak period.
+For someone mid-onboarding that week, add an Onboarding block:
+
+```text
+Онбординг | [Имя] – [Роль] | День [X]
+Задача в работе: [ID – Название]
+• Прогресс: [Идёт по графику / Риск сдвига – описать]
+• Блокеры: [Нет / Описать + действия M2/DC]
+Коммуникация: [Какие миты посетил, с кем пообщался из команды клиента, есть ли что отметить]
+```
+
+The Start report (Day 1) and Final onboarding report (on completion) are
+separate milestone artifacts, not part of the weekly cadence — see
+`../m2-onboarding-report/SKILL.md`. Same evidence discipline as the
+shapes below: no invented content, same "Data note" fallback for a weak
+period.
 
 Default structure (single QA / flat project, for projects not yet under
 the Outstaff Delivery standard):
