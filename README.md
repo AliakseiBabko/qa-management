@@ -581,6 +581,29 @@ These are what actually runs day to day, once a project's folder already exists:
   manually produced a real bug once on a real project: appending answer
   content with the wrong one landed it before the empty answer heading and
   made `get_last_round_status()` wrongly read the round as still pending.
+- `docs_editing.py` — not a script to run; safe Google Docs `batchUpdate`
+  primitives for any skill/ad hoc script that edits a Doc outside
+  `pipeline_common.py`'s own m2_input-specific helpers. `list_headings()`/
+  `find_paragraph_containing()`/`document_end_index()` are read-only
+  inspection helpers (find a section's boundaries, locate a passage to
+  correct, find the true end-of-document insertion point). `DocEdit` +
+  `safe_batch_insert_text()` (built on the pure, directly-testable
+  `build_batch_insert_requests()`) is the fix for a real corruption
+  incident: pass insertions in any order, indexed against one earlier
+  `documents().get()` snapshot, and it always sorts them descending by
+  index before building the `batchUpdate` request list — a lower-index
+  insert applied before a higher-index one silently invalidates the
+  higher one's precomputed (now-stale) index, and its text lands
+  mid-word/mid-paragraph inside whatever the first insert just added,
+  exactly what happened once on a real document. Every inserted range
+  also gets an explicit `updateParagraphStyle` (never left to inherit
+  from whatever paragraph happens to sit at the insertion point — the
+  same heading-inheritance gotcha `pipeline_common._insert_blocks`
+  already guards against, generalized here). `delete_and_reinsert()` is
+  the repair primitive for exactly that corruption shape: delete a
+  misplaced range and re-insert the corrected text elsewhere in one
+  call, ordered the same safe way. Prefer this over hand-writing
+  `batchUpdate` request lists in a one-off script.
 - `validate_repo.py` — mechanical consistency validation of this repo's
   convention-mirrored files (the `repo-maintenance` checklist automated):
   AGENTS.md skill table ↔ `.agents/skills/`, README ↔ `.agents/scripts/`,
