@@ -581,12 +581,28 @@ These are what actually runs day to day, once a project's folder already exists:
   manually produced a real bug once on a real project: appending answer
   content with the wrong one landed it before the empty answer heading and
   made `get_last_round_status()` wrongly read the round as still pending.
-- `docs_editing.py` — not a script to run; safe Google Docs `batchUpdate`
-  primitives for any skill/ad hoc script that edits a Doc outside
-  `pipeline_common.py`'s own m2_input-specific helpers. `list_headings()`/
-  `find_paragraph_containing()`/`document_end_index()` are read-only
-  inspection helpers (find a section's boundaries, locate a passage to
-  correct, find the true end-of-document insertion point). `DocEdit` +
+- `docs_editing.py` — importable safe Google Docs `batchUpdate` primitives
+  (for any skill/ad hoc script that edits a Doc outside
+  `pipeline_common.py`'s own m2_input-specific helpers), plus a small
+  read-only CLI over the inspection helpers for targeted verification:
+  ```
+  python docs_editing.py headings --id <doc_id> [--levels HEADING_1,HEADING_2]
+  python docs_editing.py find --id <doc_id> --text "<substring>"
+  python docs_editing.py end-index --id <doc_id>
+  ```
+  Exists because verifying a heading structure or a just-written passage
+  previously meant a full `read_google_doc.py` export - real cost on this
+  workspace's larger Docs (some run past 300K characters) when only a few
+  lines were actually needed. Every subcommand calls the same single
+  `documents().get()` a full export would use, but prints only a compact,
+  single-line, truncated preview per match - never the full document
+  body. Use `read_google_doc.py` instead when an actual full-text
+  read/export is what's needed.
+  `list_headings()`/`find_paragraph_containing()`/`document_end_index()`
+  are the underlying read-only inspection functions (find a section's
+  boundaries, locate a passage to correct, find the true
+  end-of-document insertion point) - importable directly, same as the
+  write helpers below. `DocEdit` +
   `safe_batch_insert_text()` (built on the pure, directly-testable
   `build_batch_insert_requests()`) is the fix for a real corruption
   incident: pass insertions in any order, indexed against one earlier

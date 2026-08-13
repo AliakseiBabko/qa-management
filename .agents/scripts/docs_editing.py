@@ -43,11 +43,34 @@ themselves again.
 Nothing in this module knows about any specific document, project, or
 piece of business content - every example in this docstring and in the
 module's tests uses synthetic placeholder text only.
+
+CLI (targeted, read-only verification)
+---------------------------------------
+`list_headings()`/`find_paragraph_containing()`/`document_end_index()`
+are also reachable as a small CLI, so a verification pass ("did that
+heading structure survive?", "did that insert land as one paragraph, not
+split across two?") never needs a full-document export just to check a
+few lines - a real, recurring cost on this workspace's larger Docs
+(some run past 300K characters). Every subcommand calls the same single
+`documents().get()` a full export would use, but prints only the small
+matching slice - never the full document body.
+
+    python docs_editing.py headings --id <doc_id> [--levels HEADING_1,HEADING_2]
+    python docs_editing.py find --id <doc_id> --text "<substring>"
+    python docs_editing.py end-index --id <doc_id>
+
+For an actual full-text export/read, use `read_google_doc.py` instead -
+this CLI is deliberately not a substitute for it.
 """
 from __future__ import annotations
 
+import argparse
+import sys
 from dataclasses import dataclass
 from typing import Any
+
+from google_api_smoke_test import ensure_utf8_stdout
+from pipeline_common import get_services
 
 
 @dataclass(frozen=True)
@@ -240,3 +263,89 @@ def delete_and_reinsert(
     ordering guarantee."""
     requests = build_delete_and_reinsert_requests(delete_start, delete_end, reinsert)
     docs_service.documents().batchUpdate(documentId=doc_id, body={"requests": requests}).execute()
+
+
+# ---------------------------------------------------------------------
+# CLI - targeted, read-only verification (never dumps a full document)
+# ---------------------------------------------------------------------
+
+PREVIEW_LEN = 80
+
+
+def preview(text: str, limit: int = PREVIEW_LEN) -> str:
+    """Compact, single-line preview of a paragraph's text: collapses
+    embedded whitespace/newlines and truncates to `limit` characters with
+    a trailing ellipsis if longer. Exists so CLI output for even a very
+    long paragraph stays a few dozen characters - the whole point of this
+    CLI is never approaching full-document-dump cost."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[:limit].rstrip() + "…"
+
+
+def _cmd_headings(docs_service: Any, args: argparse.Namespace) -> int:
+    levels = tuple(args.levels.split(",")) if args.levels else ("HEADING_1", "HEADING_2", "HEADING_3")
+    headings = list_headings(docs_service, args.id, levels=levels)
+    if not headings:
+        print("(no headings found)")
+        return 0
+    for style, start, end, text in headings:
+        print(f"{style}\t{start}\t{end}\t{preview(text)}")
+    return 0
+
+
+def _cmd_find(docs_service: Any, args: argparse.Namespace) -> int:
+    result = find_paragraph_containing(docs_service, args.id, args.text)
+    if result is None:
+        print("not found")
+        return 1
+    start, end, text = result
+    print(f"start={start} end={end} text={preview(text)}")
+    return 0
+
+
+def _cmd_end_index(docs_service: Any, args: argparse.Namespace) -> int:
+    print(document_end_index(docs_service, args.id))
+    return 0
+
+
+def build_cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Targeted, read-only Google Docs verification - never dumps the full "
+            "document body. For a full-text export, use read_google_doc.py instead."
+        ),
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    headings_p = sub.add_parser("headings", help="List heading paragraphs: style, start, end, short preview.")
+    headings_p.add_argument("--id", required=True, help="Docs document ID.")
+    headings_p.add_argument(
+        "--levels",
+        help="Comma-separated heading styles to include, e.g. HEADING_1,HEADING_2. "
+             "Default: HEADING_1,HEADING_2,HEADING_3.",
+    )
+    headings_p.set_defaults(func=_cmd_headings)
+
+    find_p = sub.add_parser("find", help="Find the first paragraph containing a substring.")
+    find_p.add_argument("--id", required=True, help="Docs document ID.")
+    find_p.add_argument("--text", required=True, help="Substring to search for, verbatim.")
+    find_p.set_defaults(func=_cmd_find)
+
+    end_p = sub.add_parser("end-index", help="Print the document's correct end-of-body insertion index.")
+    end_p.add_argument("--id", required=True, help="Docs document ID.")
+    end_p.set_defaults(func=_cmd_end_index)
+
+    return parser
+
+
+def main() -> int:
+    ensure_utf8_stdout()
+    args = build_cli_parser().parse_args()
+    services = get_services()
+    return args.func(services["docs"], args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
