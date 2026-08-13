@@ -48,6 +48,15 @@ EXPECTED_M2_USED_BY = [
     "m2-timeline",
     "m2-project-qa-metrics-report",
     "m2-project-status-report",
+    # GDO Outstaff Delivery process-standard skills (added after this list
+    # was first written) - each mandatorily reads the same 4 m2-report-writer
+    # modules in its own Required Start, confirmed both by direct inspection
+    # and by validate_repo.py's check_reference_bundles() (which fails if a
+    # used_by skill doesn't actually read every bundle module).
+    "m2-onboarding-report",
+    "m2-offboarding-report",
+    "m2-replacement-report",
+    "m2-shadow-onboarding-report",
 ]
 
 EXPECTED_M1_MODULES = [
