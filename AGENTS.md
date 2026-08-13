@@ -95,14 +95,25 @@ cleaned automatically; it never gets written to `.local/`.
   the LOCAL row is still mandatory and still comes from
   `.agents\scripts\record_agent_session.py --append-csv` - this has not
   changed and `.agents\scripts\record_telemetry.py current-session` does
-  NOT write to it. For the SEPARATE, equivalent CENTRAL row, prefer
+  NOT write to it. For the SEPARATE, equivalent CENTRAL row, use
   `.agents\scripts\record_telemetry.py current-session` (Phase 17B - a
   small wrapper that forwards to the central ai-telemetry project's own
   auto-detecting recorder, resolving project/runtime/session with no
-  extra flags in the common case) over manually passing
-  `--dual-write-central` on the local command above - it is a second,
-  additive step for the central store, never a substitute for the local
-  one. Not optional instrumentation - see
+  extra flags in the common case). Do NOT also pass
+  `--dual-write-central` on the local command above for this same pass -
+  the two are alternative paths to the same central row, not additive
+  steps, and each performs its own independent live-log extraction:
+  using both produces two inconsistent `source_system='native'` central
+  rows for one session (different token totals, since the two
+  extractions run minutes apart) instead of one confirmed row. This is
+  not a hypothetical risk - it happened in production on 2026-08-12/13
+  (a PKF performance-testing follow-up pass), producing 3 central rows
+  for one session once ai-telemetry's own CSV-import step (a separate,
+  sibling-repo script, not one of this repo's own) added its own copy on
+  top. `--dual-write-central` stays correct on paths that never
+  pair it with `current-session` for the same pass - e.g.
+  `closeout_telemetry.py`'s own queue-backed default, unaffected by this
+  rule. Not optional instrumentation - see
   `.agents\telemetry\README.md`. (This bullet was cut from an earlier,
   more detailed AGENTS.md during this file's own July 2026 compaction
   into a router; telemetry recording silently stopped the same week and
