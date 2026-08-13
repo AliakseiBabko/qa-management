@@ -12,8 +12,10 @@ Run:  python -m unittest discover -s .agents/tests
 """
 from __future__ import annotations
 
+import io
 import sys
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -292,6 +294,178 @@ class DeleteAndReinsertExecutionTests(unittest.TestCase):
         requests = service.batch_update_calls[0]["requests"]
         self.assertTrue(any("deleteContentRange" in r for r in requests))
         self.assertTrue(any("insertText" in r for r in requests))
+
+
+# ---------------------------------------------------------------------
+# CLI - targeted, read-only verification (no real Google API calls: the
+# CLI dispatch functions are called directly against a FakeDocsService,
+# bypassing build_cli_parser()'s own auth-wiring main() function)
+# ---------------------------------------------------------------------
+
+class PreviewTests(unittest.TestCase):
+    def test_short_text_returned_unchanged(self):
+        self.assertEqual(de.preview("a short placeholder line"), "a short placeholder line")
+
+    def test_long_text_truncated_with_ellipsis(self):
+        long_text = "placeholder word " * 20  # far longer than PREVIEW_LEN
+        result = de.preview(long_text)
+        self.assertLessEqual(len(result), de.PREVIEW_LEN + 1)  # +1 for the ellipsis char
+        self.assertTrue(result.endswith("…"))
+        self.assertNotEqual(result, long_text.strip())
+
+    def test_embedded_newlines_and_whitespace_collapsed(self):
+        text = "line one\n\n   line two\twith a tab\nline three"
+        result = de.preview(text, limit=200)
+        self.assertNotIn("\n", result)
+        self.assertNotIn("\t", result)
+        self.assertEqual(result, "line one line two with a tab line three")
+
+    def test_custom_limit_respected(self):
+        result = de.preview("placeholder " * 10, limit=10)
+        self.assertLessEqual(len(result), 11)
+
+
+class BuildCliParserDispatchTests(unittest.TestCase):
+    def test_headings_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1"])
+        self.assertEqual(args.command, "headings")
+        self.assertEqual(args.id, "doc-1")
+        self.assertIsNone(args.levels)
+        self.assertIs(args.func, de._cmd_headings)
+
+    def test_headings_subcommand_accepts_levels(self):
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1", "--levels", "HEADING_1,HEADING_2"])
+        self.assertEqual(args.levels, "HEADING_1,HEADING_2")
+
+    def test_find_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(["find", "--id", "doc-1", "--text", "needle"])
+        self.assertEqual(args.command, "find")
+        self.assertEqual(args.text, "needle")
+        self.assertIs(args.func, de._cmd_find)
+
+    def test_end_index_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(["end-index", "--id", "doc-1"])
+        self.assertEqual(args.command, "end-index")
+        self.assertIs(args.func, de._cmd_end_index)
+
+    def test_missing_command_is_a_parse_error(self):
+        with self.assertRaises(SystemExit):
+            de.build_cli_parser().parse_args([])
+
+    def test_find_without_text_is_a_parse_error(self):
+        with self.assertRaises(SystemExit):
+            de.build_cli_parser().parse_args(["find", "--id", "doc-1"])
+
+
+class CliHeadingsOutputTests(unittest.TestCase):
+    def test_output_is_compact_one_line_per_heading(self):
+        doc = _doc([
+            ("Placeholder Title", "HEADING_1"),
+            ("Section One", "HEADING_2"),
+            ("Some placeholder body prose, not a heading.", "NORMAL_TEXT"),
+            ("Section Two", "HEADING_2"),
+        ])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_headings(service, args)
+        output = buf.getvalue()
+        self.assertEqual(exit_code, 0)
+        lines = [line for line in output.strip().split("\n") if line]
+        self.assertEqual(len(lines), 3)  # 3 headings, not the NORMAL_TEXT paragraph
+        self.assertIn("Placeholder Title", lines[0])
+        self.assertIn("HEADING_1", lines[0])
+
+    def test_levels_filter_applied_from_cli_args(self):
+        doc = _doc([("Title", "HEADING_1"), ("Section", "HEADING_2")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1", "--levels", "HEADING_2"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            de._cmd_headings(service, args)
+        output = buf.getvalue()
+        self.assertNotIn("Title", output)
+        self.assertIn("Section", output)
+
+    def test_no_headings_prints_a_short_placeholder_not_an_error(self):
+        doc = _doc([("Just prose.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_headings(service, args)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("no headings", buf.getvalue())
+
+    def test_never_prints_the_full_long_paragraph_text_only_preview(self):
+        # A single heading whose text is far longer than the preview
+        # limit - proves the CLI never echoes the whole paragraph, only
+        # a bounded preview, regardless of how large the document is.
+        long_heading_text = "Placeholder Section Heading About A Very Long Topic " * 5
+        doc = _doc([(long_heading_text, "HEADING_2")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["headings", "--id", "doc-1"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            de._cmd_headings(service, args)
+        output = buf.getvalue()
+        self.assertLess(len(output), len(long_heading_text))
+        self.assertNotIn(long_heading_text.strip(), output)
+
+
+class CliFindOutputTests(unittest.TestCase):
+    def test_found_paragraph_prints_compact_preview_with_indices(self):
+        doc = _doc([
+            ("First placeholder paragraph.", "NORMAL_TEXT"),
+            ("Second placeholder paragraph with a needle inside it.", "NORMAL_TEXT"),
+        ])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["find", "--id", "doc-1", "--text", "needle"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_find(service, args)
+        output = buf.getvalue()
+        self.assertEqual(exit_code, 0)
+        expected_start = doc["body"]["content"][1]["startIndex"]
+        self.assertIn(f"start={expected_start}", output)
+        self.assertIn("Second placeholder paragraph", output)
+        self.assertEqual(len(output.strip().split("\n")), 1)  # one compact line, not a dump
+
+    def test_not_found_prints_not_found_and_returns_nonzero(self):
+        doc = _doc([("Nothing relevant here.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["find", "--id", "doc-1", "--text", "needle"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_find(service, args)
+        self.assertEqual(exit_code, 1)
+        self.assertIn("not found", buf.getvalue())
+
+    def test_never_prints_the_full_long_paragraph_text_only_preview(self):
+        long_text = "Placeholder paragraph content repeated many times to be very long. " * 6 + "needle"
+        doc = _doc([(long_text, "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["find", "--id", "doc-1", "--text", "needle"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            de._cmd_find(service, args)
+        output = buf.getvalue()
+        self.assertLess(len(output), len(long_text))
+        self.assertNotIn(long_text.strip(), output)
+
+
+class CliEndIndexOutputTests(unittest.TestCase):
+    def test_prints_bare_index_only(self):
+        doc = _doc([("Some placeholder content.", "NORMAL_TEXT"), ("", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        args = de.build_cli_parser().parse_args(["end-index", "--id", "doc-1"])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_end_index(service, args)
+        expected = de.document_end_index(service, "doc-1")
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(buf.getvalue().strip(), str(expected))
 
 
 if __name__ == "__main__":
