@@ -84,11 +84,20 @@ analysis.
   a machine without an ai-telemetry checkout).
 - The **no-queue direct-note/conversational-pass path** (calling
   `record_agent_session.py --append-csv` directly, per the bullet list
-  above) does NOT dual-write automatically yet - pass
-  `--dual-write-central` yourself if you want that pass recorded
-  centrally too. Closing this gap (making the no-queue path dual-write by
-  default the same way `closeout_telemetry.py` does) is a natural
-  follow-up, not done in this phase.
+  above) does NOT dual-write automatically, and as of Phase 17B **should
+  not** be given `--dual-write-central` either. For this path's central
+  row, use `.agents/scripts/record_telemetry.py current-session` instead
+  - see "Recording the central row for a no-queue pass (Phase 17B)"
+  below and `AGENTS.md`'s "Start Here" section. `--dual-write-central`
+  and `current-session` are two independent write paths to the same
+  central row, not a flag-plus-wrapper combination - each performs its
+  own fresh live-log extraction, so using both for one pass produces two
+  inconsistent `source_system='native'` central rows for that session
+  (different token totals) instead of one. This is not hypothetical: it
+  happened in production on 2026-08-12/13, producing 3 central rows for
+  one session once ai-telemetry's own `scripts\import_qa_management.py
+  --apply` (a sibling-repo script, not one of this repo's own) added its
+  own copy of the local CSV row on top of the two native ones.
 - A dual-written `tasks` row's central `linked_session_row_id` IS
   populated when the corresponding session row was already dual-written
   first (the normal order - `closeout_telemetry.py` and a manual
@@ -429,6 +438,44 @@ back-to-back. Pass `--allow-duplicate-snapshot` to write it anyway (e.g.
 purely for its own `objective`/`linked_operator_run_ids`). `--manual`
 rows are never subject to this check - a manually-entered value is
 user-asserted, not re-derived from a log snapshot that could repeat.
+
+### Recording the central row for a no-queue pass (Phase 17B)
+
+For the no-queue direct-note/conversational-pass path (see "This is
+legacy/local telemetry" above), the local row from the command above is
+always mandatory and always comes first. The separate, equivalent
+CENTRAL row is:
+
+```sh
+python .agents/scripts/record_telemetry.py current-session \
+    --objective "..."
+```
+
+This auto-detects project/runtime/session in the common case (no extra
+flags needed - see the script's own `--help` for the manual/override
+flags it shares with `record_agent_session.py`). It is the **only**
+mechanism to use for this pass's central row.
+
+**Do not also pass `--dual-write-central` to `record_agent_session.py`
+for the same pass.** The two are alternative write paths to the same
+central row, not additive - each performs its own independent live-log
+extraction at the moment it runs, so calling both a few minutes apart
+produces two different, both-plausible-looking `source_system='native'`
+rows for one session (different token totals, and `current-session`'s
+own extraction does not always populate `estimated_cost_usd` the way
+`record_agent_session.py`'s does). ai-telemetry's own
+`scripts\import_qa_management.py --apply` (a sibling-repo script, not
+one of this repo's own) later adds its own copy of the local CSV row on
+top of whichever native row(s) already exist regardless of which path
+was used, so following this rule caps a session at 2 central rows today
+(1 native + 1 imported), not 1 - closing that last gap needs an
+import-side dedup fix, tracked separately, not a documentation rule.
+
+Queue-backed passes are unaffected by this section -
+`closeout_telemetry.py` already dual-writes centrally by default via
+`--dual-write-central`/`--skip-central-write` as documented above;
+`current-session` exists specifically for the no-queue path, which
+`closeout_telemetry.py` does not cover.
 
 ## Validating the CSVs
 
