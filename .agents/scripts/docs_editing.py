@@ -67,6 +67,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from google_api_smoke_test import ensure_utf8_stdout
@@ -153,6 +154,71 @@ def document_end_index(docs_service: Any, doc_id: str) -> int:
     insert past the end of the body and fail)."""
     doc = docs_service.documents().get(documentId=doc_id).execute()
     return doc["body"]["content"][-1]["endIndex"] - 1
+
+
+def find_paragraph_by_prefix(docs_service: Any, doc_id: str, prefix: str) -> tuple[int, int, str]:
+    """Read-only. Returns `(start_index, end_index, text)` for the ONE
+    paragraph whose stripped text starts with `prefix`. Raises `ValueError`
+    if zero or more than one paragraph matches - unlike
+    `find_paragraph_containing()` (which happily returns the first hit),
+    this is the safety-checked variant for a write that's about to REPLACE
+    a paragraph in place: writing to the wrong (or an ambiguous) match is a
+    real corruption risk, so ambiguity must fail loud, not silently pick
+    one. Exists for the common "correct an Open Question/case paragraph
+    that starts with a stable numbered/tagged prefix" edit shape - matching
+    on the whole paragraph text is brittle (any later hand-edit breaks the
+    match), matching on just the leading prefix survives that."""
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    matches: list[tuple[int, int, str]] = []
+    for el in doc["body"]["content"]:
+        paragraph = el.get("paragraph")
+        if not paragraph:
+            continue
+        text = _paragraph_text(paragraph)
+        if text.strip().startswith(prefix):
+            matches.append((el["startIndex"], el["endIndex"], text))
+    if not matches:
+        raise ValueError(f"No paragraph found starting with {prefix!r}")
+    if len(matches) > 1:
+        locations = ", ".join(str(m[0]) for m in matches)
+        raise ValueError(f"{len(matches)} paragraphs start with {prefix!r} (at indices {locations}) - ambiguous")
+    return matches[0]
+
+
+_HEADING_RANK = {"HEADING_1": 1, "HEADING_2": 2, "HEADING_3": 3}
+
+
+def section_end_index(docs_service: Any, doc_id: str, heading_text: str) -> int:
+    """Read-only. Returns the insertion index for "the end of the section
+    under this heading" - the `start_index` of the next heading whose rank
+    is the SAME OR BROADER than this one (e.g. an H3's section ends at the
+    next H3, H2, or H1; an H2's section ends at the next H2 or H1, skipping
+    over any H3 sub-headings inside it), or `document_end_index()` if this
+    is the last such section in the document. This is the exact
+    boundary-finding logic that previously got re-derived by hand in a
+    fresh one-off script for every "add this new content to the end of an
+    existing knowledge-base/case-library section" edit.
+
+    `heading_text` is matched by exact stripped equality against
+    `list_headings()`'s output and must match exactly one heading in the
+    document - raises `ValueError` if it matches zero or more than one
+    (ambiguous heading text, e.g. two same-named H3s in different
+    sections, needs a more specific caller-side lookup instead)."""
+    headings = list_headings(docs_service, doc_id)
+    matches = [h for h in headings if h[3].strip() == heading_text]
+    if not matches:
+        raise ValueError(f"No heading found with exact text {heading_text!r}")
+    if len(matches) > 1:
+        locations = ", ".join(str(m[1]) for m in matches)
+        raise ValueError(f"{len(matches)} headings match {heading_text!r} (at indices {locations}) - ambiguous")
+    style, _start, end, _text = matches[0]
+    rank = _HEADING_RANK.get(style, 0)
+    for h_style, h_start, _h_end, _h_text in headings:
+        if h_start <= end:
+            continue
+        if _HEADING_RANK.get(h_style, 0) <= rank:
+            return h_start
+    return document_end_index(docs_service, doc_id)
 
 
 # ---------------------------------------------------------------------
@@ -266,6 +332,116 @@ def delete_and_reinsert(
 
 
 # ---------------------------------------------------------------------
+# Tables - real Docs tables instead of inline-text data dumps
+# ---------------------------------------------------------------------
+#
+# Why this exists: a Doc with a lot of comparable rows of data (a monthly
+# trajectory, a coverage breakdown, a per-module status list) reads far
+# better as a real Docs table than as a paragraph of "Area: X, Value: Y;
+# Area: Z, Value: W" prose - see
+# qa-management-roles/references/google-workspace/artifact-conventions.md's
+# "Docs Rules" for the convention this backs. Table insertion has its own
+# sharp edge, found and fixed the same way the heading-inheritance bug was:
+# `insertTable` creates an EMPTY table, so filling it needs a real
+# `documents().get()` round trip to learn each cell's actual insertion
+# index - guessing cell indices in advance produces silent misplacement,
+# not an error. One extra property makes a SECOND round trip unnecessary
+# though: because every cell is a separate, non-overlapping paragraph,
+# filling cells in strict descending original-index order (the same
+# guarantee `build_batch_insert_requests` already provides) never disturbs
+# an as-yet-unfilled cell's own original index - including the header
+# row's, which is why the header-bold ranges below can be computed from
+# the SAME pre-fill snapshot as the fill requests themselves, in one pass.
+
+
+def find_table_at_or_after(doc: dict[str, Any], min_index: int) -> dict[str, Any]:
+    """Read-only. Returns the `table`-bearing body element whose own
+    `startIndex` is the smallest one >= `min_index` - i.e. "the table most
+    recently inserted at/after that index". Raises if none exists."""
+    candidates = [el for el in doc["body"]["content"] if "table" in el and el["startIndex"] >= min_index]
+    if not candidates:
+        raise ValueError(f"No table found at or after index {min_index}")
+    return min(candidates, key=lambda el: el["startIndex"])
+
+
+def table_cell_insertion_points(table_el: dict[str, Any]) -> list[tuple[int, int, int]]:
+    """Read-only. Returns (row, col, insertion_index) for every cell in a
+    table element, in reading order - each cell's first paragraph's own
+    `startIndex` is where text can be inserted into that (empty) cell."""
+    points: list[tuple[int, int, int]] = []
+    for r, row in enumerate(table_el["table"]["tableRows"]):
+        for c, cell in enumerate(row["tableCells"]):
+            points.append((r, c, cell["content"][0]["startIndex"]))
+    return points
+
+
+def build_table_fill_requests(table_el: dict[str, Any], data: list[list[str]], bold_header: bool = True) -> list[dict[str, Any]]:
+    """Pure. Given a just-inserted (still-empty) table element and `data`
+    (list of rows, each a list of per-column strings; row 0 is treated as
+    the header), returns the full request list to fill every cell and
+    (if `bold_header`) bold the header row - all computable from this one
+    snapshot, no second `get()` needed (see module note above for why that
+    holds). Silently skips a cell whose data string is empty. Raises if
+    `data`'s shape doesn't match the table's actual row/column count."""
+    rows = table_el["table"]["tableRows"]
+    if len(data) != len(rows):
+        raise ValueError(f"data has {len(data)} rows, table has {len(rows)}")
+    for r, row in enumerate(rows):
+        if len(data[r]) != len(row["tableCells"]):
+            raise ValueError(f"data row {r} has {len(data[r])} columns, table row has {len(row['tableCells'])}")
+
+    points = table_cell_insertion_points(table_el)
+    text_by_cell = {(r, c): data[r][c] for r in range(len(data)) for c in range(len(data[r]))}
+
+    fill_requests: list[dict[str, Any]] = []
+    header_ranges: list[tuple[int, int]] = []
+    for r, c, idx in sorted(points, key=lambda p: p[2], reverse=True):
+        text = text_by_cell.get((r, c), "")
+        if text:
+            fill_requests.append({"insertText": {"location": {"index": idx}, "text": text}})
+        if r == 0 and text:
+            header_ranges.append((idx, idx + len(text)))
+
+    bold_requests = [
+        {
+            "updateTextStyle": {
+                "range": {"startIndex": start, "endIndex": end},
+                "textStyle": {"bold": True},
+                "fields": "bold",
+            }
+        }
+        for start, end in header_ranges
+    ] if bold_header else []
+
+    return fill_requests + bold_requests
+
+
+def insert_table(docs_service: Any, doc_id: str, index: int, data: list[list[str]], bold_header: bool = True) -> None:
+    """Inserts a real Docs table at `index` and fills it from `data` (list
+    of rows, each a list of per-column strings; row 0 is treated as the
+    header and bolded by default) - three total API calls: `insertTable`,
+    one `get()` to learn real cell indices, one `batchUpdate` to fill every
+    cell and bold the header, both computed from that single snapshot (see
+    `build_table_fill_requests`). `index` should be a real insertion point
+    (e.g. from `document_end_index()`), not a guess."""
+    rows = len(data)
+    cols = len(data[0]) if data else 0
+    if rows == 0 or cols == 0:
+        raise ValueError("data must have at least one row and one column")
+
+    docs_service.documents().batchUpdate(
+        documentId=doc_id,
+        body={"requests": [{"insertTable": {"rows": rows, "columns": cols, "location": {"index": index}}}]},
+    ).execute()
+
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    table_el = find_table_at_or_after(doc, index)
+    requests = build_table_fill_requests(table_el, data, bold_header=bold_header)
+    if requests:
+        docs_service.documents().batchUpdate(documentId=doc_id, body={"requests": requests}).execute()
+
+
+# ---------------------------------------------------------------------
 # CLI - targeted, read-only verification (never dumps a full document)
 # ---------------------------------------------------------------------
 
@@ -310,11 +486,91 @@ def _cmd_end_index(docs_service: Any, args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_text_file(path: str) -> str:
+    """Reads a text file for a write command and guarantees a trailing
+    newline (every paragraph this module inserts must end in one - a
+    caller-supplied file missing it would otherwise silently merge with
+    whatever paragraph follows the insertion point)."""
+    text = Path(path).read_text(encoding="utf-8")
+    return text if text.endswith("\n") else text + "\n"
+
+
+def _cmd_append_section(docs_service: Any, args: argparse.Namespace) -> int:
+    """Insert text at the end of a named section (before the next
+    same-or-broader-level heading, or at document end if it's the last
+    section) - the single most common Project-Knowledge/PM-Case-Library
+    edit shape: adding a new dated update to an existing heading's
+    content."""
+    index = section_end_index(docs_service, args.id, args.heading)
+    text = _load_text_file(args.text_file)
+    if args.dry_run:
+        print(f"[dry-run] would insert {len(text)} chars at index {index} (end of section {args.heading!r}), style={args.style}")
+        print(preview(text, limit=200))
+        return 0
+    safe_insert_text(docs_service, args.id, index, text, style=args.style)
+    print(f"Inserted {len(text)} chars at index {index} (end of section {args.heading!r}).")
+    return 0
+
+
+def _cmd_replace_paragraph(docs_service: Any, args: argparse.Namespace) -> int:
+    """Replace ONE paragraph, matched uniquely by its leading prefix, with
+    new text - the "correct an existing Open Question/case entry in place"
+    edit shape. Fails loud (via `find_paragraph_by_prefix`) if the prefix
+    matches zero or more than one paragraph, rather than guessing."""
+    start, end, old_text = find_paragraph_by_prefix(docs_service, args.id, args.prefix)
+    new_text = _load_text_file(args.text_file)
+    if args.dry_run:
+        print(f"[dry-run] would replace paragraph [{start}, {end}):")
+        print(f"  old: {preview(old_text)}")
+        print(f"  new: {preview(new_text, limit=200)}")
+        return 0
+    delete_and_reinsert(
+        docs_service, args.id, start, end - 1,
+        reinsert=DocEdit(index=start, text=new_text, style=args.style),
+    )
+    print(f"Replaced paragraph at {start}.")
+    return 0
+
+
+def _cmd_append_end(docs_service: Any, args: argparse.Namespace) -> int:
+    """Append text at the very end of the document (e.g. a new dated
+    Change Log line) - before the document's own trailing empty
+    paragraph."""
+    index = document_end_index(docs_service, args.id)
+    text = _load_text_file(args.text_file)
+    if args.dry_run:
+        print(f"[dry-run] would insert {len(text)} chars at document end (index {index})")
+        print(preview(text, limit=200))
+        return 0
+    safe_insert_text(docs_service, args.id, index, text, style="NORMAL_TEXT")
+    print(f"Inserted {len(text)} chars at document end (index {index}).")
+    return 0
+
+
+def _cmd_insert_at(docs_service: Any, args: argparse.Namespace) -> int:
+    """Insert text at a caller-supplied raw index - the escape hatch for an
+    insertion point `append-section`/`append-end` don't cover (e.g. right
+    after one specific heading rather than at the end of its whole
+    section). Still goes through `safe_insert_text`, so the inserted range
+    always gets its own explicit paragraph style rather than inheriting
+    from whatever sits at that index."""
+    text = _load_text_file(args.text_file)
+    if args.dry_run:
+        print(f"[dry-run] would insert {len(text)} chars at index {args.index}, style={args.style}")
+        print(preview(text, limit=200))
+        return 0
+    safe_insert_text(docs_service, args.id, args.index, text, style=args.style)
+    print(f"Inserted {len(text)} chars at index {args.index}.")
+    return 0
+
+
 def build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Targeted, read-only Google Docs verification - never dumps the full "
-            "document body. For a full-text export, use read_google_doc.py instead."
+            "Targeted Google Docs read/write helper - inspection subcommands never dump "
+            "the full document body; write subcommands go through this module's safe "
+            "insert/replace primitives instead of a one-off batchUpdate script. For a "
+            "full-text export, use read_google_doc.py instead."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -336,6 +592,42 @@ def build_cli_parser() -> argparse.ArgumentParser:
     end_p = sub.add_parser("end-index", help="Print the document's correct end-of-body insertion index.")
     end_p.add_argument("--id", required=True, help="Docs document ID.")
     end_p.set_defaults(func=_cmd_end_index)
+
+    append_section_p = sub.add_parser(
+        "append-section",
+        help="Insert a text file's content at the end of a named section (before the next same-or-broader heading).",
+    )
+    append_section_p.add_argument("--id", required=True, help="Docs document ID.")
+    append_section_p.add_argument("--heading", required=True, help="Exact heading text to append under (must match exactly one heading).")
+    append_section_p.add_argument("--text-file", required=True, help="Path to a UTF-8 text file with the content to insert.")
+    append_section_p.add_argument("--style", default="NORMAL_TEXT", help="Paragraph style for the inserted text. Default: NORMAL_TEXT.")
+    append_section_p.add_argument("--dry-run", action="store_true", help="Print what would be inserted without writing.")
+    append_section_p.set_defaults(func=_cmd_append_section)
+
+    replace_p = sub.add_parser(
+        "replace-paragraph",
+        help="Replace the one paragraph starting with a given prefix with a text file's content.",
+    )
+    replace_p.add_argument("--id", required=True, help="Docs document ID.")
+    replace_p.add_argument("--prefix", required=True, help="Leading text that uniquely identifies the paragraph to replace.")
+    replace_p.add_argument("--text-file", required=True, help="Path to a UTF-8 text file with the replacement content.")
+    replace_p.add_argument("--style", default="NORMAL_TEXT", help="Paragraph style for the replacement text. Default: NORMAL_TEXT.")
+    replace_p.add_argument("--dry-run", action="store_true", help="Print what would change without writing.")
+    replace_p.set_defaults(func=_cmd_replace_paragraph)
+
+    append_end_p = sub.add_parser("append-end", help="Append a text file's content at the very end of the document.")
+    append_end_p.add_argument("--id", required=True, help="Docs document ID.")
+    append_end_p.add_argument("--text-file", required=True, help="Path to a UTF-8 text file with the content to insert.")
+    append_end_p.add_argument("--dry-run", action="store_true", help="Print what would be inserted without writing.")
+    append_end_p.set_defaults(func=_cmd_append_end)
+
+    insert_at_p = sub.add_parser("insert-at", help="Insert a text file's content at a specific raw character index.")
+    insert_at_p.add_argument("--id", required=True, help="Docs document ID.")
+    insert_at_p.add_argument("--index", required=True, type=int, help="Character index to insert at (from a prior headings/find/end-index call).")
+    insert_at_p.add_argument("--text-file", required=True, help="Path to a UTF-8 text file with the content to insert.")
+    insert_at_p.add_argument("--style", default="NORMAL_TEXT", help="Paragraph style for the inserted text. Default: NORMAL_TEXT.")
+    insert_at_p.add_argument("--dry-run", action="store_true", help="Print what would be inserted without writing.")
+    insert_at_p.set_defaults(func=_cmd_insert_at)
 
     return parser
 

@@ -28,6 +28,19 @@ for any skill that writes a final Sheet, Doc, or business-facing prose.
 - Update the living Doc in place for development plans; Google Docs version history preserves prior revisions, so do not create a new dated Doc for routine updates.
 - Reviewer feedback on a plan belongs in native Google Docs comments anchored to the relevant paragraph, not as an appended text block or a separate column.
 - Preserve versioning behavior by title.
+- **Use a real Docs table for any set of comparable rows, never inline
+  "Label: value, Label: value" prose.** A monthly trajectory, a
+  coverage/status breakdown, a per-module or per-area comparison — if a
+  human would reach for a spreadsheet mentally to parse it, it's a table,
+  not a paragraph. Reserve prose for genuine narrative (reasoning,
+  decisions, open questions) — never restate the same rows as both a
+  table and a paragraph. Use `docs_editing.py`'s `insert_table()` (and the
+  pure `build_table_fill_requests()`/`table_cell_insertion_points()` it's
+  built from) rather than hand-rolling `insertTable` cell-index math — a
+  freshly-inserted table's cells have no reliable index until a real
+  `documents().get()` round trip confirms them, the same class of mistake
+  `safe_batch_insert_text()` exists to prevent for plain paragraphs.
+  Bold the header row (the default) so tables are scannable at a glance.
 
 ## Language Rules
 
