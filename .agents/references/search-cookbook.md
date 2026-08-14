@@ -8,7 +8,7 @@ name/project into a committed file, only into a live command you run
 locally.
 
 All examples assume you're at the repo root and Google API access is
-already set up (see README.md, Google API Smoke Test).
+already set up (see docs/pipeline-scripts.md, Google API Smoke Test).
 
 ## "Where was `<Person>` last mentioned?"
 
@@ -137,7 +137,7 @@ these four write anything.
   every project with a currently pending `m2_input` round (an open
   question gate blocking `project_risk`/`project_development_plan`), sorted
   oldest first with a recommended next action. Read-only; never answers a
-  question or writes a document. See README.md, "Current pipeline scripts".
+  question or writes a document. See docs/pipeline-scripts.md, "Current pipeline scripts".
 - `qa_manage.py dashboard` - the default operator entry point for "what
   needs attention in the intake queue" (distinct from `gates`, which is
   about M2's own pending decisions, not intake processing).

@@ -729,11 +729,11 @@ class JsonEnvelopeTests(unittest.TestCase):
 
 
 class RecommendNextDocsTests(unittest.TestCase):
-    """The person-alias-match feature must be discoverable from README.md,
-    not just the command's own JSON output."""
+    """The person-alias-match feature must be discoverable from
+    docs/pipeline-scripts.md, not just the command's own JSON output."""
 
     def test_readme_documents_person_alias_match(self):
-        readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+        readme = (Path(__file__).resolve().parents[2] / "docs" / "pipeline-scripts.md").read_text(encoding="utf-8")
         normalized = " ".join(readme.split())
         self.assertIn("person_alias_matches", normalized)
         self.assertIn("match_person_registry()", normalized)

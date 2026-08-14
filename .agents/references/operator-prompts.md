@@ -15,7 +15,7 @@ anything, same as `classify` already requires.
 
 When a prompt says "process", "audit", "clean up", or "close out", the
 agent must follow the repository's current scripts, skills, and
-state-machine contracts from `AGENTS.md`/`README.md` without the prompt
+state-machine contracts from `AGENTS.md`/`README.md`/`docs/` without the prompt
 restating every step. In particular:
 
 - Use `dashboard`/`guide`/`classify`/`pack`/`recommend-next` as the

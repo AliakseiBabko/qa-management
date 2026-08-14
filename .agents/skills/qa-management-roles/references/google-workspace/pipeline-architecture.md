@@ -27,7 +27,7 @@ is `refresh_project_registry.py` — it copies each project's already-curated
 `project_metrics` dashboard rows (Горизонт/Бизнес-риск/Вклад в
 проект/Качество QA-процесса) into `_project_registry`, worst-case not
 averaged, with no interpretation of its own. `rollup_individual_metrics_to_project.py`
-is deprecated (see README, "Current pipeline scripts") — it computed a
+is deprecated (see docs/pipeline-scripts.md, "Current pipeline scripts") — it computed a
 statistical `Команда: ...` distribution row that `project_metrics` no
 longer has any place for; `refresh_project_registry.py` is its replacement
 as "the mechanical step," not a rollup of `individual_metrics` at all.
