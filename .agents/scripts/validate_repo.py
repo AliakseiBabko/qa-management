@@ -1,7 +1,7 @@
 """Mechanical consistency validation for this repo's convention-mirrored files.
 
 The `repo-maintenance` skill lists the mirrors that must stay in sync by
-hand (README <-> .agents/scripts/, document_graph.yaml <-> skills/scripts/
+hand (docs/pipeline-scripts.md <-> .agents/scripts/, document_graph.yaml <-> skills/scripts/
 aliases, source-type lists in pipeline_common <->
 google-workspace/operational-registries.md).
 This script is that checklist automated - the same move as
@@ -16,8 +16,8 @@ structurally against the filesystem, never against AGENTS.md content.
 Checks (FAIL = exit 1):
 - every .agents/skills/<dir> has a SKILL.md whose frontmatter `name`
   matches the directory and whose `description` is present and non-empty
-- every .agents/scripts/*.py is mentioned in README.md, and every
-  `<name>.py` mentioned in README/AGENTS exists
+- every .agents/scripts/*.py is mentioned in docs/pipeline-scripts.md, and
+  every `<name>.py` mentioned in README/AGENTS/docs exists
 - document_graph.yaml parses; every edge target / alias target / source
   entry is a defined document node; edge kinds are valid; every
   `script:` value exists in .agents/scripts; `periodic` names don't
@@ -123,16 +123,22 @@ def check_skills() -> None:
 def check_scripts_vs_readme() -> None:
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     agents_md = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    pipeline_scripts_doc = (REPO / "docs" / "pipeline-scripts.md").read_text(encoding="utf-8")
+    docs_dir = REPO / "docs"
+    other_docs = "\n".join(
+        p.read_text(encoding="utf-8") for p in sorted(docs_dir.glob("*.md")) if p.name != "pipeline-scripts.md"
+    )
     scripts = {p.name for p in SCRIPTS_DIR.glob("*.py")}
+    all_docs_text = pipeline_scripts_doc + other_docs
     for name in sorted(scripts):
-        if name not in readme:
-            fail(f"script {name} has no mention in README.md (Current pipeline scripts)")
-    mentioned = set(re.findall(r"`?([a-z0-9_]+\.py)`?", readme + agents_md))
+        if name not in all_docs_text:
+            fail(f"script {name} has no mention anywhere under docs/ (Current pipeline scripts)")
+    mentioned = set(re.findall(r"`?([a-z0-9_]+\.py)`?", readme + agents_md + pipeline_scripts_doc + other_docs))
     for name in sorted(mentioned):
         if name not in scripts and not (SCRIPTS_DIR / name).exists():
             # skill-local scripts live under .agents/skills/*/scripts too
             if not list(SKILLS_DIR.glob(f"*/**/{name}")) and not list(REPO.glob(f"**/{name}")):
-                fail(f"README/AGENTS mention {name} but no such file exists in the repo")
+                fail(f"README/AGENTS/docs mention {name} but no such file exists in the repo")
 
 
 def load_source_types() -> set[str]:
@@ -257,16 +263,17 @@ def check_source_type_literals(source_types: set[str]) -> None:
 def check_format_drift() -> None:
     """Development plans are Google Docs (sync_m2_plans_to_docs.py); any
     .gsheet mention of them is documentation drift."""
-    for name in ("AGENTS.md", "README.md"):
-        content = (REPO / name).read_text(encoding="utf-8")
+    files = [REPO / "AGENTS.md", REPO / "README.md"] + list((REPO / "docs").glob("*.md"))
+    for f in files:
+        content = f.read_text(encoding="utf-8")
         for m in re.findall(r"\S*development_plan\.gsheet", content):
-            fail(f"{name}: {m} - development plans are Google Docs (.gdoc), not Sheets")
+            fail(f"{f.relative_to(REPO)}: {m} - development plans are Google Docs (.gdoc), not Sheets")
 
 
 def check_templates() -> None:
     templates = {p.name for p in (REPO / "Templates").iterdir() if p.is_file()}
     referenced: set[str] = set()
-    texts = [(REPO / "AGENTS.md"), (REPO / "README.md")]
+    texts = [(REPO / "AGENTS.md"), (REPO / "README.md")] + list((REPO / "docs").glob("*.md"))
     texts += list(SKILLS_DIR.glob("*/SKILL.md")) + list(SKILLS_DIR.glob("*/references/**/*.md"))
     for f in texts:
         content = f.read_text(encoding="utf-8")
@@ -276,7 +283,7 @@ def check_templates() -> None:
         if ref not in templates:
             fail(f"referenced template Templates/{ref} does not exist")
     for t in sorted(templates - referenced):
-        warn(f"Templates/{t} is referenced by no skill/AGENTS/README text")
+        warn(f"Templates/{t} is referenced by no skill/AGENTS/README/docs text")
 
 
 def _required_start_read_steps(text: str) -> list[str]:

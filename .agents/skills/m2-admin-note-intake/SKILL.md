@@ -105,5 +105,5 @@ intake skills:
 - Use `pipeline_common.add_questions()`/`add_answer()` for all `m2_input`
   writes, never the lower-level `append_doc_round()`/
   `append_to_pending_round()` directly — picking between those two by hand
-  produced a real bug once on a real project (see README.md's
+  produced a real bug once on a real project (see docs/pipeline-scripts.md's
   `pipeline_common.py` entry).

@@ -6,7 +6,7 @@ Pure queue/graph logic only - no Drive folder mechanics here (that's
 export code already). This module answers "what does this run's scope
 mean", not "where does that live in Drive".
 
-Rules (see AGENTS.md / README.md Phase 14B section):
+Rules (see AGENTS.md / docs/pipeline-scripts.md Phase 14B section):
 
 - Scopes come from the same `enumerate_run_scopes()` helper
   `qa_manage.py review`/`complete` already trust - a scoped export's notion

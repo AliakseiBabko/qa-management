@@ -1,13 +1,14 @@
 ---
 name: repo-maintenance
-description: Consistency checklist for any structural change to this repository - adding or editing a skill, script, template, document type, or dependency. Use whenever a change touches .agents/skills, .agents/scripts, Templates, document_graph.yaml, AGENTS.md, or README.md, so every companion file that mirrors the change gets updated in the same commit.
+description: Consistency checklist for any structural change to this repository - adding or editing a skill, script, template, document type, or dependency. Use whenever a change touches .agents/skills, .agents/scripts, Templates, document_graph.yaml, AGENTS.md, README.md, or docs/, so every companion file that mirrors the change gets updated in the same commit.
 ---
 
 # Repo Maintenance
 
 Several files in this repo mirror each other by convention, not by
-tooling: README's script section mirrors `.agents/scripts/`,
-`document_graph.yaml` mirrors the cascade prose in the skills, and
+tooling: `docs/pipeline-scripts.md`'s script section mirrors
+`.agents/scripts/`, `document_graph.yaml` mirrors the cascade prose in the
+skills, and
 `SKILL_INVOCATION_SOURCE_TYPES` mirrors
 `qa-management-roles/references/google-workspace/operational-registries.md`'s
 canonical `source_type` list. A
@@ -37,11 +38,11 @@ adding anything to it.
   documents: update `document_graph.yaml` (node, edges, aliases) - see
   below.
 - If it processes a new source shape: see "New source shape" below.
-- If README genuinely documents the user-facing structure or behavior
-  the skill produces (a new folder, a new document family, a new
-  pipeline script) - update the relevant README section in the same
-  commit. Not every skill needs a README change; a routing/prep skill
-  with no new output document usually doesn't.
+- If README or a `docs/` file genuinely documents the user-facing
+  structure or behavior the skill produces (a new folder, a new document
+  family, a new pipeline script) - update the relevant README/docs
+  section in the same commit. Not every skill needs one; a routing/prep
+  skill with no new output document usually doesn't.
 - If it is an M1/M2 report-writing skill matching a bundle declared in
   `.agents/reference_bundles.yaml` (`m2-report-writer`/`m1-report-writer`):
   copy that bundle's module list verbatim into Required Start and add the
@@ -65,9 +66,9 @@ adding anything to it.
 - Reuse `pipeline_common` (`get_services()`, `reformat_sheet()` after
   Sheet writes, `log_skill_invocation()`, `add_questions()`/
   `add_answer()` for m2_input) instead of re-inlining boilerplate.
-- Add/update the script's entry in README's "Current pipeline scripts"
-  section - what it does, its dry-run/apply convention, and any known
-  gap.
+- Add/update the script's entry in docs/pipeline-scripts.md's "Current
+  pipeline scripts" section - what it does, its dry-run/apply convention,
+  and any known gap.
 - Windows console prints Cyrillic: reconfigure stdout to UTF-8 like the
   existing scripts do.
 

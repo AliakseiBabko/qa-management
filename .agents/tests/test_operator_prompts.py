@@ -1,8 +1,8 @@
 """Tests for reusable operator prompt documentation.
 
 The prompt cookbook exists so day-to-day prompts can stay short while the
-actual workflow contract remains centralized in AGENTS.md, README.md, and
-the relevant skills.
+actual workflow contract remains centralized in AGENTS.md, README.md,
+docs/, and the relevant skills.
 """
 
 from __future__ import annotations

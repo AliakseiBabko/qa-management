@@ -15,7 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SKILL_MD = REPO_ROOT / ".agents" / "skills" / "visual-evidence-intake" / "SKILL.md"
-README = REPO_ROOT / "README.md"
+README = REPO_ROOT / "docs" / "workspace-layout.md"
 PROMPTS = REPO_ROOT / ".agents" / "references" / "operator-prompts.md"
 
 

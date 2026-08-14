@@ -2,10 +2,11 @@
 
 This file is the workspace-level policy for AI agents working in this
 repository. It is a **compact startup router**, not a detailed manual:
-README.md, `.agents/skills/`, and this repo's own executable validation
-(`validate_repo.py`, `check_sensitive_data.py`) are canonical for anything
-not stated as a rule below. When in doubt, read the owning skill or
-README section rather than expecting the answer here.
+README.md (and the detailed `docs/` files it links to), `.agents/skills/`,
+and this repo's own executable validation (`validate_repo.py`,
+`check_sensitive_data.py`) are canonical for anything not stated as a
+rule below. When in doubt, read the owning skill or the relevant
+README/docs section rather than expecting the answer here.
 
 ## Purpose
 
@@ -128,9 +129,9 @@ cleaned automatically; it never gets written to `.local/`.
   into it automatically now - see `.agents\telemetry\README.md`'s "This
   is legacy/local telemetry" section for exactly what is/isn't covered
   yet.
-- About to write an ad hoc Drive/Sheets/Docs script? Read README's
-  **Current pipeline scripts** section first - most tasks already map to
-  an existing one.
+- About to write an ad hoc Drive/Sheets/Docs script? Read
+  docs/pipeline-scripts.md's **Current pipeline scripts** section first -
+  most tasks already map to an existing one.
 - If a Drive/Sheets/Docs-backed script fails with `WinError 10013`, socket
   permission errors, DNS/host resolution, or another sandbox-style network
   block, immediately rerun the same command with network/escalated
