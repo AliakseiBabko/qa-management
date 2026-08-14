@@ -583,43 +583,65 @@ These are what actually runs day to day, once a project's folder already exists:
   made `get_last_round_status()` wrongly read the round as still pending.
 - `docs_editing.py` — importable safe Google Docs `batchUpdate` primitives
   (for any skill/ad hoc script that edits a Doc outside
-  `pipeline_common.py`'s own m2_input-specific helpers), plus a small
-  read-only CLI over the inspection helpers for targeted verification:
+  `pipeline_common.py`'s own m2_input-specific helpers), plus a CLI over
+  those primitives covering both read-only verification and the
+  recurring write shapes (add a dated update to an existing section,
+  correct one paragraph in place, append a Change Log line) so a
+  knowledge-base/case-library edit almost never needs its own bespoke
+  inline script:
   ```
   python docs_editing.py headings --id <doc_id> [--levels HEADING_1,HEADING_2]
   python docs_editing.py find --id <doc_id> --text "<substring>"
   python docs_editing.py end-index --id <doc_id>
+  python docs_editing.py append-section --id <doc_id> --heading "<exact heading text>" --text-file <path> [--style STYLE] [--dry-run]
+  python docs_editing.py replace-paragraph --id <doc_id> --prefix "<unique leading text>" --text-file <path> [--style STYLE] [--dry-run]
+  python docs_editing.py append-end --id <doc_id> --text-file <path> [--dry-run]
+  python docs_editing.py insert-at --id <doc_id> --index <n> --text-file <path> [--style STYLE] [--dry-run]
   ```
   Exists because verifying a heading structure or a just-written passage
   previously meant a full `read_google_doc.py` export - real cost on this
   workspace's larger Docs (some run past 300K characters) when only a few
-  lines were actually needed. Every subcommand calls the same single
-  `documents().get()` a full export would use, but prints only a compact,
-  single-line, truncated preview per match - never the full document
-  body. Use `read_google_doc.py` instead when an actual full-text
-  read/export is what's needed.
-  `list_headings()`/`find_paragraph_containing()`/`document_end_index()`
-  are the underlying read-only inspection functions (find a section's
-  boundaries, locate a passage to correct, find the true
-  end-of-document insertion point) - importable directly, same as the
-  write helpers below. `DocEdit` +
-  `safe_batch_insert_text()` (built on the pure, directly-testable
-  `build_batch_insert_requests()`) is the fix for a real corruption
-  incident: pass insertions in any order, indexed against one earlier
-  `documents().get()` snapshot, and it always sorts them descending by
-  index before building the `batchUpdate` request list — a lower-index
-  insert applied before a higher-index one silently invalidates the
-  higher one's precomputed (now-stale) index, and its text lands
-  mid-word/mid-paragraph inside whatever the first insert just added,
-  exactly what happened once on a real document. Every inserted range
-  also gets an explicit `updateParagraphStyle` (never left to inherit
-  from whatever paragraph happens to sit at the insertion point — the
-  same heading-inheritance gotcha `pipeline_common._insert_blocks`
-  already guards against, generalized here). `delete_and_reinsert()` is
-  the repair primitive for exactly that corruption shape: delete a
-  misplaced range and re-insert the corrected text elsewhere in one
-  call, ordered the same safe way. Prefer this over hand-writing
-  `batchUpdate` request lists in a one-off script.
+  lines were actually needed - and because the write shapes above
+  previously meant writing, running, and (on Windows) getting a fresh
+  approval for a new one-off inline Python script nearly every single
+  time a Project Knowledge/PM Case Library pass needed to add or correct
+  one passage; this collapses that into one already-known, already-tested
+  command. Every subcommand calls the same single `documents().get()` a
+  full export would use, but prints only a compact, truncated preview -
+  never the full document body. `--text-file` (never inline `--text`)
+  sidesteps shell-quoting problems entirely for multi-paragraph or
+  Cyrillic content - write the content with the `Write` tool first, then
+  pass its path. Every write subcommand supports `--dry-run` to preview
+  the exact insertion point and a text preview without calling the API.
+  Use `read_google_doc.py` instead when an actual full-text read/export is
+  what's needed.
+  `list_headings()`/`find_paragraph_containing()`/`document_end_index()`/
+  `find_paragraph_by_prefix()`/`section_end_index()` are the underlying
+  read-only inspection functions (find a section's boundaries via its
+  exact heading text - same-or-broader-level heading ends the section,
+  correctly skipping nested sub-headings; locate a passage to correct,
+  either by substring or by a uniquely-matching leading prefix - the
+  latter raises instead of guessing when the prefix is ambiguous; find the
+  true end-of-document insertion point) - importable directly, same as
+  the write helpers below. `DocEdit` + `safe_batch_insert_text()` (built
+  on the pure, directly-testable `build_batch_insert_requests()`) is the
+  fix for a real corruption incident: pass insertions in any order,
+  indexed against one earlier `documents().get()` snapshot, and it always
+  sorts them descending by index before building the `batchUpdate`
+  request list — a lower-index insert applied before a higher-index one
+  silently invalidates the higher one's precomputed (now-stale) index,
+  and its text lands mid-word/mid-paragraph inside whatever the first
+  insert just added, exactly what happened once on a real document. Every
+  inserted range also gets an explicit `updateParagraphStyle` (never left
+  to inherit from whatever paragraph happens to sit at the insertion
+  point — the same heading-inheritance gotcha
+  `pipeline_common._insert_blocks` already guards against, generalized
+  here). `delete_and_reinsert()` is the repair primitive for exactly that
+  corruption shape: delete a misplaced range and re-insert the corrected
+  text elsewhere in one call, ordered the same safe way - the CLI's
+  `replace-paragraph` is this primitive plus `find_paragraph_by_prefix()`
+  wired together as one command. Prefer the CLI (or these primitives)
+  over hand-writing `batchUpdate` request lists in a one-off script.
 - `validate_repo.py` — mechanical consistency validation of this repo's
   convention-mirrored files (the `repo-maintenance` checklist automated):
   AGENTS.md skill table ↔ `.agents/skills/`, README ↔ `.agents/scripts/`,

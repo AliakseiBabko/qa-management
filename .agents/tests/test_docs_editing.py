@@ -13,7 +13,9 @@ Run:  python -m unittest discover -s .agents/tests
 from __future__ import annotations
 
 import io
+import os
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -146,6 +148,85 @@ class DocumentEndIndexTests(unittest.TestCase):
         trailing_para = doc["body"]["content"][-1]
         self.assertEqual(end_index, trailing_para["endIndex"] - 1)
         self.assertEqual(end_index, trailing_para["startIndex"])
+
+
+class FindParagraphByPrefixTests(unittest.TestCase):
+    def test_finds_unique_matching_paragraph(self):
+        doc = _doc([
+            ("18. Some placeholder open question text.", "NORMAL_TEXT"),
+            ("19. A different placeholder open question.", "NORMAL_TEXT"),
+        ])
+        service = FakeDocsService(doc)
+        start, end, text = de.find_paragraph_by_prefix(service, "doc-1", "18.")
+        self.assertEqual(start, doc["body"]["content"][0]["startIndex"])
+        self.assertIn("Some placeholder", text)
+
+    def test_no_match_raises(self):
+        doc = _doc([("Nothing relevant here.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        with self.assertRaises(ValueError):
+            de.find_paragraph_by_prefix(service, "doc-1", "18.")
+
+    def test_ambiguous_match_raises(self):
+        doc = _doc([
+            ("18. First placeholder paragraph.", "NORMAL_TEXT"),
+            ("18. Second placeholder paragraph, same prefix.", "NORMAL_TEXT"),
+        ])
+        service = FakeDocsService(doc)
+        with self.assertRaises(ValueError):
+            de.find_paragraph_by_prefix(service, "doc-1", "18.")
+
+
+class SectionEndIndexTests(unittest.TestCase):
+    def test_h2_section_end_is_next_h2_skipping_nested_h3(self):
+        doc = _doc([
+            ("Section A", "HEADING_2"),
+            ("Sub-section A.1", "HEADING_3"),
+            ("Sub-section prose.", "NORMAL_TEXT"),
+            ("Section B", "HEADING_2"),
+        ])
+        service = FakeDocsService(doc)
+        end = de.section_end_index(service, "doc-1", "Section A")
+        section_b = doc["body"]["content"][3]
+        self.assertEqual(end, section_b["startIndex"])
+
+    def test_h3_section_end_is_next_h3_or_broader(self):
+        doc = _doc([
+            ("Section A", "HEADING_2"),
+            ("Sub-section A.1", "HEADING_3"),
+            ("Sub-section A.1 prose.", "NORMAL_TEXT"),
+            ("Sub-section A.2", "HEADING_3"),
+        ])
+        service = FakeDocsService(doc)
+        end = de.section_end_index(service, "doc-1", "Sub-section A.1")
+        sub_a2 = doc["body"]["content"][3]
+        self.assertEqual(end, sub_a2["startIndex"])
+
+    def test_last_section_ends_at_document_end_index(self):
+        doc = _doc([
+            ("Section A", "HEADING_2"),
+            ("Trailing prose.", "NORMAL_TEXT"),
+            ("", "NORMAL_TEXT"),
+        ])
+        service = FakeDocsService(doc)
+        end = de.section_end_index(service, "doc-1", "Section A")
+        self.assertEqual(end, de.document_end_index(service, "doc-1"))
+
+    def test_missing_heading_raises(self):
+        doc = _doc([("Section A", "HEADING_2")])
+        service = FakeDocsService(doc)
+        with self.assertRaises(ValueError):
+            de.section_end_index(service, "doc-1", "Section Z")
+
+    def test_ambiguous_heading_raises(self):
+        doc = _doc([
+            ("Section A", "HEADING_2"),
+            ("prose", "NORMAL_TEXT"),
+            ("Section A", "HEADING_2"),
+        ])
+        service = FakeDocsService(doc)
+        with self.assertRaises(ValueError):
+            de.section_end_index(service, "doc-1", "Section A")
 
 
 # ---------------------------------------------------------------------
@@ -294,6 +375,147 @@ class DeleteAndReinsertExecutionTests(unittest.TestCase):
         requests = service.batch_update_calls[0]["requests"]
         self.assertTrue(any("deleteContentRange" in r for r in requests))
         self.assertTrue(any("insertText" in r for r in requests))
+
+
+# ---------------------------------------------------------------------
+# Tables - build_table_fill_requests / insert_table
+# ---------------------------------------------------------------------
+
+def _empty_table_cell(start: int, text_len_placeholder: int = 1) -> dict:
+    """A freshly-inserted, still-empty table cell: one paragraph whose
+    startIndex is the real insertion point."""
+    return {
+        "content": [{
+            "startIndex": start,
+            "endIndex": start + text_len_placeholder,
+            "paragraph": {"elements": [{"textRun": {"content": "\n"}}]},
+        }],
+    }
+
+
+def _table_doc(table_start: int, n_rows: int, n_cols: int, col_width: int = 20) -> dict:
+    """Builds a minimal Docs API document body containing one empty table
+    (as if `insertTable` had just run) with `n_rows` x `n_cols` cells,
+    each cell `col_width` apart - synthetic spacing only, no real content."""
+    rows = []
+    cursor = table_start + 2  # Docs puts a couple of structural indices before the first cell
+    for _r in range(n_rows):
+        cells = []
+        for _c in range(n_cols):
+            cells.append(_empty_table_cell(cursor))
+            cursor += col_width
+        rows.append({"tableCells": cells})
+    table_el = {
+        "startIndex": table_start,
+        "endIndex": cursor,
+        "table": {"tableRows": rows},
+    }
+    return {"body": {"content": [table_el]}}
+
+
+class FindTableAtOrAfterTests(unittest.TestCase):
+    def test_finds_table_starting_at_exact_index(self):
+        doc = _table_doc(table_start=50, n_rows=2, n_cols=2)
+        found = de.find_table_at_or_after(doc, 50)
+        self.assertEqual(found["startIndex"], 50)
+
+    def test_ignores_a_table_before_min_index(self):
+        doc = _table_doc(table_start=10, n_rows=1, n_cols=1)
+        with self.assertRaises(ValueError):
+            de.find_table_at_or_after(doc, 100)
+
+    def test_picks_the_earliest_table_at_or_after_min_index(self):
+        doc = _table_doc(table_start=50, n_rows=1, n_cols=1)
+        second = _table_doc(table_start=200, n_rows=1, n_cols=1)["body"]["content"][0]
+        doc["body"]["content"].append(second)
+        found = de.find_table_at_or_after(doc, 40)
+        self.assertEqual(found["startIndex"], 50)
+
+
+class TableCellInsertionPointsTests(unittest.TestCase):
+    def test_returns_every_cell_in_reading_order(self):
+        doc = _table_doc(table_start=1, n_rows=2, n_cols=3, col_width=10)
+        table_el = doc["body"]["content"][0]
+        points = de.table_cell_insertion_points(table_el)
+        self.assertEqual([(r, c) for r, c, _ in points], [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)])
+        # indices strictly increasing in reading order
+        indices = [idx for _, _, idx in points]
+        self.assertEqual(indices, sorted(indices))
+
+
+class BuildTableFillRequestsTests(unittest.TestCase):
+    def test_raises_on_row_count_mismatch(self):
+        doc = _table_doc(table_start=1, n_rows=2, n_cols=2)
+        table_el = doc["body"]["content"][0]
+        with self.assertRaises(ValueError):
+            de.build_table_fill_requests(table_el, [["a", "b"]])  # only 1 row, table has 2
+
+    def test_raises_on_column_count_mismatch(self):
+        doc = _table_doc(table_start=1, n_rows=1, n_cols=3)
+        table_el = doc["body"]["content"][0]
+        with self.assertRaises(ValueError):
+            de.build_table_fill_requests(table_el, [["a", "b"]])  # 2 cols, table has 3
+
+    def test_fill_requests_applied_in_descending_index_order(self):
+        doc = _table_doc(table_start=1, n_rows=2, n_cols=2, col_width=10)
+        table_el = doc["body"]["content"][0]
+        requests = de.build_table_fill_requests(
+            table_el, [["Header A", "Header B"], ["row1a", "row1b"]], bold_header=False,
+        )
+        insert_locations = [r["insertText"]["location"]["index"] for r in requests if "insertText" in r]
+        self.assertEqual(insert_locations, sorted(insert_locations, reverse=True))
+
+    def test_header_row_bolded_by_default(self):
+        doc = _table_doc(table_start=1, n_rows=2, n_cols=2, col_width=10)
+        table_el = doc["body"]["content"][0]
+        requests = de.build_table_fill_requests(table_el, [["Header A", "Header B"], ["x", "y"]])
+        bold_requests = [r for r in requests if "updateTextStyle" in r]
+        self.assertEqual(len(bold_requests), 2)  # one per header cell
+        for r in bold_requests:
+            self.assertTrue(r["updateTextStyle"]["textStyle"]["bold"])
+
+    def test_bold_disabled_when_requested(self):
+        doc = _table_doc(table_start=1, n_rows=1, n_cols=2, col_width=10)
+        table_el = doc["body"]["content"][0]
+        requests = de.build_table_fill_requests(table_el, [["Header A", "Header B"]], bold_header=False)
+        self.assertFalse(any("updateTextStyle" in r for r in requests))
+
+    def test_bold_range_matches_exact_header_text_length(self):
+        doc = _table_doc(table_start=1, n_rows=1, n_cols=1, col_width=10)
+        table_el = doc["body"]["content"][0]
+        cell_index = table_el["table"]["tableRows"][0]["tableCells"][0]["content"][0]["startIndex"]
+        requests = de.build_table_fill_requests(table_el, [["Header"]])
+        bold_req = next(r for r in requests if "updateTextStyle" in r)
+        self.assertEqual(bold_req["updateTextStyle"]["range"]["startIndex"], cell_index)
+        self.assertEqual(bold_req["updateTextStyle"]["range"]["endIndex"], cell_index + len("Header"))
+
+    def test_empty_cell_string_produces_no_insert_request_for_that_cell(self):
+        doc = _table_doc(table_start=1, n_rows=1, n_cols=2, col_width=10)
+        table_el = doc["body"]["content"][0]
+        requests = de.build_table_fill_requests(table_el, [["Header A", ""]], bold_header=False)
+        self.assertEqual(len(requests), 1)
+
+
+class InsertTableExecutionTests(unittest.TestCase):
+    def test_rejects_empty_data(self):
+        service = FakeDocsService(_table_doc(table_start=1, n_rows=1, n_cols=1))
+        with self.assertRaises(ValueError):
+            de.insert_table(service, "doc-1", 1, [])
+
+    def test_issues_insert_table_then_fill_batch_update(self):
+        # FakeDocsService's get() always returns the same fixed doc - stand
+        # in for "as if insertTable had already run and this is what the
+        # doc looks like now", matching how this module's other execution
+        # wrappers are tested (a single get() round trip).
+        service = FakeDocsService(_table_doc(table_start=1, n_rows=1, n_cols=2, col_width=10))
+        de.insert_table(service, "doc-1", 1, [["Header A", "Header B"]])
+        self.assertEqual(len(service.batch_update_calls), 2)
+        first_requests = service.batch_update_calls[0]["requests"]
+        self.assertIn("insertTable", first_requests[0])
+        self.assertEqual(first_requests[0]["insertTable"]["rows"], 1)
+        self.assertEqual(first_requests[0]["insertTable"]["columns"], 2)
+        second_requests = service.batch_update_calls[1]["requests"]
+        self.assertTrue(any("insertText" in r for r in second_requests))
 
 
 # ---------------------------------------------------------------------
@@ -466,6 +688,152 @@ class CliEndIndexOutputTests(unittest.TestCase):
         expected = de.document_end_index(service, "doc-1")
         self.assertEqual(exit_code, 0)
         self.assertEqual(buf.getvalue().strip(), str(expected))
+
+
+class CliWriteCommandsTests(unittest.TestCase):
+    """Write subcommands (append-section, replace-paragraph, append-end,
+    insert-at) - each tested against a FakeDocsService with a real
+    temporary text file, dry-run and real-write paths both covered."""
+
+    def _text_file(self, content: str) -> str:
+        fd, path = tempfile.mkstemp(suffix=".txt")
+        with io.open(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_append_section_dry_run_makes_no_batch_update_call(self):
+        doc = _doc([("Section A", "HEADING_2"), ("existing prose", "NORMAL_TEXT"), ("Section B", "HEADING_2")])
+        service = FakeDocsService(doc)
+        path = self._text_file("new placeholder content")
+        args = de.build_cli_parser().parse_args(
+            ["append-section", "--id", "doc-1", "--heading", "Section A", "--text-file", path, "--dry-run"]
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_append_section(service, args)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(service.batch_update_calls, [])
+        self.assertIn("dry-run", buf.getvalue())
+
+    def test_append_section_writes_at_section_end(self):
+        doc = _doc([("Section A", "HEADING_2"), ("existing prose", "NORMAL_TEXT"), ("Section B", "HEADING_2")])
+        service = FakeDocsService(doc)
+        path = self._text_file("new placeholder content")
+        args = de.build_cli_parser().parse_args(
+            ["append-section", "--id", "doc-1", "--heading", "Section A", "--text-file", path]
+        )
+        exit_code = de._cmd_append_section(service, args)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(service.batch_update_calls), 1)
+        requests = service.batch_update_calls[0]["requests"]
+        insert_req = next(r for r in requests if "insertText" in r)
+        section_b_start = doc["body"]["content"][2]["startIndex"]
+        self.assertEqual(insert_req["insertText"]["location"]["index"], section_b_start)
+        self.assertIn("new placeholder content", insert_req["insertText"]["text"])
+
+    def test_replace_paragraph_dry_run_makes_no_batch_update_call(self):
+        doc = _doc([("18. old placeholder text.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        path = self._text_file("18. corrected placeholder text.")
+        args = de.build_cli_parser().parse_args(
+            ["replace-paragraph", "--id", "doc-1", "--prefix", "18.", "--text-file", path, "--dry-run"]
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = de._cmd_replace_paragraph(service, args)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(service.batch_update_calls, [])
+
+    def test_replace_paragraph_deletes_and_reinserts(self):
+        doc = _doc([("18. old placeholder text.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        path = self._text_file("18. corrected placeholder text.")
+        args = de.build_cli_parser().parse_args(
+            ["replace-paragraph", "--id", "doc-1", "--prefix", "18.", "--text-file", path]
+        )
+        exit_code = de._cmd_replace_paragraph(service, args)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(service.batch_update_calls), 1)
+        requests = service.batch_update_calls[0]["requests"]
+        self.assertTrue(any("deleteContentRange" in r for r in requests))
+        insert_req = next(r for r in requests if "insertText" in r)
+        self.assertIn("corrected placeholder text", insert_req["insertText"]["text"])
+
+    def test_replace_paragraph_ambiguous_prefix_raises_without_writing(self):
+        doc = _doc([("18. first.", "NORMAL_TEXT"), ("18. second.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        path = self._text_file("18. corrected.")
+        args = de.build_cli_parser().parse_args(
+            ["replace-paragraph", "--id", "doc-1", "--prefix", "18.", "--text-file", path]
+        )
+        with self.assertRaises(ValueError):
+            de._cmd_replace_paragraph(service, args)
+        self.assertEqual(service.batch_update_calls, [])
+
+    def test_append_end_writes_before_trailing_empty_paragraph(self):
+        doc = _doc([("Some content.", "NORMAL_TEXT"), ("", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        path = self._text_file("new change log line")
+        args = de.build_cli_parser().parse_args(["append-end", "--id", "doc-1", "--text-file", path])
+        exit_code = de._cmd_append_end(service, args)
+        self.assertEqual(exit_code, 0)
+        requests = service.batch_update_calls[0]["requests"]
+        insert_req = next(r for r in requests if "insertText" in r)
+        self.assertEqual(insert_req["insertText"]["location"]["index"], de.document_end_index(service, "doc-1"))
+
+    def test_insert_at_writes_at_given_raw_index(self):
+        doc = _doc([("Some content.", "NORMAL_TEXT")])
+        service = FakeDocsService(doc)
+        path = self._text_file("raw inserted text")
+        args = de.build_cli_parser().parse_args(
+            ["insert-at", "--id", "doc-1", "--index", "5", "--text-file", path, "--style", "HEADING_3"]
+        )
+        exit_code = de._cmd_insert_at(service, args)
+        self.assertEqual(exit_code, 0)
+        requests = service.batch_update_calls[0]["requests"]
+        insert_req = next(r for r in requests if "insertText" in r)
+        style_req = next(r for r in requests if "updateParagraphStyle" in r)
+        self.assertEqual(insert_req["insertText"]["location"]["index"], 5)
+        self.assertEqual(style_req["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"], "HEADING_3")
+
+    def test_load_text_file_adds_missing_trailing_newline(self):
+        path = self._text_file("no trailing newline")
+        self.assertTrue(de._load_text_file(path).endswith("\n"))
+
+    def test_load_text_file_preserves_existing_trailing_newline(self):
+        path = self._text_file("already has one\n")
+        text = de._load_text_file(path)
+        self.assertEqual(text, "already has one\n")
+        self.assertFalse(text.endswith("\n\n"))
+
+
+class CliWriteParserDispatchTests(unittest.TestCase):
+    def test_append_section_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(
+            ["append-section", "--id", "doc-1", "--heading", "Section A", "--text-file", "placeholder.txt"]
+        )
+        self.assertEqual(args.command, "append-section")
+        self.assertEqual(args.style, "NORMAL_TEXT")
+        self.assertFalse(args.dry_run)
+        self.assertIs(args.func, de._cmd_append_section)
+
+    def test_replace_paragraph_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(
+            ["replace-paragraph", "--id", "doc-1", "--prefix", "18.", "--text-file", "placeholder.txt"]
+        )
+        self.assertIs(args.func, de._cmd_replace_paragraph)
+
+    def test_append_end_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(["append-end", "--id", "doc-1", "--text-file", "placeholder.txt"])
+        self.assertIs(args.func, de._cmd_append_end)
+
+    def test_insert_at_subcommand_parses_and_dispatches(self):
+        args = de.build_cli_parser().parse_args(
+            ["insert-at", "--id", "doc-1", "--index", "42", "--text-file", "placeholder.txt"]
+        )
+        self.assertEqual(args.index, 42)
+        self.assertIs(args.func, de._cmd_insert_at)
 
 
 if __name__ == "__main__":
