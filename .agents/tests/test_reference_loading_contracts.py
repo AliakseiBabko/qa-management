@@ -54,7 +54,7 @@ EXPECTED_MODULES = [
     "pipeline-architecture.md",
 ]
 
-ORIGINAL_MONOLITH_BYTES = 59477  # re-anchored 2026-08-05, see module docstring
+ORIGINAL_MONOLITH_BYTES = 67396  # re-anchored 2026-08-17, see module docstring (Phase 1 M2 executive architecture layout additions)
 
 
 def _all_skill_md_texts() -> dict[Path, str]:

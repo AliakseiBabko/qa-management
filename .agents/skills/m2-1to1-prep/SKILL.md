@@ -17,7 +17,7 @@ happened yet.
 
 1. Identify the person and confirm which project(s) their 1to1 prep should
    draw from (a person can be on more than one project).
-2. Read `references/document-contract.md`.
+2. Read `../1to1-prep-core/references/prep-core-rules.md` (shared 1:1 question-prep framework) and `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-metrics-attribution.md`
    (Вклад в проект calibration, for turning a caveat into a question) and
    `../qa-management-roles/references/m2-role/m2-project-rollups.md`
@@ -66,7 +66,7 @@ project."
    and `Показатель` is still blank.
 7. If `Первый коммерческий проект` is unconfirmed for this person and
    they're newly staffed, ask it directly this round rather than deferring
-   — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
+   — see `../qa-management-roles/references/newcomer-support-rules.md`. If it's confirmed `Да` and they're
    within their first month, proactively ask how the environment, process,
    and buddy/mentor relationship are actually working, rather than waiting
    for them to raise a problem.
@@ -157,3 +157,6 @@ message drafted from this skill:
 - If a person has almost no data anywhere (a near-empty `individual_metrics`
   and dev plan), say so plainly and lead the question list with the basics
   needed to close that gap, rather than padding with generic questions.
+- Do not write into or append prep questions into `individual_development_plan`,
+  `individual_metrics`, or `project_risk` from this skill — candidate prep questions
+  do not mutate records automatically; updates occur from actual 1to1 outcomes.

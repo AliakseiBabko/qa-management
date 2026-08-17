@@ -78,7 +78,8 @@ month, the M2 monthly KPI/bonus report) together under `M2\`.
 
 ## Source Rules
 
-- Start from evidence inside the requested period.
+- Start from Layer 2 curated current-state records (`project_metrics`, `project_risk`, `_project_registry`, `action_items`, `m2_input`).
+- Corroborate with fresh Layer 1 evidence inside the requested period (`evidence_log`, `qa_process_metrics`, `individual_metrics`, strategy chats, 1to1 findings).
 - Use older project artifacts only to explain baseline, plan, owner, or unresolved carry-over risk.
 - Prefer extracted source files over original DOCX/XLSX when available:
   `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\...`
@@ -131,14 +132,17 @@ Keep each section short:
 A project status report should show:
 
 - project movement since the previous report
-- quality and QA-process signal
+- measurable movement on operational business proxies (`Outcome proxy: <name>`)
+- early-warning status and prediction state of top active threats (`ID ключевого риска`, `Статус прогнозирования`)
+- expectation alignment status (`Статус согласования (Alignment)`)
+- quality and QA-process signals
 - risk/blocker movement
 - plan progress
 - stakeholder/client communication
 - staffing or continuity issues when they affect project delivery
 - expansion/upsell opportunity, when a real one exists (see
   `presale-upsell-rules.md`)
-- next management action
+- next management actions with owners and review dates
 
 ## Missing Evidence
 

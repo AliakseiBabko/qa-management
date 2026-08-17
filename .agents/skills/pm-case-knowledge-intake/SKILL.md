@@ -19,6 +19,10 @@ This is not a source-classification-triggered intake like
 another skill's own pass surfaces a candidate case while doing its real
 job, and hands off here as a secondary step:
 
+- `m2-project-risk-report` (project risks marked `Detected Late` or `Materialized`) —
+  an unexpected delivery crisis, late-detected client escalation, sudden scope
+  reduction, or unpredicted turnover triggers a **gated candidate review** to
+  evaluate if the situation reveals a generalizable management pattern.
 - `qa-1to1-analysis` (1:1 transcripts) - a situation with a client,
   stakeholder, or team-management pattern that doesn't fit the 1:1's own
   M1/M2 output.
@@ -32,17 +36,20 @@ job, and hands off here as a secondary step:
   normal M1/M2 chain" - a generalizable case routes here instead, when it
   isn't really an M1/M2 current-state fact either).
 
-A single source can produce zero, one, or (rarely) more than one case -
-most sources produce zero; do not force it.
+A single source or risk candidate can produce zero, one, or (rarely) more than one case -
+most candidates produce zero; do not force it.
 
 ## Workflow
 
-1. **Confirm it's a real case.** Situation, approach, outcome (or
+1. **Confirm it's a real case (Gated Candidate Evaluation).** Situation, approach, outcome (or
    explicitly ongoing/unresolved), and a takeaway - per
-   `pm-case-knowledge-roles/SKILL.md`'s core rule. If the candidate is too
-   vague or is really a judgment about one named person's competence, do
-   not log it here - say so and skip (or flag it toward the M1 lane if
-   that's genuinely where it belongs).
+   `pm-case-knowledge-roles/SKILL.md`'s core rule.
+   - For `Detected Late` or `Materialized` project-risk triggers: evaluate whether
+     the situation reveals a reusable lesson on risk detection, stakeholder alignment,
+     or recovery. If yes, resolve as `logged`; if it is a routine localized issue
+     without cross-project generalizability, resolve as `no_case_logged` and exit.
+   - If the candidate is too vague or is really a judgment about one named person's
+     competence, do not log it here - say so and skip (or flag toward the M1 lane).
 2. **Resolve the library.** `pm_case_workspace_layout.find_root`/
    `find_document` for `pm_case_index`/`pm_case_library`. If neither
    exists yet, this is the first real case ever logged - create the

@@ -85,6 +85,17 @@ cleaned automatically; it never gets written to `.local/`.
 - Any structural change to this repo (a new/changed skill, script,
   template, document type, or dependency) - load `repo-maintenance`
   before editing.
+- Large implementation plans, architecture proposals, and review feedback
+  must be saved as shared Markdown files under `management/` rather than
+  pasted in full into chat. Treat the linked canonical plan as the source of
+  truth; write substantial agent review comments to a dated file under
+  `management/reviews/` and return file links in chat. Use the
+  `management-plan-dialogue` skill when conducting a multi-model plan review:
+  each model may challenge the plan and add independent ideas, and the
+  receiving model must record accepted, rejected, deferred, and independently
+  added items before updating the canonical plan. Do not create a competing
+  plan copy for an ordinary review. The public-repository sensitive-data rule
+  still applies: use placeholders only.
 - Working the intake queue? Start with
   `.agents/scripts/qa_manage.py dashboard` - it names the next run and
   the exact next command. Use `guide <run-id>` for what to do on a

@@ -1,21 +1,63 @@
 # M2 Project-Based Layout
 
 Scope: the M2 (`20_M2_Project_Management`) folder shape, `private`/`shared`
-document locations, and the `_project_registry` dashboard. Load this
-module for any skill that creates or updates a final M2 project-management
-output. Person/operational registries (`_people_registry`,
+document locations, the 3-layer information architecture, and the `_project_registry`
+dashboard. Load this module for any skill that creates or updates a final M2
+project-management output. Person/operational registries (`_people_registry`,
 `_skill_invocations`, etc.) live in their own modules — see
 [people-registry.md](people-registry.md) and
 [operational-registries.md](operational-registries.md).
 
 Treat `20_M2_Project_Management` as a project-context workspace, not as a flat
-report dump. Final M2 tabular outputs should go under:
+report dump.
+
+## Information Architecture (3 Layers)
+
+1. **Layer 1 — Evidence and Measurements**: facts, observations, measurements,
+   source logs, and history:
+   - `team_shared\qa_process_metrics` — project/team QA-process measurements;
+   - `people\<Person>\individual_metrics` — observable person/project contribution facts;
+   - `private\process_checklist` — outsource QA-process maturity checks;
+   - `private\people\<Person>\<Person> 1to1` — longitudinal per-person meeting records;
+   - `private\evidence_log` — append-only trace of source facts and downstream updates.
+2. **Layer 2 — M2 Decisions and Current-State Records**: interpretation, risk,
+   judgment, action, and formal decision gates:
+   - `private\project_metrics` — curated project outcome proxies and canonical context;
+   - `private\project_risk` — living 2-tab workbook (`Summary` + `Risk Items`);
+   - `private\people\<Person>\individual_risk` — private people/project risk view;
+   - `private\m2_input` — formal decision gate (dated rounds of questions/answers);
+   - `private\action_items` — dated actions, owners, and follow-ups;
+   - `private\project_development_plan` and `people\<Person>\individual_development_plan`.
+3. **Layer 3 — Executive Views**: designed for one-glance management reading:
+   - `_project_registry` — 13-column master Sheet (one row per active project);
+   - `_people_registry` — staffing, roles, and placement directory;
+   - optional `_m2_risk_registry` — generated M2-private cross-project risk rollup;
+   - executive status reports generated from Layer 2.
+
+Layer 3 is generated mechanically from Layer 2. It must never become a competing
+source of truth.
+
+## Living vs. Dated Document Matrix
+
+| Layer | Document | Storage Mode | Lifecycle Rule |
+| :--- | :--- | :--- | :--- |
+| **Layer 3** | `_project_registry` | **Living Sheet** | Recomputed mechanically by `refresh_project_registry.py` |
+| **Layer 3** | `status_report` | **Dated Doc** | New file per reporting period (`status_report_YYYY-MM-DD`) |
+| **Layer 2** | `project_metrics` | **Living Sheet** | Updated in place (1 row per composite identity `(Project, Metric Key, Role / Stream)`) |
+| **Layer 2** | `project_risk` | **Living 2-Tab Sheet** | Updated in place (`Summary` + `Risk Items` tabs) |
+| **Layer 2** | `m2_input` | **Living Doc** | Append-only rounds (dated sections from top to bottom) |
+| **Layer 1** | `evidence_log` | **Append-only Sheet/CSV** | Pure historical log (never overwrite old rows) |
+| **Layer 1** | `qa_process_metrics` | **Periodic Sheet** | Append-only rows per sprint/period |
+
+## Standard Project Folder Shape
+
+Final M2 tabular and narrative outputs go under:
 
 `20_M2_Project_Management\<Project>\...`
 
-Standard project folder shape:
-
-- `private\project_risk` Google Sheet, with CSV fallback `project_risk.csv`
+- `private\project_risk` Google Sheet, with CSV fallbacks `Templates\светофор_рисков_проекта.csv`
+  (for `Summary` tab) and `Templates\project_risk_items.csv` (for `Risk Items` tab) —
+  living 2-tab workbook capturing 1-row-per-project executive summary and itemized risk register.
 - `private\process_checklist` Google Sheet, with CSV fallback `process_checklist.csv`
   — the 12-section outsource QA process-maturity checklist (see
   `m2-project-process-checklist`, based on `Templates\аутсорс_чек_лист_qa.csv`).
@@ -24,99 +66,92 @@ Standard project folder shape:
 - `private\project_development_plan` Google Doc, with Markdown fallback
 - `private\project_metrics` Google Sheet, with CSV fallback `project_metrics.csv`
   — M2-only dashboard for the project (see `Templates\метрики_проекта_qa.md`
-  §2). Holds: `Горизонт совместной работы`, `Бизнес-риск продукта
-  клиента`, one `Вклад в проект: <Имя>` row per person (no aggregated
-  team row — every row stays visible individually at this level), and
-  `Качество QA-процесса` (M2's read of `qa_process_metrics`). Never share
-  this with the QA engineers whose data appears in it, even once
-  folder-level sharing exists for other artifacts.
+  §2). Holds canonical context keys (`Статус проекта`, `Engagement outlook`,
+  `Цель клиента / Ценность QA`, `Фокус M2`, `Статус согласования (Alignment)`,
+  `Сигнал capacity`), outcome proxies, and `Вклад в проект: <Имя>` rows with composite identity
+  `(Project, Metric Key, Role / Stream)`. Never share this with QA engineers whose data appears in it.
 - `team_shared\qa_process_metrics` Google Sheet, with CSV fallback
-  `qa_process_metrics.csv` — project-wide QA-process facts (Defect Escape
-  Rate, Automation Coverage, test-run counts, etc. — see
-  `Templates\метрики_проекта_qa.md` §3). Filled in by the project team, not
-  M2 — do not guess values into it; create empty skeleton rows with a real
-  `Пояснение` instruction instead. Append-only by calendar month.
+  `qa_process_metrics.csv` — project-wide QA-process facts (Fixed core of 4 rows:
+  Production quality signal, Release / regression signal, QA process visibility,
+  Automation health; plus optional project-specific metrics). Filled in by the project
+  team / M2 extraction. Append-only by sprint/period.
 - `private\evidence_log` Google Sheet, with CSV fallback `evidence_log.csv`
-- `people\<Person>\shared\individual_development_plan` Google Doc, with Markdown fallback
-- `people\<Person>\shared\individual_metrics` Google Sheet, with CSV fallback
+- `people\<Person>\individual_development_plan` Google Doc, with Markdown fallback
+- `people\<Person>\individual_metrics` Google Sheet, with CSV fallback
 - `private\people\<Person>\individual_risk` Google Sheet, with CSV
   fallback — M2-only, never shared with the employee. Living, one-row-per-
-  person current-state record (same shape as `project_risk`/`Светофор
-  рисков`, not a log) - see `m2-individual-qa-metrics-report`'s
-  references/internal-variant.md.
+  person current-state record.
+- `private\people\<Person>\<Person> 1to1` Google Sheet — longitudinal 1:1 record.
 - `private\m2_input\` — folder holding one M2-only Google Doc, `m2_input`: M2's
-  own dated rounds of questions/answers ahead of each project-level
-  rollup (see `m2-role/m2-project-rollups.md` Project-Level Rollups and
-  `Templates\m2_input.md`). One Doc per project, not a file per cycle —
-  rounds are dated sections appended to it. (No longer holds a metrics
-  Sheet — that moved into `project_metrics`, see above.)
+  own dated rounds of questions/answers ahead of each project-level rollup
+  (formal decision gate; see `Templates\m2_input.md`).
+- `private\action_items` Google Sheet — dated actions, owners, and follow-ups.
 - `private\status_reports` for saved project status Google Docs / Markdown fallback
 
+## Google Drive Access Control (ACL) Boundaries
+
+```text
+20_M2_Project_Management/<Project>/
+├── private/                              <-- Unshared (M2/M3 only)
+│   ├── project_metrics
+│   ├── project_risk
+│   ├── m2_input
+│   ├── evidence_log
+│   ├── action_items
+│   ├── process_checklist
+│   ├── project_development_plan
+│   ├── status_reports/
+│   └── people/<Person>/                  <-- Unshared (M2 private 1:1s & risks)
+│       ├── individual_risk
+│       └── 1to1
+├── team_shared/                          <-- Shared only with this project's QA team
+│   └── qa_process_metrics
+└── people/<Person>/                      <-- Shared explicitly with <Person> (Viewer/Editor)
+    ├── individual_development_plan
+    └── individual_metrics
+```
+
+> [!CAUTION]
+> **Drive ACL Safety Rule:** The `<Project>` root and `<Project>/private/` MUST NOT inherit permissions from `<Project>/people/<Person>/`. Sharing `<Project>/people/<Person>/` with an employee gives them access only to their own folder, never to sibling folders or the private root.
+
 Do not create a project-local `source_docs` folder. `90_Storage\Reference\Source_Documents\<Project>`
-is already the canonical source layer — a per-project copy has no automated
-way to stay in sync with it and will just go stale (this happened once
-already: a one-off script copied a project's source files into
-`20_M2_Project_Management\<Project>\source_docs`, and it was never kept
-current or repeated for any other project). Reference `90_Storage\Reference`
-directly instead of copying from it.
+is already the canonical source layer — reference `90_Storage\Reference` directly instead of copying.
 
 Do not create a project-local `archive` folder either. Superseded generated
-outputs (e.g. a Sheet retired in favor of a Doc of the same name) go to the
-single workspace-wide archive tree instead:
+outputs go to `90_Storage\Retired\20_M2_Project_Management\<Project>\...`.
 
-`90_Storage\Retired\20_M2_Project_Management\<Project>\...`
-
-This keeps one place to look for retired artifacts rather than two, and
-mirrors the live `20_M2_Project_Management\<Project>` shape so it stays easy
-to find.
+## Executive Workspace Registry (`_project_registry`)
 
 Keep `_project_registry` in `20_M2_Project_Management` as a top-level,
-one-row-per-project "war room" dashboard — the airplane view across every
-project M2 owns, sourced from each project's `project_metrics` (see
-`Templates\метрики_проекта_qa.md` §4). Columns: `Проект`, `People`,
-`Горизонт совместной работы`, `Бизнес-риск продукта клиента`,
-`Наименьший вклад в проект`, `Качество QA-процесса`. No `Статус` column -
-every row in the live registry is by definition active, so a status
-column would only ever read `Активен` and carries no information (see
-below).
+one-row-per-project "war room" dashboard — the airplane view across every active
+project M2 owns, sourced mechanically from each project's `project_metrics` and
+`project_risk`.
 
-`project_metrics`'s `Статус проекта` row (`Templates\метрики_проекта_qa.md`
-§1.0 — exactly two values, `Активен` or `Не активен`, no third "paused"
-state) isn't mirrored as a registry column at all; it's read purely as a
-gate. Manual-only: no script sets or clears it, no scheduled cadence flips
-it back; it changes only when M2 edits `project_metrics` directly. `Не
-активен` excludes the project from the rebuilt registry entirely (see
-below) - that's the only effect the value has on the registry.
+### 13 Columns and Layout Pixel Budget (1,680 px allocated within 1,780 px display budget):
 
-`Наименьший вклад в проект` is the one column that isn't a direct copy —
-`project_metrics` can have several `Вклад в проект: <Имя>` rows, but the
-registry collapses them to one column per project. **Never average them.**
-Averaging "Позитивный, Позитивный, Смешанный, Негативный" destroys exactly
-the signal this dashboard exists to surface. Take the worst status present
-(Негативный → Смешанный → Позитивный, worst first) and name whoever is at
-that level, e.g. `Смешанный (<Имя>)` — two people tied at the
-worst level both get named. If the whole team shares one status, just
-state it with no name attached (there's no one specific person to flag).
+1. `Проект` (120 px) — Project name
+2. `People` (150 px) — Staffing with workstream tags (e.g. `<Person 1> (AQA), <Person 2> (Manual)`)
+3. `Engagement outlook` (140 px) — Structured: `<date> [Contractual] — <Outlook> (<Confidence>)`
+4. `Цель клиента / Ценность QA` (160 px) — Stated client objective with alignment flag
+5. `Текущий результат` (180 px) — Composite outcome (`Baseline [status] → Current [status] → Target [status]`)
+6. `Общий уровень риска` (90 px) — `Низкий` / `Средний` / `Высокий` (color-coded badge)
+7. `Ранний сигнал / Прогноз` (200 px) — Composite from top active risk item (`RSK-ID: <Statement> [<Prediction Status>]`)
+8. `Качество QA-процесса` (110 px) — Fixed-core process rating with data-confidence label
+9. `People requiring attention` (120 px) — Mechanically derived candidate signal (appends `[Stale: review required]` if underlying private risk is >30d unreviewed; `—` if none; strictly preserves privacy without exposing private risk detail)
+10. `Действие M2` (140 px) — Primary mitigation action (and Upsell / Expansion tags when value is proven)
+11. `Уверенность в данных` (110 px) — Synthesized confidence with breakdown (`Executive: Med (Out: High, Risk: Low)`)
+12. `Owner` (80 px) — Action accountability owner
+13. `Следующий review` (80 px) — Next review date (`YYYY-MM-DD`)
 
-Active projects only — a project not currently active, for whatever
-reason (client-driven pause, official stop/cancellation), gets excluded
-from the live registry rather than kept and marked inactive in place;
-inactive projects don't belong in a dashboard meant for current attention.
-Mechanism: set `Статус проекта` to `Не активен`
-(`Templates\метрики_проекта_qa.md` §1.0), rerun
-`refresh_project_registry.py` - excludes the project automatically, no
-manual deletion. Keep the project folder in place as history/current
-record; add a closure or status summary to `project_risk`/
-`project_development_plan` first if the reason is worth recording.
-Flipping the status back to `Активен` (reactivation, or correcting a
-mistaken flip) brings the project back into the registry on the next
-refresh.
-Columns are `Проект`, `People`,
-`Статус`, and the four dashboard metrics — no aliases, source-docs pointer,
-or folder-navigation link; those don't belong in a summary dashboard.
+### Top-Risk Selection & Confidence Synthesis
+
+- **Top-Risk Selection**: deterministic priority by: (1) highest Severity (`Высокий` > `Средний` > `Низкий`), (2) earliest Expected Impact Date, (3) `Detected Late` over `Detected Early`, (4) latest `Last Changed` timestamp. Excludes `Closed` items and `Migration State = Legacy`.
+- **Confidence Synthesis**: ordered `Высокая` > `Средняя` > `Низкая`. Missing defaults to `Низкая`. Synthesized confidence = $\min(\text{outcome\_conf}, \text{risk\_conf})$ when both affect conclusion.
+- **Active Projects Only**: `project_metrics`'s `Статус проекта` row (`Активен` or `Не активен`) controls inclusion. `Не активен` excludes the project from the rebuilt registry automatically.
+
+## Update Conventions & Cross-Project Intake
 
 For broad cross-project KT, status, or management sessions:
-
 - split extracted facts by project first;
 - update each relevant project folder separately;
 - append the source and routed outputs to the project `evidence_log`;
@@ -127,3 +162,8 @@ Use living canonical project files for current state. Use append-only rows/tabs
 for history and evidence. Create dated versions only for formal reporting
 snapshots, monthly reports, externally shared documents, or explicit user
 requests.
+
+## Migration Boundary
+
+Phase 1 is a repository documentation and graph-contract change only. Live Google Drive
+folders, permissions, and business data are not modified during this phase.

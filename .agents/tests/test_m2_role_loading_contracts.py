@@ -305,6 +305,17 @@ class KeyAnchorsPresentInOwningModuleTests(unittest.TestCase):
         text = self._text("m2-metrics-attribution.md")
         self.assertIn("Вклад в проект Calibration", text)
 
+    def test_project_rollups_column_mappings_and_contracts(self):
+        text = self._text("m2-project-rollups.md")
+        self.assertIn("13-column executive sheet", text)
+        self.assertIn("Column 5 (`Текущий результат`)", text)
+        self.assertIn("Column 6: `Общий уровень риска`", text)
+        self.assertIn("Column 7: `Ранний сигнал / Прогноз`", text)
+        self.assertIn("Column 9", text)
+        self.assertIn("Column 11 (`Уверенность в данных`)", text)
+        self.assertIn(r"\min(\text{outcome\_confidence}, \text{risk\_confidence})", text)
+        self.assertIn("[Stale: review required]", text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,13 +1,13 @@
 ---
 name: m2-project-qa-metrics-report
-description: Create or update a QA metrics report as a Google Sheet, with CSV fallback, for M2 project management. Use when preparing a metrics document for one project or for the QA engineers working on that project set.
+description: Create or update a QA metrics report as a Google Sheet (12-column composite identity model), with CSV fallback, for M2 project management. Use when preparing a metrics document for one project or for the QA engineers working on that project set.
 ---
 
 # M2 Project QA Metrics Report
 
 Use this skill for one output family only:
 
-- project-level QA metrics Google Sheet, with CSV fallback
+- project-level QA metrics Google Sheet (`project_metrics`), with CSV fallback (`Templates/метрики_проекта_qa.csv`).
 
 ## Required Start
 
@@ -29,31 +29,50 @@ Use this skill for one output family only:
 
 ## Workflow
 
-1. Produce one row per meaningful project QA metric.
-2. Select a small project-specific set, usually 3-5 metrics, that can satisfy both client/project visibility and our M2 management needs without duplicating existing reporting streams.
-3. If a project development plan is the main management artifact, include plan progress as a first-class metric: whether planned improvements are moving, blocked, accepted, or delivering visible value.
-4. Use a balanced metric set when evidence exists:
-   - quality
-   - project/product movement
-   - business/client value
-   - development/delivery
-   - our QA work and role/value
-5. Prefer the scorecard dimensions used in source files when available:
-   - stability
-   - scalability
-   - delivery predictability
-   - communication
-   - documentation / onboarding
-   - automation / regression visibility
-   - data completeness
-6. For each row, preserve score/status, trend, evidence, owner, and next action.
-7. Keep metric names stable across projects when the same management dimension is being measured.
-8. When a project metric is built from individual QA metrics, explain the aggregation logic and separate personal contribution from project/system constraints.
+1. **Composite Row Identity & Structure**:
+   Maintain `project_metrics` using the 12-column composite identity:
+   `(Project, Metric Key, Role / Stream)`
+   where project-wide rows use `Role / Stream = Project-wide`.
+
+2. **Maintain 4-Tier Row Taxonomy**:
+   - **Canonical Context Rows**:
+     - `Статус проекта` — `Активен` or `Не активен`.
+     - `Engagement outlook` — `YYYY-MM-DD [Contractual] — <Continuation Outlook> (<Confidence>)`.
+     - `Цель клиента / Ценность QA` — stated client objective with alignment flag.
+     - `Фокус M2` — technical/delivery management focus.
+     - `Статус согласования (Alignment)` — `Согласовано`, `В процессе калибровки`, or `Расхождение ожиданий`.
+     - `Сигнал capacity` — delivery/staffing capacity alert.
+   - **Outcome Proxy Rows** (`Outcome proxy: <Name>`):
+     Select 1 to 3 operational business outcome proxies connecting QA activities to client business value (e.g. `Regression turnaround duration`, `Production bug leakage`, `Blocker discovery lead time`, `Onboarding speed`).
+     Maintain `Baseline`, `Показатель` (Current Value), `Target`, `Evidence Status`, `Data Confidence`, `Пояснение`, `Owner`, `Тренд`.
+   - **QA Process Quality Overview**:
+     Summary overview of QA execution quality.
+   - **Person Contribution Attribution Rows**:
+     `Вклад в проект: <Person>` with explicit `Role / Stream` (e.g. `AQA`, `Manual QA`) and status `Позитивный`, `Смешанный`, `Негативный`.
+
+3. **Apply Outcome Proxies Playbook**:
+   - *Formula 1 (Regression Duration)*: $(\text{Baseline} - \text{Current})$ turnaround duration in days/hours per cycle $\rightarrow$ Delivery Speed / Lead Time.
+   - *Formula 2 (Production Leakage)*: Escaped P0/Critical defects per release $\rightarrow$ Release Stability.
+   - *Formula 3 (Late-Stage Critical Defects)*: Critical defects caught on Staging/RC + Production per release.
+   - *Formula 4 (Blocker Discovery Ratio)*: Ratio of critical defects found in Dev/Sprint pre-test vs. all stages $\rightarrow$ Decision Predictability (Shift-Left).
+   - *Formula 5 (Onboarding / Ramp-up Speed)*: Working days from start to first accepted test suite/commit $\rightarrow$ Continuity Efficiency.
+   - *Formula 6 (Estimated Rework Hours Avoided)*: $(\text{Critical bugs caught pre-prod}) \times (\text{Prod fix hours} - \text{Pre-prod fix hours})$ (requires project-specific estimates and `estimated` / `assumption-based` status).
+
+4. **Enforce Epistemic & Zero-Denominator Rules**:
+   - **Evidence Status**: Set explicitly to `observed`, `estimated`, `projected`, or `assumption-based`.
+   - **Data Confidence**: Set explicitly to `Высокая`, `Средняя`, or `Низкая`.
+   - **Zero-Denominator Events**: For periods with zero releases or zero incidents, record the factual text `No releases in period` or `Not applicable (no incidents)` with `Evidence Status = observed`. Do NOT report numeric zero, 0%, or 100% false certainties.
+   - **Not Applicable vs. No Data Yet**:
+     - `Not applicable`: metric does not apply to this project's phase or stream.
+     - `No data yet`: metric applies, but data collection has not begun.
+
+5. **Expectation Gap Rule**:
+   - When `Статус согласования (Alignment) = Расхождение ожиданий`, open an `m2_input` question or an action item.
+   - An active project risk item is created only when credible impact exists on delivery, client trust, staffing, or contract continuation.
 
 ## Guardrails
 
-- Do not mix metrics output with development-plan output.
-- Do not mix metrics output with project-risk output.
-- Do not invent quantitative metrics. If a score is qualitative or source-derived, label the evidence and data status clearly.
-- Do not include metrics that are impossible to measure regularly unless the row explicitly states the data gap.
-- Do not read large extracted documents end to end by default. Start from manifest/JSON metadata and preview rows, then search or sample only the sheets/sections needed for the target metric question.
+- Do not mix metrics output with development-plan narrative.
+- Do not mix metrics output with project-risk item registers.
+- Do not invent quantitative metrics. If a score is qualitative or estimated, label `Evidence Status` and `Data Confidence` clearly.
+- `project_metrics` is unshared (M2/M3 only) and lives in `20_M2_Project_Management/<Project>/private/`.
