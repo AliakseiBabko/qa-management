@@ -16,7 +16,7 @@ happened yet.
 ## Required Start
 
 1. Identify the person.
-2. Read `references/document-contract.md`.
+2. Read `../1to1-prep-core/references/prep-core-rules.md` (shared 1:1 question-prep framework) and `references/document-contract.md`.
 3. Read `../qa-management-roles/references/m1-role-rules.md`.
 4. Read `../qa-management-roles/references/newcomer-support-rules.md`.
 5. Read `../qa-management-roles/references/off-scope-stress-rules.md`.
@@ -24,6 +24,9 @@ happened yet.
    `m1-individual-development-plan`).
 7. Check `_m1_timeline` (see `m1-timeline`) for any other open item logged
    against this person.
+8. Check `_project_registry` (Column 9: `People requiring attention`) across
+   active projects for any candidate attention flags or `[Stale: review required]`
+   signals associated with this person.
 
 ## Scope
 
@@ -62,13 +65,20 @@ person's experience of it, not the project's fix.
    OKR) becomes a direct follow-up question.
 6. Any `qa-1to1-analysis` findings from a transcript newer than the last
    risk-sheet update, if one exists and hasn't been folded in yet.
-7. If `_people_registry`'s `Первый коммерческий проект` is unconfirmed
+7. Candidate signals from `_project_registry` (`People requiring attention` column).
+   If this person is flagged (e.g. from an unlinked high private `individual_risk`
+   or onboarding milestone), or marked with `[Stale: review required]` (indicating
+   an underlying private project risk unreviewed in $>30\text{d}$), derive a
+   candidate exploration question regarding their project workload, stakeholder
+   interactions, or team support without exposing raw unconfirmed project-level
+   claims as verified facts.
+8. If `_people_registry`'s `Первый коммерческий проект` is unconfirmed
    for this person and they're newly staffed to a project, ask it directly
-   — see `newcomer-support-rules.md`. If it's confirmed `Да` and they're
+   — see `../qa-management-roles/references/newcomer-support-rules.md`. If it's confirmed `Да` and they're
    within their first month, proactively ask about environment, process,
    and whether the assigned buddy/mentor relationship is actually working.
-8. If this person has an off-scope submission/interview-prep episode on
-   record within the last six months (see `off-scope-stress-rules.md`),
+9. If this person has an off-scope submission/interview-prep episode on
+   record within the last six months (see `../qa-management-roles/references/off-scope-stress-rules.md`),
    include a direct, specific question about it every time this prep runs
    within that window, even if the risk row currently reads calm — do not
    let "no recent complaints" substitute for actually asking.
@@ -77,12 +87,20 @@ person's experience of it, not the project's fix.
 
 1. Pull candidate questions from each source above, in order.
 2. Drop anything already resolved by a more recent source.
-3. Group into short sections (suggested: Открытые риски, Открытые OKR,
+3. **Gated Candidate Ingestion Contract**:
+   - `People requiring attention` candidate flags from `_project_registry` inform
+     1:1 question preparation only.
+   - Candidate flags **never automatically mutate or create rows** in M1 records
+     (`светофор_рисков.csv`, `1to1.csv`, `_m1_timeline`).
+   - M1 records are updated only after direct conversation validation via the
+     owning M1 skills (`m1-people-risk-report`, `m1-people-1to1-file`,
+     `m1-individual-development-plan`).
+4. Group into short sections (suggested: Открытые риски, Открытые OKR,
    Последующие шаги — only include a section with real content).
-4. Cap at what actually fits in a 1to1 — 4-6 questions is normal for a
+5. Cap at what actually fits in a 1to1 — 4-6 questions is normal for a
    people-focused conversation; leave room for the person to talk, don't
    script the whole meeting.
-5. Present as plain chat text. Do not create a Google Doc/Sheet by default;
+6. Present as plain chat text. Do not create a Google Doc/Sheet by default;
    only save it if the user explicitly asks (see Versioning in the
    document-contract).
 
@@ -96,10 +114,11 @@ person's experience of it, not the project's fix.
 - If the person has no risk-sheet row yet, say so plainly rather than
   inventing generic onboarding questions not grounded in their actual
   history.
-- Do not write into the OKR Doc or `_m1_timeline` from this skill —
-  status/result updates and event-closure that come out of the actual
-  1to1 get applied via `m1-individual-development-plan`/`m1-timeline`, not
-  from what was planned to be asked.
+- Do not write into the OKR Doc, people-risk Sheet, 1to1 Sheet, or `_m1_timeline`
+  from this skill — candidate signals and prep questions do not mutate M1 records
+  automatically. Status/result updates and event-closure that come out of the
+  actual 1to1 get applied via `m1-individual-development-plan`/`m1-timeline`/
+  `m1-people-risk-report`/`m1-people-1to1-file`.
 - If the person has no current-cycle OKR Doc, say so plainly rather than
   treating it as nothing to ask about — a missing OKR past its due date is
   itself worth a question.

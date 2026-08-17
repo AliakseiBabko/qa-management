@@ -102,6 +102,15 @@ needed again, rather than reusing hardcoded historical data.
 
 These are what actually runs day to day, once a project's folder already exists:
 
+- `management_dialogue.py` — local, dependency-free coordinator for a
+  multi-model implementation-plan dialogue. `init` creates a state file for a
+  canonical plan and agent rotation; `next` writes a targeted model brief with
+  plan hash, acceptance criteria, unresolved items, and decisions;
+  `complete-turn` records saved artifacts, changed files, revision hashes,
+  validation evidence, and open questions; `decision`, `user-input`, `verify`,
+  `close`, and `status` manage control points. It does not call model APIs,
+  inject prompts into GUI sessions, or bypass subscription limits.
+
 - `show_project_state.py` — read-only dump of a project's canonical
   documents (`--project <Name>`) and/or the two workspace-wide registries
   (`--registries`). Creates nothing, even for a typo'd/missing project name
@@ -143,6 +152,13 @@ These are what actually runs day to day, once a project's folder already exists:
   required `private`, `team_shared`, and per-person `shared` folders and
   moves unambiguous canonical artifacts while preserving file IDs. It never
   changes sharing permissions and never moves an unknown file.
+- `migrate_project_risk_schema.py` — migration script for converting legacy
+  single-tab `project_risk` spreadsheets and fallback CSV tables to the living
+  2-tab schema (`Summary` tab with 14 columns + `Risk Items` tab with 20 columns).
+  Defaults safely to `--dry-run` (read-only audit with before/after diff summary);
+  requires explicit `--apply` flag to write changes. Supports both Google Drive
+  and local directory trees (`--local-dir <path>`). Idempotent: already compliant
+  worksheets are detected and preserved without modification.
 - `m2_workspace_layout.py` — not a script to run; canonical mapping from M2
   document roles to visibility folders. Readers use canonical-first,
   legacy-compatible lookup during migration; writers create only in the

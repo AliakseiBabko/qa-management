@@ -9,17 +9,18 @@ with local CSV fallback. Preserve the CSV template columns as the Sheet schema.
 
 Use this reference for the project-risk document family.
 
-## Template
+## Templates
 
-`<repo-root>\Templates\светофор_рисков_проекта.csv`
+`project_risk` is a 2-tab living Google Sheet with local CSV fallbacks:
+
+- `<repo-root>\Templates\светофор_рисков_проекта.csv` — `Summary` worksheet column schema (1 row per project executive summary).
+- `<repo-root>\Templates\project_risk_items.csv` — `Risk Items` worksheet column schema (itemized risk register with full lifecycle).
 
 ## Expected Output
 
-One living project-risk Sheet per project — not a dated snapshot series.
-Exactly one row per project, updated in place as the risk read changes
-(same shape/discipline as `project_metrics`, M1's `Светофор рисков`, and
-the person-level `individual_risk`, see `m2-individual-qa-metrics-report/
-references/internal-variant.md`).
+One living 2-tab project-risk Sheet per project in `20_M2_Project_Management\<Project>\private`.
+- `Summary` tab: exactly one row per project, updated in place.
+- `Risk Items` tab: itemized risk register tracking each risk from earliest signal to closure.
 
 Target folder:
 
@@ -27,59 +28,68 @@ Target folder:
 
 ## Versioning
 
-- `generate_m2_outputs.py` (see README, "legacy first-pass tools") is not
-  template-aware: it mechanically pulls `label: value` bullets out of each
-  source document's own Scorecard section into whatever columns happen to
-  line up, without synthesizing a single project-level voice per column —
-  this is where rows like a `Риск staffing / continuity` cell literally
-  reading `Owner: X. Owner: Y. Owner: Z.` come from. Its `project_risk`
-  output is a raw source dump, not a compliant row — never treat it as
-  already following this schema. When applying this schema to a project for
-  the first time (or fixing a row that reads like disconnected fragments
-  instead of one coherent risk assessment per column), write a real
-  synthesized row from the evidence directly into the project's one current
-  row — do not create a `project_risk_predecessor_<date>` backup file
-  first; that dated-backup pattern belonged to the old per-snapshot model
-  and has no place in a living, one-row document (a bad prior row just
-  gets corrected in place, the same as any other stale cell). `sync_m2_source_docs_to_sheets.py`
-  uses this same extraction path — it only creates `project_risk` when one
-  doesn't exist yet (a rough bootstrap) and never overwrites an existing
-  one, specifically so rerunning it can't silently replace a real
-  synthesized row with fragments again.
-- **One row per project, always.** Update that project's existing row in
-  place when the risk read changes — never append a second dated row for
-  a project already on the Sheet, even for a routine no-change review.
-  `Дата обновления` carries the freshness signal; there is no separate
-  snapshot-date key. Append source traceability to the project
-  `evidence_log`, not a new row here.
-- Do not create a dated snapshot file/tab per review. If the user
-  explicitly wants a point-in-time archival export (e.g. for a formal
-  reporting event), create one as a clearly-labeled one-off — that is the
-  exception, not the default working pattern.
+- Both worksheets are living tables, updated in place. Do not create dated snapshot files for routine updates.
+- One row per project, always, on the Summary worksheet.
+- `Summary` tab updates `Дата обновления` when any cell changes.
+- `Risk Items` tab updates `Дата последнего изменения (Last Changed)` and `Дата последнего review (Last Reviewed)` on edit/review.
+- Append source traceability to the project `evidence_log`.
 
-## Schema
+## Schema — `Summary` Worksheet
 
-Use exactly the columns in `Templates\светофор_рисков_проекта.csv`:
+Columns in `Templates\светофор_рисков_проекта.csv`:
 
-1. `Проект`
-2. `Дата обновления` — ISO or `DD.MM.YYYY` (match what's already in the
-   Sheet), the date this row's content last actually changed. Do not
-   touch it when only reading/reviewing, and do not backdate or leave it
-   stale after a real edit.
-3. `Общий уровень риска`
-4. `Риск delivery`
-5. `Риск QA process`
-6. `Риск staffing / continuity`
-7. `Риск communication / client`
-8. `Комментарии`
-9. `План действий`
-10. `Owner` — an actual accountable owner (a person or M2 itself), not left
-    blank. Every project's `Owner` cell was empty before 2026-07-08; treat a
-    blank `Owner` as an incomplete row, not an acceptable default.
-11. `Следующий review`
+1. `Проект` — project name.
+2. `Дата обновления` — date the summary row was last modified.
+3. `Общий уровень риска` — `Низкий`, `Средний`, `Высокий`.
+4. `ID ключевого риска` — reference to the primary active risk item in the `Risk Items` tab (e.g. `RSK-01`).
+5. `Ключевой ранний сигнал` — concise statement of earliest observable signal.
+6. `Статус прогнозирования` — prediction status of key risk (`Detected Early`, `Detected Late`, `Not Detectable`, `Not Reviewed`).
+7. `Риск delivery` — `Низкий`, `Средний`, `Высокий`.
+8. `Риск QA process` — `Низкий`, `Средний`, `Высокий`.
+9. `Риск staffing / continuity` — `Низкий`, `Средний`, `Высокий`.
+10. `Риск communication / client` — `Низкий`, `Средний`, `Высокий`.
+11. `План действий M2` — synthesized action plan.
+12. `Уверенность в данных` — `Высокая`, `Средняя`, `Низкая`.
+13. `Owner` — accountable owner.
+14. `Следующий review` — next review date (`YYYY-MM-DD`).
 
-`Evidence / источники` was removed from this schema: it only ever held raw
-source file paths, which is exactly the pattern already excluded from
-`individual_development_plan` for the same reason — a bare list of paths
-tells the reader nothing, and that traceability already lives in
-`evidence_log`. Do not reintroduce a raw-path evidence column here.
+## Schema — `Risk Items` Worksheet
+
+Columns in `Templates\project_risk_items.csv`:
+
+1. `Risk ID` — unique item identifier per project (e.g. `RSK-01`, `RSK-02`).
+2. `Проект` — project name.
+3. `Формулировка риска` — specific threat/risk statement.
+4. `Категория` — `delivery`, `QA process`, `staffing / continuity`, `communication / client`, `role / value`.
+5. `Уровень риска (Severity)` — `Низкий`, `Средний`, `Высокий`.
+6. `Дата первого сигнала` — earliest observable signal timestamp (`YYYY-MM-DD`).
+7. `Дата фиксации риска` — date the risk was logged in the register (`YYYY-MM-DD`).
+8. `Ожидаемая дата наступления (Expected Impact)` — forecast impact date (`YYYY-MM-DD`).
+9. `Дата материализации` — date risk materialized (`YYYY-MM-DD`, required when status is `Materialized`).
+10. `Дата закрытия (Closed Date)` — date risk was closed (`YYYY-MM-DD`, required when status is `Closed`).
+11. `Дата последнего review (Last Reviewed)` — date risk was last reviewed.
+12. `Дата последнего изменения (Last Changed)` — timestamp of last substantive edit.
+13. `Статус прогнозирования` (Prediction Status):
+    - `Detected Early` — observable signal logged before expected impact with actionable lead time.
+    - `Detected Late` — first logged after impact, missed milestone, or escalation.
+    - `Not Detectable` — evidence demonstrates the signal was genuinely unavailable beforehand.
+    - `Not Reviewed` — evidence was available in sources but unreviewed in time.
+    *(Legacy rows have empty Prediction Status).*
+14. `Обоснование статуса` — concrete evidence explaining the prediction status.
+15. `Migration State`:
+    - `Normal` — active or migrated item with complete prediction status.
+    - `Legacy — detection status unavailable` — legacy imported item (excluded from prediction stats and top-risk selection).
+16. `Уверенность в доказательствах (Evidence Confidence)` — `Высокая`, `Средняя`, `Низкая`.
+17. `Ссылка на evidence_log` — pointer to source entry (e.g. `evidence_log: row 42`).
+18. `Митигация` — concrete mitigation action.
+19. `Owner` — accountable mitigation owner.
+20. `Текущий статус` (Current Status) — `Open`, `Mitigating`, `Materialized`, `Accepted`, `Closed`.
+
+### Conditional Date Consistency Rules:
+
+- **Unmaterialized forecast risk**: $\text{First Signal} \le \text{Risk Logged} \le \text{Expected Impact}$.
+- **Materialized or late-detected risk**: $\text{Expected Impact} \le \text{Materialization Date}$ when both dates known.
+
+### Candidate PM Case Review Trigger:
+
+Risks marked `Detected Late` or `Materialized` create a review candidate for `40_PM_Case_Library`. The review may resolve as `logged` or `no_case_logged`.

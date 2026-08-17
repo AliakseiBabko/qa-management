@@ -5,7 +5,7 @@ This script uses extracted DOCX/XLSX content from 90_Storage/_System/extracts/so
 updates the canonical project-based M2 workspace in Google Drive:
 
 - 20_M2_Project_Management/<Project>/private/project_metrics
-- 20_M2_Project_Management/<Project>/private/project_risk
+- 20_M2_Project_Management/<Project>/private/project_risk (2-tab workbook: Summary + Risk Items)
 - 20_M2_Project_Management/<Project>/private/evidence_log
 - 20_M2_Project_Management/<Project>/people/<Person>/shared/individual_metrics
 
@@ -98,49 +98,38 @@ def q_escape(value: str) -> str:
 
 
 def clean_person_name(value: str) -> str:
-    value = value.strip().strip("_").strip()
-    value = re.sub(r"^(План развития|Метрики)\s+", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"\s*-\s*план развития.*$", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"\s*-\s*метрики.*$", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"\s+", " ", value)
-    return value.strip(" -_")
+    return value.replace("ё", "е").replace("Ё", "Е").strip()
 
 
-def normalize_name_tokens(value: str) -> str:
-    words = re.findall(r"[A-Za-zА-Яа-яЁё0-9]+", value.casefold())
-    return " ".join(sorted(words))
-
-
-def resolve_existing_person_dir(project: str, person: str) -> str:
-    people_root = M2_ROOT / project / "people"
-    people_root.mkdir(parents=True, exist_ok=True)
-    wanted = normalize_name_tokens(person)
-    for child in people_root.iterdir():
-        if child.is_dir() and normalize_name_tokens(child.name) == wanted:
+def resolve_existing_person_dir(project: str, person_name: str) -> str:
+    people_dir = M2_ROOT / project / "people"
+    if not people_dir.exists():
+        return person_name
+    normalized_target = clean_person_name(person_name)
+    for child in people_dir.iterdir():
+        if child.is_dir() and clean_person_name(child.name) == normalized_target:
             return child.name
-    return person
+    return person_name
 
 
-def drive_query(drive: Any, query: str, fields: str = "id,name,mimeType,parents,webViewLink") -> list[dict[str, Any]]:
-    files: list[dict[str, Any]] = []
-    token = None
+def drive_query(drive: Any, query: str, fields: str = "id,name,mimeType,webViewLink") -> list[dict[str, Any]]:
+    from pipeline_common import execute_with_backoff
+    results = []
+    page_token = None
     while True:
-        response = (
-            drive.files()
-            .list(
-                q=query,
-                fields=f"nextPageToken,files({fields})",
-                pageSize=1000,
-                pageToken=token,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-            )
-            .execute()
+        request = drive.files().list(
+            q=query,
+            fields=f"nextPageToken,files({fields})",
+            pageToken=page_token,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
         )
-        files.extend(response.get("files", []))
-        token = response.get("nextPageToken")
-        if not token:
-            return files
+        response = execute_with_backoff(request)
+        results.extend(response.get("files", []))
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+    return results
 
 
 def find_or_create_folder(drive: Any, parent_id: str, name: str) -> dict[str, Any]:
@@ -262,6 +251,120 @@ def upsert_sheet(services: dict[str, Any], folder_id: str, title: str, values: l
     ).execute()
     reformat_sheet(services, existing["id"], title)
     return existing
+
+
+def create_multi_tab_sheet(
+    services: dict[str, Any],
+    title: str,
+    folder_id: str,
+    tabs_data: dict[str, list[list[str]]],
+) -> dict[str, Any]:
+    """Create a new Google Sheet with multiple named tabs."""
+    tab_names = list(tabs_data.keys())
+    first_tab = tab_names[0] if tab_names else "Sheet1"
+
+    body = {
+        "properties": {"title": title},
+        "sheets": [{"properties": {"title": first_tab}}],
+    }
+    spreadsheet = (
+        services["sheets"]
+        .spreadsheets()
+        .create(body=body, fields="spreadsheetId,spreadsheetUrl")
+        .execute()
+    )
+    spreadsheet_id = spreadsheet["spreadsheetId"]
+    move_file_to_folder(services["drive"], spreadsheet_id, folder_id)
+
+    if len(tab_names) > 1:
+        add_requests = [
+            {"addSheet": {"properties": {"title": t_name}}}
+            for t_name in tab_names[1:]
+        ]
+        services["sheets"].spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": add_requests},
+        ).execute()
+
+    for t_name, vals in tabs_data.items():
+        if vals:
+            services["sheets"].spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'{t_name}'!A1",
+                valueInputOption="RAW",
+                body={"values": vals},
+            ).execute()
+
+    reformat_sheet(services, spreadsheet_id, title)
+    return services["drive"].files().get(
+        fileId=spreadsheet_id,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+
+
+def upsert_multi_tab_sheet(
+    services: dict[str, Any],
+    folder_id: str,
+    title: str,
+    tabs_data: dict[str, list[list[str]]],
+) -> dict[str, Any]:
+    """Upsert a multi-tab Google Sheet, updating tabs in place while preserving extra tabs."""
+    existing = find_sheet_in_folder(services["drive"], folder_id, title)
+    if not existing:
+        return create_multi_tab_sheet(services, title, folder_id, tabs_data)
+
+    spreadsheet_id = existing["id"]
+    metadata = services["sheets"].spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    existing_tabs = {s["properties"]["title"]: s["properties"] for s in metadata.get("sheets", [])}
+
+    add_requests = []
+    for t_name in tabs_data:
+        if t_name not in existing_tabs:
+            add_requests.append({"addSheet": {"properties": {"title": t_name}}})
+    if add_requests:
+        services["sheets"].spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": add_requests},
+        ).execute()
+
+    for t_name, vals in tabs_data.items():
+        grid = existing_tabs.get(t_name, {}).get("gridProperties", {})
+        rows = max(grid.get("rowCount", 1000), 1000)
+        cols = max(grid.get("columnCount", 26), 26)
+        clear_range = f"'{t_name}'!A1:{col_label(cols)}{rows}"
+        try:
+            services["sheets"].spreadsheets().values().clear(
+                spreadsheetId=spreadsheet_id,
+                range=clear_range,
+                body={},
+            ).execute()
+        except Exception:
+            pass
+
+        if vals:
+            services["sheets"].spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'{t_name}'!A1",
+                valueInputOption="RAW",
+                body={"values": vals},
+            ).execute()
+
+    reformat_sheet(services, spreadsheet_id, title)
+    return existing
+
+
+def build_project_risk_tabs_data(
+    summary_header: list[str],
+    items_header: list[str],
+    summary_rows: list[list[str]],
+    items_rows: list[list[str]] | None = None,
+) -> dict[str, list[list[str]]]:
+    """Assemble 2-tab data structure for project_risk workbook."""
+    return {
+        "Summary": [summary_header, *summary_rows],
+        "Risk Items": [items_header, *(items_rows or [])],
+    }
 
 
 def markdown_for(extract_root: Path, item: dict[str, str]) -> str:
@@ -388,7 +491,8 @@ def main() -> int:
     snapshot_date = dt.date.today().isoformat()
 
     project_metrics_header = read_template_header("метрики_проекта_qa.csv")
-    project_risk_header = read_template_header("светофор_рисков_проекта.csv")
+    project_risk_summary_header = read_template_header("светофор_рисков_проекта.csv")
+    project_risk_items_header = read_template_header("project_risk_items.csv")
     individual_metrics_header = read_template_header("метрики_qa_по_проекту.csv")
     evidence_header = ["date", "source", "source_type", "project", "routed_to", "notes"]
 
@@ -441,13 +545,18 @@ def main() -> int:
             if find_sheet_in_folder(drive, project_folder["id"], "project_risk"):
                 results.append(f"{project}: project_risk already exists, left untouched (needs M2 synthesis, not auto-sync)")
             else:
-                meta = upsert_sheet(
+                tabs_data = build_project_risk_tabs_data(
+                    summary_header=project_risk_summary_header,
+                    items_header=project_risk_items_header,
+                    summary_rows=project_risks[project],
+                )
+                meta = upsert_multi_tab_sheet(
                     services,
                     private_folder["id"],
                     "project_risk",
-                    [project_risk_header, *project_risks[project]],
+                    tabs_data,
                 )
-                results.append(f"{project}: {meta['name']} (rough first pass — still needs M2 synthesis)")
+                results.append(f"{project}: {meta['name']} (multi-tab 2-sheet rough first pass — still needs M2 synthesis)")
 
         evidence_sheet = find_sheet_in_folder(drive, project_folder["id"], "evidence_log")
         existing_evidence = read_sheet_values(services, evidence_sheet["id"]) if evidence_sheet else [evidence_header]

@@ -9,6 +9,8 @@ __pycache__/
 tmp/
 .vscode/
 .playwright-mcp/
+# Local multi-agent planning and review artifacts; keep out of the public remote.
+management/
 # Machine-local Claude Code skill adapter (link to .agents/skills, the
 # canonical source). Untracked so linked skill contents cannot be staged.
 .claude/skills

@@ -47,9 +47,8 @@ PLAN_MODULES = ["plan-schema.md", "plan-sources-normalization.md"]
 RISK_MODULES = ["risk-schema.md", "risk-evidence-rules.md"]
 
 PLAN_ORIGINAL_BYTES = 10468
-RISK_ORIGINAL_BYTES = 12150  # re-anchored 2026-08-05: project_risk moved from a dated-snapshot
-# versioning model (_vN, project_risk_predecessor backups) to a living one-row-per-project
-# record (same shape as project_metrics/individual_risk), a legitimate content change.
+RISK_ORIGINAL_BYTES = 14079  # re-anchored 2026-08-17: project_risk schema expanded from single-tab
+# snapshot to living 2-tab workbook (Summary + Risk Items) with full lifecycle fields.
 
 CONDITIONAL = re.compile(r"\b(when|if)\b", re.IGNORECASE)
 

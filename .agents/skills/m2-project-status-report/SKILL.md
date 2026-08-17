@@ -36,27 +36,35 @@ status now is also writing next month's raw material for that skill.
 
 ## Source Order
 
-1. Existing status reports for the same project.
-2. Project development plans and plan-progress notes.
-3. Project QA metrics and individual QA metrics that affect the project picture.
-4. Project risk summaries.
-5. Workbook status rows, strategy-chat notes, 1to1 analysis findings, transcripts, or source extracts.
-6. Pending sources under `00_Inbox`, durable references under `90_Storage/Reference`, and extracted copies under `90_Storage/_System/extracts/source`.
+1. **Layer 2 Curated Current-State Records**:
+   - `project_metrics` — canonical context (`Статус проекта`, `Engagement outlook`, `Цель клиента / Ценность QA`, `Фокус M2`, `Статус согласования (Alignment)`, `Сигнал capacity`) and active `Outcome proxy: <name>` rows.
+   - `project_risk` — living 2-tab workbook (`Summary` 5-dimension risk posture + active `Risk Items` early warnings).
+2. **Layer 3 Executive Baseline**:
+   - `_project_registry` row for top-line alignment, synthesized confidence, and attention signals.
+3. **Prior Status Reports**:
+   - Continuity with previous weekly/monthly status updates for the same project.
+4. **Plans & Actions**:
+   - Project development plans, `action_items`, and `m2_input` decision records.
+5. **Layer 1 Evidence Sources**:
+   - `evidence_log`, `qa_process_metrics`, `individual_metrics`, strategy-chat notes, 1to1 findings, transcripts, or source extracts.
+6. **Intake & Storage**:
+   - Pending sources under `00_Inbox`, durable references under `90_Storage/Reference`, and extracted copies under `90_Storage/_System/extracts/source`.
 
 For DOCX/XLSX sources, prefer existing extracted files under `G:\My Drive\QA_Management\90_Storage\_System\extracts\source\YYYY-MM-DD\<Project>\...`. If no suitable extract exists, use `.agents/scripts/qa_source_extract.py`.
 
 ## Workflow
 
-1. Build a short evidence-backed status for the requested period.
-2. Decide the shape: flat (single QA) or per-person/per-stream (more than
-   one) — see Chat Text Shape. Don't force a breakdown that the evidence
-   doesn't support (e.g. one QA doing two unrelated task types isn't two
-   streams).
-3. Focus on what changed, what matters now, and what happens next.
-4. Include metrics or risk levels only when they add useful management signal.
-5. Separate current facts from plans, risks, and missing evidence.
-6. Keep the report concise enough to paste into a chat without editing.
-7. Decide the destination (see Destination) and deliver there.
+1. Build a short, evidence-backed status for the requested period grounded in Layer 2 records.
+2. **Executive Synthesis**:
+   - **Outcome & Business Value**: Highlight measurable progress on operational proxies (`Outcome proxy: <name>`), noting `Baseline → Current → Target` movement.
+   - **Risk & Early Warning**: State overall risk level (`Низкий`, `Средний`, `Высокий`) and key early warning signals from top active risk item (`ID ключевого риска`, `Статус прогнозирования`).
+   - **Expectation Alignment**: Note `Статус согласования (Alignment)` (`Согласовано`, `В процессе калибровки`, `Расхождение ожиданий`) and state active calibration steps if an expectation gap exists.
+   - **Delivery & Quality**: Note sprint/release facts, test coverage, and blockers.
+   - **Next Steps & Ownership**: Specify concrete management actions, owners, and next review dates.
+3. Decide the shape: flat (single QA) or per-person/per-stream (more than one) — see Chat Text Shape. Don't force a breakdown that the evidence doesn't support.
+4. Focus on what changed, what matters now, and what happens next.
+5. Keep the report concise enough to paste into a chat without editing.
+6. Decide the destination (see Destination) and deliver there.
 
 ## Destination
 

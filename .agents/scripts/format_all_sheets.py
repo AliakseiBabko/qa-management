@@ -1,60 +1,13 @@
 #!/usr/bin/env python3
-"""Format every Google Sheet under the workspace root for readability -
-both 10_M1_People_Management and 20_M2_Project_Management by default.
+"""Format every Google Sheet under the workspace root for readability.
 
-For each non-empty column: wrap text, align left/top, and size the column so
-wrapped text fits in roughly 5 lines. Column widths also try to keep the
-whole sheet's total width within a single 1920x1200 laptop screen; when a
-column's content genuinely needs more room to stay under ~5 wrapped lines,
-that constraint wins over fitting on screen.
+Supports explicit formatting profiles for executive and living M2 sheets:
+- `_project_registry`: 13-column executive layout (1,680 px budget) with risk traffic-light and stale warnings.
+- `project_metrics`: 12-column layout (1,600 px) with trend and confidence conditional formatting.
+- `project_risk` (Summary tab): 14-column layout (1,600 px) with 5-dimension risk traffic-lights and prediction signals.
+- `project_risk` (Risk Items tab): 20-column layout with severity, lifecycle dates, prediction status, and item status formatting.
 
-Also resets every cell across the sheet's full declared grid (not just the
-non-empty data range) to a standard, uncolored, borderless look (white
-background, black text, no cell borders - cleared via a dedicated
-`updateBorders` request, since `repeatCell`'s `userEnteredFormat.borders`
-was tried first and empirically does not actually clear an existing
-border despite matching the documented request shape) and un-collapses
-rows - clears any leftover `hiddenByUser` flag and sets row height from
-computed wrapped-line count, same heuristic as column width.
-`autoResizeDimensions` was tried for row height (to match the Sheets UI's
-own "Fit to data") but empirically resets rows to the flat single-line
-default instead of measuring wrapped content via the API - it is not a
-substitute for computing height explicitly. The line-count heuristic's
-`CELL_PADDING_PX` must match the Sheets default cell padding (~3px each
-side, 6px total - confirmed via `effectiveFormat.padding` on a real cell)
-or it overestimates wrapped line count and leaves a visible gap at the
-bottom of every cell; a much larger value here was the original cause of
-that gap. A row that looks "collapsed"/clipped is usually just a stale
-fixed row height left over from before WRAP was turned on, not an actual
-fold - a real case of a row's full multi-line comment being invisible in
-the UI was found and fixed this way.
-
-Every column is also floored at the pixel width its own single longest
-word needs (`longest_word_width`) - Sheets' WRAP strategy wraps on word
-boundaries but falls back to a mid-word character break for any word wider
-than the column, which reads badly for short category-label columns (e.g.
-a value landing one letter short of the column width, splitting that
-letter onto its own line). This floor overrides the screen-budget shrink
-step if the two conflict - a slightly-over-budget sheet looks better than
-a broken word.
-
-When a sheet has few enough columns that everyone's true single-line width
-still fits on screen (e.g. `_m1_pr_calendar`, `_m2_pr_calendar`-style views),
-columns are widened up to that single-line width instead of being capped at
-the 5-line minimum - no reason to force wrapping just because a narrower
-sheet happens to have room to spare. If single-line widths for everyone
-don't fit but the 5-line minimums do, the spare screen budget is still
-handed out proportionally so wide columns get closer to one line without
-starving the others.
-
-This is a heuristic (character-count based, no real font metrics), so it
-will not be exact for every cell - long single-column narrative text may
-still exceed 5 lines at the width cap.
-
-Pass --dry-run to print what would change (per-sheet column widths) without
-calling batchUpdate - worth doing at least once whenever the scope of what
-this script walks changes, since it wasn't run against 10_M1_People_Management
-before this option existed.
+For sheets without an explicit profile, falls back to dynamic content-based column sizing and row height heuristics.
 """
 
 from __future__ import annotations
@@ -73,17 +26,128 @@ from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, drive_query
 
 MAX_RETRIES = 5
 
+CHAR_WIDTH_PX = 7.2
+CELL_PADDING_PX = 6
+MIN_WIDTH_PX = 90
+MAX_WIDTH_PX = 420
+TARGET_LINES = 5
+SCREEN_BUDGET_PX = 1780
+VERTICAL_PADDING_PX = 4
+TEXT_LINE_HEIGHT_PX = 17
+MAX_ROW_HEIGHT_PX = 800
+WORD_WIDTH_SAFETY_MARGIN_PX = 10
+
+# Standard Traffic Light Palette
+COLOR_RED_BG = {"red": 0.988, "green": 0.910, "blue": 0.902}      # #FCE8E6
+COLOR_RED_TEXT = {"red": 0.773, "green": 0.133, "blue": 0.122}    # #C5221F
+
+COLOR_YELLOW_BG = {"red": 0.996, "green": 0.969, "blue": 0.878}   # #FEF7E0
+COLOR_YELLOW_TEXT = {"red": 0.690, "green": 0.376, "blue": 0.0}   # #B06000
+
+COLOR_GREEN_BG = {"red": 0.902, "green": 0.957, "blue": 0.918}    # #E6F4EA
+COLOR_GREEN_TEXT = {"red": 0.075, "green": 0.451, "blue": 0.200}  # #137333
+
+COLOR_GRAY_BG = {"red": 0.945, "green": 0.953, "blue": 0.957}     # #F1F3F4
+COLOR_GRAY_TEXT = {"red": 0.373, "green": 0.388, "blue": 0.408}   # #5F6368
+
+COLOR_BLUE_BG = {"red": 0.910, "green": 0.941, "blue": 0.996}     # #E8F0FE
+COLOR_BLUE_TEXT = {"red": 0.102, "green": 0.451, "blue": 0.910}   # #1A73E8
+
+HEADER_BG = {"red": 0.95, "green": 0.95, "blue": 0.95}
+
+
+# Explicit Formatting Profiles
+PROFILES: dict[str, dict[str, Any]] = {
+    "_project_registry": {
+        "widths": [120, 150, 140, 160, 180, 90, 200, 110, 120, 140, 110, 80, 80],
+        "freeze_rows": 1,
+        "conditional_rules": [
+            # Col F (idx 5): Общий уровень риска
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            # Col I (idx 8): People requiring attention
+            {"col_start": 8, "col_end": 9, "type": "TEXT_CONTAINS", "val": "[Stale: review required]", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+        ],
+    },
+    "project_metrics": {
+        "widths": [110, 80, 200, 100, 120, 100, 100, 110, 110, 400, 80, 90],
+        "freeze_rows": 1,
+        "conditional_rules": [
+            # Col I (idx 8): Data Confidence
+            {"col_start": 8, "col_end": 9, "type": "TEXT_EQ", "val": "Высокая", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            {"col_start": 8, "col_end": 9, "type": "TEXT_EQ", "val": "Средняя", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 8, "col_end": 9, "type": "TEXT_EQ", "val": "Низкая", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            # Col L (idx 11): Тренд
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Позитивный", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Смешанный", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Негативный", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+        ],
+    },
+    "project_risk_summary": {
+        "widths": [110, 90, 90, 90, 220, 120, 90, 90, 110, 110, 220, 100, 80, 80],
+        "freeze_rows": 1,
+        "conditional_rules": [
+            # Col C (idx 2:3): Общий уровень риска
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            # Col F (idx 5:6): Статус прогнозирования
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Detected Early", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Detected Late", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Not Reviewed", "bg": COLOR_GRAY_BG, "fg": COLOR_GRAY_TEXT},
+            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Not Detectable", "bg": COLOR_GRAY_BG, "fg": COLOR_GRAY_TEXT},
+            # Cols G-J (indices 6:10): 4 Risk dimensions (delivery, QA process, staffing/continuity, communication/client)
+            {"col_start": 6, "col_end": 10, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 6, "col_end": 10, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 6, "col_end": 10, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            # Col L (idx 11:12): Уверенность в данных
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Высокая", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Средняя", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Низкая", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+        ],
+    },
+    "project_risk_items": {
+        "widths": [80, 100, 250, 110, 90, 90, 90, 110, 90, 90, 100, 100, 120, 220, 140, 110, 140, 220, 80, 90],
+        "freeze_rows": 1,
+        "conditional_rules": [
+            # Col E (idx 4): Уровень риска (Severity)
+            {"col_start": 4, "col_end": 5, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 4, "col_end": 5, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 4, "col_end": 5, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            # Col M (idx 12): Статус прогнозирования
+            {"col_start": 12, "col_end": 13, "type": "TEXT_EQ", "val": "Detected Early", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            {"col_start": 12, "col_end": 13, "type": "TEXT_EQ", "val": "Detected Late", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 12, "col_end": 13, "type": "TEXT_EQ", "val": "Not Reviewed", "bg": COLOR_GRAY_BG, "fg": COLOR_GRAY_TEXT},
+            {"col_start": 12, "col_end": 13, "type": "TEXT_EQ", "val": "Not Detectable", "bg": COLOR_GRAY_BG, "fg": COLOR_GRAY_TEXT},
+            # Col T (idx 19): Текущий статус
+            {"col_start": 19, "col_end": 20, "type": "TEXT_EQ", "val": "Closed", "bg": COLOR_GRAY_BG, "fg": COLOR_GRAY_TEXT},
+            {"col_start": 19, "col_end": 20, "type": "TEXT_EQ", "val": "Materialized", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 19, "col_end": 20, "type": "TEXT_EQ", "val": "Mitigating", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 19, "col_end": 20, "type": "TEXT_EQ", "val": "Open", "bg": COLOR_BLUE_BG, "fg": COLOR_BLUE_TEXT},
+        ],
+    },
+}
+
+
+def resolve_profile_for_tab(sheet_name: str, tab_title: str) -> dict[str, Any] | None:
+    """Find matching formatting profile by sheet name and tab title."""
+    if sheet_name == "_project_registry" or tab_title == "_project_registry":
+        return PROFILES["_project_registry"]
+    if sheet_name == "project_metrics" or tab_title == "project_metrics":
+        return PROFILES["project_metrics"]
+    if sheet_name == "project_risk" or "риск" in sheet_name.casefold():
+        if tab_title == "Risk Items" or "items" in tab_title.casefold():
+            return PROFILES["project_risk_items"]
+        return PROFILES["project_risk_summary"]
+    if tab_title == "Summary":
+        return PROFILES["project_risk_summary"]
+    if tab_title == "Risk Items":
+        return PROFILES["project_risk_items"]
+    return None
+
 
 def call_with_retry(request: Callable[[], Any]) -> Any:
-    """Run a googleapiclient request's .execute() with backoff on 429 (rate limit).
-
-    The Sheets API read-request quota (60/min/user, see
-    qa-management-roles/references/google-workspace/api-sharing-editing.md,
-    API Safety) is easy to exceed here since every sheet costs 2 read calls
-    (spreadsheets().get + values().get) and this script iterates every Sheet in
-    the workspace in one run. A 429 is a rate limit, not a real failure - back
-    off and retry rather than giving up on that sheet.
-    """
     delay = 5.0
     for attempt in range(MAX_RETRIES):
         try:
@@ -95,35 +159,288 @@ def call_with_retry(request: Callable[[], Any]) -> Any:
                 continue
             raise
 
-CHAR_WIDTH_PX = 7.2
-CELL_PADDING_PX = 6  # Sheets default cell padding is ~3px each side (confirmed via effectiveFormat.padding)
-MIN_WIDTH_PX = 90
-MAX_WIDTH_PX = 420
-TARGET_LINES = 5
-SCREEN_BUDGET_PX = 1780  # ~1920px laptop screen minus browser chrome/row numbers
-VERTICAL_PADDING_PX = 4  # top+bottom cell padding (confirmed via effectiveFormat.padding), applied once per row
-TEXT_LINE_HEIGHT_PX = 17  # single text line's own height, excluding padding
-MAX_ROW_HEIGHT_PX = 800  # sanity cap so one runaway cell can't blow out the sheet
-
 
 def row_height(lines: int) -> int:
-    """Row height for `lines` wrapped text lines - padding applies once per
-    row, not once per line (multiplying a single-line height, padding
-    included, by the line count double-counts padding and was the second,
-    smaller source of the bottom-gap bug after the CELL_PADDING_PX fix)."""
     return min(MAX_ROW_HEIGHT_PX, VERTICAL_PADDING_PX + TEXT_LINE_HEIGHT_PX * max(1, lines))
 
 
 def cell_line_count(text: str, width_px: int) -> int:
-    """How many wrapped lines `text` needs at `width_px` - explicit newlines force
-    a break regardless of width; each segment between them wraps on its own."""
     if not text:
         return 1
     chars_per_line = max(1, int((width_px - CELL_PADDING_PX) / CHAR_WIDTH_PX))
     lines = 0
     for segment in text.split("\n"):
-        lines += max(1, -(-len(segment) // chars_per_line))  # ceil div
+        lines += max(1, -(-len(segment) // chars_per_line))
     return max(1, lines)
+
+
+def column_width(values: list[str], target_lines: int = TARGET_LINES) -> int:
+    if not values:
+        return MIN_WIDTH_PX
+    lengths = sorted(len(v) for v in values if v)
+    if not lengths:
+        return MIN_WIDTH_PX
+    p90 = lengths[int(len(lengths) * 0.9)]
+    target_line_chars = max(p90 / target_lines, 8)
+    width = int(target_line_chars * CHAR_WIDTH_PX + CELL_PADDING_PX)
+    return max(MIN_WIDTH_PX, min(MAX_WIDTH_PX, width))
+
+
+def longest_word_width(values: list[str]) -> int:
+    longest = max((len(w) for v in values for w in v.split() if w), default=0)
+    if not longest:
+        return MIN_WIDTH_PX
+    return min(MAX_WIDTH_PX, int(longest * CHAR_WIDTH_PX + CELL_PADDING_PX) + WORD_WIDTH_SAFETY_MARGIN_PX)
+
+
+def build_conditional_rule_requests(sheet_id: int, rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build Sheets API AddConditionalFormatRuleRequest payloads."""
+    requests: list[dict[str, Any]] = []
+    for r in rules:
+        cond_type = r["type"]
+        val = r["val"]
+        cond: dict[str, Any] = {"type": cond_type, "values": [{"userEnteredValue": val}]}
+        format_spec: dict[str, Any] = {"backgroundColor": r["bg"]}
+        if "fg" in r:
+            format_spec["textFormat"] = {"foregroundColor": r["fg"]}
+
+        rule_req = {
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [
+                        {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "endRowIndex": 500,
+                            "startColumnIndex": r["col_start"],
+                            "endColumnIndex": r["col_end"],
+                        }
+                    ],
+                    "booleanRule": {
+                        "condition": cond,
+                        "format": format_spec,
+                    },
+                },
+                "index": 0,
+            }
+        }
+        requests.append(rule_req)
+    return requests
+
+
+def build_tab_formatting_requests(
+    grid_id: int,
+    row_count: int,
+    col_count: int,
+    values: list[list[str]],
+    profile: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[int, int]]:
+    """Pure builder for formatting batchUpdate requests for one tab."""
+    requests: list[dict[str, Any]] = []
+    num_cols = max((len(r) for r in values), default=0)
+    col_values: list[list[str]] = [[] for _ in range(num_cols)]
+    for row in values:
+        for i in range(num_cols):
+            col_values[i].append(row[i] if i < len(row) else "")
+
+    non_empty_cols = [i for i in range(num_cols) if any(v.strip() for v in col_values[i])]
+    widths: dict[int, int] = {}
+
+    if profile and "widths" in profile:
+        prof_widths = profile["widths"]
+        for i in range(min(num_cols, len(prof_widths))):
+            widths[i] = prof_widths[i]
+        for i in range(len(prof_widths), num_cols):
+            widths[i] = column_width(col_values[i])
+    else:
+        min_widths = {i: column_width(col_values[i]) for i in non_empty_cols}
+        ideal_widths = {i: column_width(col_values[i], target_lines=1) for i in non_empty_cols}
+        total_min = sum(min_widths.values())
+        total_ideal = sum(ideal_widths.values())
+
+        if total_ideal <= SCREEN_BUDGET_PX:
+            widths = ideal_widths
+        elif total_min <= SCREEN_BUDGET_PX:
+            widths = dict(min_widths)
+            slack = SCREEN_BUDGET_PX - total_min
+            wants = {i: ideal_widths[i] - min_widths[i] for i in non_empty_cols}
+            total_want = sum(wants.values())
+            if total_want > 0:
+                for i in non_empty_cols:
+                    grow = int(slack * (wants[i] / total_want))
+                    widths[i] = min(ideal_widths[i], min_widths[i] + grow)
+        else:
+            widths = dict(min_widths)
+            over_min = {i: w for i, w in widths.items() if w > MIN_WIDTH_PX}
+            shrinkable_total = sum(over_min.values())
+            excess = total_min - SCREEN_BUDGET_PX
+            if shrinkable_total > 0:
+                for i in over_min:
+                    reduction = int(excess * (widths[i] / shrinkable_total))
+                    widths[i] = max(MIN_WIDTH_PX, widths[i] - reduction)
+
+        for i in non_empty_cols:
+            widths[i] = max(widths[i], longest_word_width(col_values[i]))
+
+    full_range = {
+        "sheetId": grid_id,
+        "startRowIndex": 0,
+        "endRowIndex": row_count,
+        "startColumnIndex": 0,
+        "endColumnIndex": col_count,
+    }
+    # Base cell styling
+    requests.append(
+        {
+            "repeatCell": {
+                "range": full_range,
+                "cell": {
+                    "userEnteredFormat": {
+                        "wrapStrategy": "WRAP",
+                        "horizontalAlignment": "LEFT",
+                        "verticalAlignment": "TOP",
+                        "backgroundColor": {"red": 1, "green": 1, "blue": 1},
+                        "textFormat": {"foregroundColor": {"red": 0, "green": 0, "blue": 0}},
+                    }
+                },
+                "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment,verticalAlignment,backgroundColor,textFormat.foregroundColor)",
+            }
+        }
+    )
+    # Clear borders
+    no_border = {"style": "NONE"}
+    requests.append(
+        {
+            "updateBorders": {
+                "range": full_range,
+                "top": no_border, "bottom": no_border,
+                "left": no_border, "right": no_border,
+                "innerHorizontal": no_border, "innerVertical": no_border,
+            }
+        }
+    )
+    # Header styling (Row 0)
+    header_range = {
+        "sheetId": grid_id,
+        "startRowIndex": 0,
+        "endRowIndex": 1,
+        "startColumnIndex": 0,
+        "endColumnIndex": col_count,
+    }
+    requests.append(
+        {
+            "repeatCell": {
+                "range": header_range,
+                "cell": {
+                    "userEnteredFormat": {
+                        "textFormat": {"bold": True},
+                        "backgroundColor": HEADER_BG,
+                    }
+                },
+                "fields": "userEnteredFormat(textFormat.bold,backgroundColor)",
+            }
+        }
+    )
+    # Freeze header row if profile sets it
+    if profile and profile.get("freeze_rows"):
+        requests.append(
+            {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": grid_id,
+                        "gridProperties": {"frozenRowCount": profile["freeze_rows"]},
+                    },
+                    "fields": "gridProperties.frozenRowCount",
+                }
+            }
+        )
+
+    # Column widths
+    for i, width in widths.items():
+        requests.append(
+            {
+                "updateDimensionProperties": {
+                    "range": {"sheetId": grid_id, "dimension": "COLUMNS", "startIndex": i, "endIndex": i + 1},
+                    "properties": {"pixelSize": width},
+                    "fields": "pixelSize",
+                }
+            }
+        )
+
+    # Un-collapse rows
+    requests.append(
+        {
+            "updateDimensionProperties": {
+                "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": 0, "endIndex": row_count},
+                "properties": {"hiddenByUser": False},
+                "fields": "hiddenByUser",
+            }
+        }
+    )
+
+    # Row heights
+    row_heights = [
+        row_height(max((cell_line_count(col_values[i][row_idx], widths.get(i, MIN_WIDTH_PX)) for i in range(num_cols)), default=1))
+        for row_idx in range(len(values))
+    ]
+    run_start = 0
+    for row_idx in range(1, len(row_heights) + 1):
+        if row_idx < len(row_heights) and row_heights[row_idx] == row_heights[run_start]:
+            continue
+        requests.append(
+            {
+                "updateDimensionProperties": {
+                    "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": run_start, "endIndex": row_idx},
+                    "properties": {"pixelSize": row_heights[run_start]},
+                    "fields": "pixelSize",
+                }
+            }
+        )
+        run_start = row_idx
+
+    # Conditional formatting rules from profile
+    if profile and "conditional_rules" in profile:
+        cond_reqs = build_conditional_rule_requests(grid_id, profile["conditional_rules"])
+        requests.extend(cond_reqs)
+
+    return requests, widths
+
+
+def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: bool = False) -> str:
+    meta = call_with_retry(lambda: sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute())
+    requests: list[dict[str, Any]] = []
+    log_parts = []
+
+    for tab in meta["sheets"]:
+        grid_id = tab["properties"]["sheetId"]
+        row_count = tab["properties"]["gridProperties"].get("rowCount", 1000)
+        col_count = tab["properties"]["gridProperties"].get("columnCount", 26)
+        title = tab["properties"]["title"]
+
+        values = call_with_retry(
+            lambda: sheets_service.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=f"'{title}'!A1:{chr(64 + min(col_count, 26))}{min(row_count, 500)}")
+            .execute()
+        ).get("values", [])
+        if not values:
+            continue
+
+        profile = resolve_profile_for_tab(name, title)
+        tab_reqs, widths = build_tab_formatting_requests(grid_id, row_count, col_count, values, profile=profile)
+        requests.extend(tab_reqs)
+        log_parts.append(f"{title}: {len(widths)} cols, total_width={sum(widths.values())}px")
+
+    if requests:
+        if dry_run:
+            return f"{name}: DRY RUN, would format ({'; '.join(log_parts)})"
+        call_with_retry(
+            lambda: sheets_service.spreadsheets()
+            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+            .execute()
+        )
+        return f"{name}: formatted ({'; '.join(log_parts)})"
+    return f"{name}: skipped (no non-empty columns)"
 
 
 DEFAULT_ROOTS = ["10_M1_People_Management", "20_M2_Project_Management"]
@@ -154,210 +471,6 @@ def find_all_sheets(drive: Any, folder_id: str, found: list[dict[str, Any]]) -> 
             found.append(child)
         elif child["mimeType"] == "application/vnd.google-apps.folder":
             find_all_sheets(drive, child["id"], found)
-
-
-def column_width(values: list[str], target_lines: int = TARGET_LINES) -> int:
-    if not values:
-        return MIN_WIDTH_PX
-    lengths = sorted(len(v) for v in values if v)
-    if not lengths:
-        return MIN_WIDTH_PX
-    p90 = lengths[int(len(lengths) * 0.9)]
-    target_line_chars = max(p90 / target_lines, 8)
-    width = int(target_line_chars * CHAR_WIDTH_PX + CELL_PADDING_PX)
-    return max(MIN_WIDTH_PX, min(MAX_WIDTH_PX, width))
-
-
-WORD_WIDTH_SAFETY_MARGIN_PX = 10  # headroom against per-char width estimation error and bold header text
-
-
-def longest_word_width(values: list[str]) -> int:
-    """Pixel width needed to fit this column's single longest word without
-    breaking it mid-word - Sheets' WRAP strategy wraps on word boundaries
-    but falls back to a mid-word character break for any word that doesn't
-    fit the column width on its own (e.g. a short category label like
-    "Неясно" landing one letter short of the column and splitting a single
-    letter onto its own line). Includes the header row (row 0 of `values`,
-    always bold) - bold text is wider per character than CHAR_WIDTH_PX's
-    flat average accounts for, so a header word that's an exact fit on
-    paper can still overflow by a pixel in the real bold rendering; the
-    safety margin below covers that along with normal proportional-font
-    variance. Capped at MAX_WIDTH_PX - an outlier word long enough to blow
-    past that (e.g. a URL) still gets broken; that's an acceptable rare
-    exception to keep normal columns from ballooning."""
-    longest = max((len(w) for v in values for w in v.split() if w), default=0)
-    if not longest:
-        return MIN_WIDTH_PX
-    return min(MAX_WIDTH_PX, int(longest * CHAR_WIDTH_PX + CELL_PADDING_PX) + WORD_WIDTH_SAFETY_MARGIN_PX)
-
-
-def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: bool = False) -> str:
-    meta = call_with_retry(lambda: sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute())
-    requests: list[dict[str, Any]] = []
-    log_parts = []
-
-    for tab in meta["sheets"]:
-        grid_id = tab["properties"]["sheetId"]
-        row_count = tab["properties"]["gridProperties"].get("rowCount", 1000)
-        col_count = tab["properties"]["gridProperties"].get("columnCount", 26)
-        title = tab["properties"]["title"]
-
-        values = call_with_retry(
-            lambda: sheets_service.spreadsheets()
-            .values()
-            .get(spreadsheetId=spreadsheet_id, range=f"'{title}'!A1:{chr(64 + min(col_count, 26))}{min(row_count, 500)}")
-            .execute()
-        ).get("values", [])
-        if not values:
-            continue
-
-        num_cols = max(len(r) for r in values)
-        col_values: list[list[str]] = [[] for _ in range(num_cols)]
-        for row in values:
-            for i in range(num_cols):
-                col_values[i].append(row[i] if i < len(row) else "")
-
-        non_empty_cols = [i for i in range(num_cols) if any(v.strip() for v in col_values[i])]
-        if not non_empty_cols:
-            continue
-
-        min_widths = {i: column_width(col_values[i]) for i in non_empty_cols}
-        ideal_widths = {i: column_width(col_values[i], target_lines=1) for i in non_empty_cols}
-        total_min = sum(min_widths.values())
-        total_ideal = sum(ideal_widths.values())
-
-        if total_ideal <= SCREEN_BUDGET_PX:
-            # Whole sheet fits on screen even if every column gets its
-            # single-line width - no reason to cap anyone at TARGET_LINES.
-            widths = ideal_widths
-        elif total_min <= SCREEN_BUDGET_PX:
-            # Can't give everyone a single line, but there's slack beyond the
-            # 5-line minimum - hand it out proportionally to how much each
-            # column actually wants (ideal - min), capped at that column's
-            # own single-line width so no one overshoots what it needs.
-            widths = dict(min_widths)
-            slack = SCREEN_BUDGET_PX - total_min
-            wants = {i: ideal_widths[i] - min_widths[i] for i in non_empty_cols}
-            total_want = sum(wants.values())
-            if total_want > 0:
-                for i in non_empty_cols:
-                    grow = int(slack * (wants[i] / total_want))
-                    widths[i] = min(ideal_widths[i], min_widths[i] + grow)
-        else:
-            # Even the 5-line minimum doesn't fit - shrink proportionally,
-            # same as before.
-            widths = dict(min_widths)
-            over_min = {i: w for i, w in widths.items() if w > MIN_WIDTH_PX}
-            shrinkable_total = sum(over_min.values())
-            excess = total_min - SCREEN_BUDGET_PX
-            if shrinkable_total > 0:
-                for i in over_min:
-                    reduction = int(excess * (widths[i] / shrinkable_total))
-                    widths[i] = max(MIN_WIDTH_PX, widths[i] - reduction)
-
-        # Never let a column end up narrower than its own longest word -
-        # this floor wins even over the screen-budget shrink above, since a
-        # mid-word break looks worse than a slightly-over-budget sheet.
-        for i in non_empty_cols:
-            widths[i] = max(widths[i], longest_word_width(col_values[i]))
-
-        full_range = {
-            "sheetId": grid_id,
-            "startRowIndex": 0,
-            "endRowIndex": row_count,
-            "startColumnIndex": 0,
-            "endColumnIndex": col_count,
-        }
-        requests.append(
-            {
-                "repeatCell": {
-                    "range": full_range,
-                    "cell": {
-                        "userEnteredFormat": {
-                            "wrapStrategy": "WRAP",
-                            "horizontalAlignment": "LEFT",
-                            "verticalAlignment": "TOP",
-                            "backgroundColor": {"red": 1, "green": 1, "blue": 1},
-                            "textFormat": {"foregroundColor": {"red": 0, "green": 0, "blue": 0}},
-                        }
-                    },
-                    "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment,verticalAlignment,"
-                    "backgroundColor,textFormat.foregroundColor)",
-                }
-            }
-        )
-        # repeatCell's userEnteredFormat.borders does not reliably clear an
-        # existing border (tried first, empirically a no-op here) - the
-        # dedicated updateBorders request is what actually works.
-        no_border = {"style": "NONE"}
-        requests.append(
-            {
-                "updateBorders": {
-                    "range": full_range,
-                    "top": no_border, "bottom": no_border,
-                    "left": no_border, "right": no_border,
-                    "innerHorizontal": no_border, "innerVertical": no_border,
-                }
-            }
-        )
-        for i, width in widths.items():
-            requests.append(
-                {
-                    "updateDimensionProperties": {
-                        "range": {"sheetId": grid_id, "dimension": "COLUMNS", "startIndex": i, "endIndex": i + 1},
-                        "properties": {"pixelSize": width},
-                        "fields": "pixelSize",
-                    }
-                }
-            )
-        # Un-collapse: clear any hiddenByUser flag left over from a source
-        # template, then set each row's real needed height from its wrapped
-        # line count at the final column widths, same heuristic as
-        # column_width.
-        requests.append(
-            {
-                "updateDimensionProperties": {
-                    "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": 0, "endIndex": row_count},
-                    "properties": {"hiddenByUser": False},
-                    "fields": "hiddenByUser",
-                }
-            }
-        )
-        row_heights = [
-            row_height(max(
-                (cell_line_count(col_values[i][row_idx], widths[i]) for i in non_empty_cols), default=1,
-            ))
-            for row_idx in range(len(values))
-        ]
-        # Collapse consecutive rows sharing the same computed height into one
-        # range request instead of one request per row - most rows in a typical
-        # sheet are single-line, so this stays small even for hundreds of rows.
-        run_start = 0
-        for row_idx in range(1, len(row_heights) + 1):
-            if row_idx < len(row_heights) and row_heights[row_idx] == row_heights[run_start]:
-                continue
-            requests.append(
-                {
-                    "updateDimensionProperties": {
-                        "range": {"sheetId": grid_id, "dimension": "ROWS", "startIndex": run_start, "endIndex": row_idx},
-                        "properties": {"pixelSize": row_heights[run_start]},
-                        "fields": "pixelSize",
-                    }
-                }
-            )
-            run_start = row_idx
-        log_parts.append(f"{title}: {len(non_empty_cols)} cols, total_width={sum(widths.values())}px")
-
-    if requests:
-        if dry_run:
-            return f"{name}: DRY RUN, would format ({'; '.join(log_parts)})"
-        call_with_retry(
-            lambda: sheets_service.spreadsheets()
-            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-            .execute()
-        )
-        return f"{name}: formatted ({'; '.join(log_parts)})"
-    return f"{name}: skipped (no non-empty columns)"
 
 
 def main() -> int:

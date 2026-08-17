@@ -42,17 +42,55 @@ for the full rule.
 
 ## M2 Project Layout
 
-M2 is organized by project context. Two workspace-wide Sheets sit directly
-under `20_M2_Project_Management`:
+M2 is organized by project context across a 3-layer information architecture:
 
-- `_project_registry` — one row per **active** project, the top-level "war
-  room" dashboard (Проект, People, Горизонт совместной работы, Бизнес-риск
-  продукта клиента, Наименьший вклад в проект, Качество QA-процесса).
-  A project not currently active (temporary pause or permanent stop alike —
-  `project_metrics`'s `Статус проекта` is exactly two values, `Активен` /
-  `Не активен`, see `Templates/метрики_проекта_qa.md` §1.0) is excluded
-  from this registry, not kept and marked inactive — set `Статус проекта`
-  to `Не активен` and rerun `refresh_project_registry.py`.
+- **Layer 1 — Evidence and Measurements**: facts, observations, measurements,
+  source logs, and history (`qa_process_metrics`, `individual_metrics`,
+  `process_checklist`, M2 1:1 records, `evidence_log`).
+- **Layer 2 — M2 Decisions and Current-State Records**: interpretation, risk,
+  judgment, action, and formal decision gates (`project_metrics`,
+  `project_risk` [living 2-tab workbook: `Summary` + `Risk Items`],
+  `individual_risk`, `m2_input` [formal decision gate], `action_items`,
+  project and individual development plans).
+- **Layer 3 — Executive Views**: designed for one-glance senior management
+  reading (`_project_registry`, `_people_registry`, optional
+  `_m2_risk_registry`, executive status reports). Layer 3 is generated
+  mechanically from Layer 2 and must never become a competing source of truth.
+
+### Living vs. Dated Document Matrix
+
+| Layer | Document | Storage Mode | Lifecycle Rule |
+| :--- | :--- | :--- | :--- |
+| **Layer 3** | `_project_registry` | **Living Sheet** | Recomputed mechanically by `refresh_project_registry.py` |
+| **Layer 3** | `status_report` | **Dated Doc** | New file per reporting period (`status_report_YYYY-MM-DD`) |
+| **Layer 2** | `project_metrics` | **Living Sheet** | Updated in place (1 row per composite identity `(Project, Metric Key, Role / Stream)`) |
+| **Layer 2** | `project_risk` | **Living 2-Tab Sheet** | Updated in place (`Summary` + `Risk Items` tabs) |
+| **Layer 2** | `m2_input` | **Living Doc** | Append-only rounds (dated sections from top to bottom) |
+| **Layer 1** | `evidence_log` | **Append-only Sheet/CSV** | Pure historical log (never overwrite old rows) |
+| **Layer 1** | `qa_process_metrics` | **Periodic Sheet** | Append-only rows per sprint/period |
+
+### Workspace-Wide Registries
+
+Two workspace-wide Sheets sit directly under `20_M2_Project_Management`:
+
+- `_project_registry` — one row per **active** project, the 13-column top-level
+  "war room" dashboard:
+  1. `Проект` (120 px) — Project name
+  2. `People` (150 px) — Staffing with workstream tags (e.g. `<Person 1> (AQA), <Person 2> (Manual)`)
+  3. `Engagement outlook` (140 px) — Structured: `<date> [Contractual] — <Outlook> (<Confidence>)`
+  4. `Цель клиента / Ценность QA` (160 px) — Stated client objective with alignment flag
+  5. `Текущий результат` (180 px) — Composite outcome (`Baseline [status] → Current [status] → Target [status]`)
+  6. `Общий уровень риска` (90 px) — `Низкий` / `Средний` / `Высокий` (color-coded badge)
+  7. `Ранний сигнал / Прогноз` (200 px) — Composite from top active risk item (`RSK-ID: <Statement> [<Prediction Status>]`)
+  8. `Качество QA-процесса` (110 px) — Fixed-core process rating with data-confidence label
+  9. `People requiring attention` (120 px) — Mechanically derived candidate signal (appends `[Stale: review required]` if underlying private risk is >30d unreviewed; `—` if none; strictly preserves privacy)
+  10. `Действие M2` (140 px) — Primary mitigation action (and Upsell / Expansion tags when value is proven)
+  11. `Уверенность в данных` (110 px) — Synthesized confidence with breakdown (`Executive: Med (Out: High, Risk: Low)`)
+  12. `Owner` (80 px) — Action accountability owner
+  13. `Следующий review` (80 px) — Next review date (`YYYY-MM-DD`)
+
+  Total layout allocation is 1,680 px, maintaining a 100 px buffer within the nominal 1,780 px screen budget.
+  A project not currently active (`project_metrics`'s `Статус проекта` is `Не активен`) is excluded from this registry.
 - `_timeline` — generated rollup of every project's open `action_items`
   rows, sorted by date; the one place to see what's due today/tomorrow/this
   week across all projects. Never edited directly — refresh it with
@@ -65,29 +103,33 @@ project with mostly `Неизвестно` rows and an unanswered `m2_input` rou
 isn't a data-quality bug, it's the normal state before M2 has answered that
 round.
 
+### Folder Layout & Google Drive Access Control (ACL) Boundaries
+
 Each project folder follows this shape:
 
 ```text
 20_M2_Project_Management/<Project>/
-├─ private/                      # M2-only; never share this folder
-│  ├─ project_risk.gsheet
-│  ├─ process_checklist.gsheet
-│  ├─ project_development_plan.gdoc
-│  ├─ project_metrics.gsheet
-│  ├─ evidence_log.gsheet
-│  ├─ action_items.gsheet
-│  ├─ m2_input/m2_input.gdoc
-│  ├─ status_reports/
-│  └─ people/<Person>/
-│     ├─ individual_risk.gsheet
-│     └─ <Person> 1to1.gsheet
-├─ team_shared/                  # share only with this project's QA team
-│  └─ qa_process_metrics.gsheet
-├─ people/<Person>/
-│  └─ shared/                    # share only with this person
-│     ├─ individual_development_plan.gdoc
-│     └─ individual_metrics.gsheet
+├── private/                              <-- Unshared (M2/M3 only)
+│   ├── project_risk.gsheet               <-- Living 2-tab workbook (Summary + Risk Items)
+│   ├── process_checklist.gsheet
+│   ├── project_development_plan.gdoc
+│   ├── project_metrics.gsheet            <-- Living Sheet with composite identity
+│   ├── evidence_log.gsheet               <-- Append-only source & routing log
+│   ├── action_items.gsheet
+│   ├── m2_input/m2_input.gdoc            <-- Formal decision gate (dated rounds)
+│   ├── status_reports/
+│   └── people/<Person>/                  <-- Unshared (M2 private 1:1s & risks)
+│       ├── individual_risk.gsheet
+│       └── <Person> 1to1.gsheet
+├── team_shared/                          <-- Shared only with this project's QA team
+│   └── qa_process_metrics.gsheet
+└── people/<Person>/                      <-- Shared explicitly with <Person> (Viewer/Editor)
+    ├── individual_development_plan.gdoc
+    └── individual_metrics.gsheet
 ```
+
+> [!CAUTION]
+> **Drive ACL Safety Rule:** The `<Project>` root and `<Project>/private/` MUST NOT inherit permissions from `<Project>/people/<Person>/`. Sharing `<Project>/people/<Person>/` with an employee gives them access only to their own folder, never to sibling folders or the private root.
 
 There is no per-project `source_docs/` or `archive/` folder - reference
 `90_Storage/Reference/Source_Documents/<Project>` directly, and retired artifacts go to the
@@ -95,8 +137,8 @@ single workspace-wide `90_Storage/Retired/20_M2_Project_Management/<Project>/`
 tree instead of a local copy that would go stale.
 
 **Visibility boundaries**: share only `team_shared/` with the project's QA
-team and only `people/<Person>/shared/` with that person. Never share the
-project root, `private/`, or `people/<Person>/`. `qa_process_metrics` is the
+team and only `people/<Person>/` with that person. Never share the
+project root, `private/`, or `people/<Person>/` sibling folders. `qa_process_metrics` is the
 team-editable factual input; its synthesized conclusion lives in the M2-only
 `private/project_metrics`. See `google-workspace/api-sharing-editing.md`, Sharing Safety.
 
@@ -107,6 +149,12 @@ should update the whole chain in the same pass — see `m2-role/m2-cascading-upd
 Cascading Updates. Metric definitions and which artifact each one belongs
 in: `Templates/метрики_qa_по_проекту.md` (individual) and
 `Templates/метрики_проекта_qa.md` (project/QA-process/dashboard).
+
+**Project Risk Workbook**: `project_risk` is one living Google Sheet with two tabs:
+- `Summary` tab (mirrored locally by `Templates/светофор_рисков_проекта.csv`): 1-row-per-project executive summary with key risk ID and prediction status.
+- `Risk Items` tab (mirrored locally by `Templates/project_risk_items.csv` fallback): itemized risk register with full lifecycle (`Severity`, `First Signal Date`, `Expected Impact Date`, `Materialization Date`, `Closed Date`, `Prediction Status`, `Migration State`).
+
+**Migration Boundary**: Phase 1 is a repository documentation and graph-contract change only. Live Google Drive folders, permissions, and business data are not modified during this phase.
 
 **Process checklist**: `.agents/skills/m2-project-process-checklist`
 maintains `process_checklist` — a living, 22-question/12-section record of

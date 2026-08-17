@@ -88,5 +88,15 @@ This README is the entry point; detailed reference lives in `docs/`:
   the department traffic light, timeline/action items, self-review, and
   monthly KPI reports.
 
+Large generic implementation plans and cross-agent review notes are kept in
+the repository-local [management/](management/) collaboration folder so
+agents can review a stable file link instead of exchanging long pasted
+documents in chat.
+
+For a multi-model planning dialogue, use the
+[`management-plan-dialogue`](.agents/skills/management-plan-dialogue/SKILL.md)
+skill. It defines how models exchange canonical plans, attributable reviews,
+responses, disagreements, and independently proposed improvements.
+
 Skill inventory and behavior live in each skill's own `.agents/skills/<name>/SKILL.md`,
 not in this README or AGENTS.md — see `.agents/skills/`.
