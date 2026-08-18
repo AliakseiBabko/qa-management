@@ -30,7 +30,11 @@ CHAR_WIDTH_PX = 7.2
 CELL_PADDING_PX = 6
 MIN_WIDTH_PX = 90
 MAX_WIDTH_PX = 420
-TARGET_LINES = 5
+# Keep wrapped cells compact while giving prose columns enough room to remain
+# readable.  Profiled sheets are widened further below when their actual
+# content would exceed this target.
+TARGET_LINES = 10
+MAX_TARGET_LINES = 10
 SCREEN_BUDGET_PX = 1780
 VERTICAL_PADDING_PX = 4
 TEXT_LINE_HEIGHT_PX = 17
@@ -59,15 +63,17 @@ HEADER_BG = {"red": 0.95, "green": 0.95, "blue": 0.95}
 # Explicit Formatting Profiles
 PROFILES: dict[str, dict[str, Any]] = {
     "_project_registry": {
-        "widths": [120, 150, 140, 160, 180, 90, 200, 110, 120, 140, 110, 80, 80],
+        # Give the long risk header enough horizontal room to avoid a clipped
+        # third line, while preserving the executive layout budget.
+        "widths": [120, 150, 130, 350, 180, 260, 280, 160, 280, 120, 100],
         "freeze_rows": 1,
         "conditional_rules": [
-            # Col F (idx 5): Общий уровень риска
-            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
-            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
-            {"col_start": 5, "col_end": 6, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
+            # Col C (idx 2): Общий уровень риска
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
             # Col I (idx 8): People requiring attention
-            {"col_start": 8, "col_end": 9, "type": "TEXT_CONTAINS", "val": "[Stale: review required]", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
+            {"col_start": 7, "col_end": 8, "type": "TEXT_CONTAINS", "val": "[Stale: review required]", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
         ],
     },
     "project_metrics": {
@@ -85,7 +91,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         ],
     },
     "project_risk_summary": {
-        "widths": [110, 90, 90, 90, 220, 120, 90, 90, 110, 110, 220, 100, 80, 80],
+        "widths": [110, 90, 130, 90, 220, 120, 90, 90, 110, 110, 220, 100, 80, 80],
         "freeze_rows": 1,
         "conditional_rules": [
             # Col C (idx 2:3): Общий уровень риска
@@ -193,6 +199,14 @@ def longest_word_width(values: list[str]) -> int:
     return min(MAX_WIDTH_PX, int(longest * CHAR_WIDTH_PX + CELL_PADDING_PX) + WORD_WIDTH_SAFETY_MARGIN_PX)
 
 
+def width_for_line_limit(values: list[str], line_limit: int = MAX_TARGET_LINES) -> int:
+    """Return a width that fits the longest logical line within line_limit."""
+    longest = max((len(segment) for value in values for segment in value.split("\n")), default=0)
+    if not longest:
+        return MIN_WIDTH_PX
+    return min(MAX_WIDTH_PX, int((longest / line_limit) * CHAR_WIDTH_PX + CELL_PADDING_PX))
+
+
 def build_conditional_rule_requests(sheet_id: int, rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build Sheets API AddConditionalFormatRuleRequest payloads."""
     requests: list[dict[str, Any]] = []
@@ -252,6 +266,11 @@ def build_tab_formatting_requests(
             widths[i] = prof_widths[i]
         for i in range(len(prof_widths), num_cols):
             widths[i] = column_width(col_values[i])
+        # Profile widths are the baseline, not a reason to leave long values
+        # clipped. Widen columns as far as practical when their actual text
+        # would wrap beyond the ten-line readability target.
+        for i in range(num_cols):
+            widths[i] = max(widths.get(i, MIN_WIDTH_PX), width_for_line_limit(col_values[i]))
     else:
         min_widths = {i: column_width(col_values[i]) for i in non_empty_cols}
         ideal_widths = {i: column_width(col_values[i], target_lines=1) for i in non_empty_cols}

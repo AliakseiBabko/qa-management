@@ -23,7 +23,7 @@ M2 maintains project state across three distinct layers:
 
 ### 3. Deterministic Top-Risk Selection Algorithm
 
-To eliminate subjectivity when updating `project_risk` Summary and `_project_registry` (Column 6: `Общий уровень риска`, Column 7: `Ранний сигнал / Прогноз`), the primary active risk is selected deterministically from the `Risk Items` tab:
+To eliminate subjectivity when updating `project_risk` Summary and `_project_registry` (Column 3: `Общий уровень риска`, Column 8: `Ранний сигнал / Прогноз`), the primary active risk is selected deterministically from the `Risk Items` tab:
 1. **Filter Active**: Exclude `Closed` risks and `Migration State = Legacy`.
 2. **Cascading Tie-Breaker**:
    - **Severity**: `Высокий` > `Средний` > `Низкий`.
@@ -34,14 +34,16 @@ To eliminate subjectivity when updating `project_risk` Summary and `_project_reg
 
 ### 4. Outcome Proxies & Composite Outcome Rollup
 
-`_project_registry` Column 5 (`Текущий результат`) and `project_metrics` reflect business impact through 1–3 operational outcome proxies (`Outcome proxy: <name>`):
+`_project_registry` Column 4 (`Текущее состояние QA / результат`) is one analytical statement combining process evidence, delivery facts, and evidence gaps. It must not be a link/date dump or a repeated status label. Use `Смешанный` when positive facts coexist with material validation gaps; use `Неизвестно` when evidence is insufficient. Do not treat a QA engineer's unvalidated opinion as `Позитивный`.
+
+`_project_registry` Column 7 (`Цель клиента / Ценность QA (гипотеза M2)`) is a higher-level M2 inference about the client's product/business objective and the role or value of our QA team in achieving it. Do not fill this column with regression, coverage, leakage, or other operating metrics; those belong in process quality/current result. Label the view as an M2 hypothesis in the header, not repetitively in every cell.
 1. **Standard Catalog (Formulas 1–6)**: Regression turnaround ($\le X$h), Production bug leakage ($\le Y\%$), Late-stage critical defects ($\le Z\%$), Blocker discovery ($\ge W\%$), Onboarding speed ($\le N$ days), Rework hours avoided ($\ge M$h).
 2. **Zero-Denominator Semantics**: When no releases occurred in the period, record `No releases in period`.
 3. **Composite Format**: `Baseline [<val>] → Показатель [<val>] → Target [<val>]` (e.g. `Leakage: Base 8% -> Curr 2% (Tgt <=3%) | Reg: Base 48h -> Curr 12h (Tgt <=8h)`).
 
 ### 5. Deterministic Confidence Synthesis
 
-`_project_registry` Column 11 (`Уверенность в данных`) is synthesized deterministically:
+`_project_registry` Column 11 (`Уверенность в данных`) is synthesized deterministically (the registry intentionally has no redundant Owner column):
 - $\text{Confidence} = \min(\text{outcome\_confidence}, \text{risk\_confidence})$
 - When components diverge, display the breakdown (e.g. `Средняя (Out: Высокая, Risk: Средняя)`).
 
