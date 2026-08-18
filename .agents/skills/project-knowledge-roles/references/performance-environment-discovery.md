@@ -53,6 +53,30 @@ Use these labels consistently in knowledge-base and performance-plan output:
 
 ## Discovery Checklist
 
+### Shell and container-tool permission guardrail
+
+Do not conclude that Docker, Docker Compose, Rancher Desktop, Kubernetes, or
+another local environment tool is unavailable from a sandboxed-shell failure
+alone. On Windows, a sandbox may be able to resolve `docker.exe` while being
+unable to read the user's Docker config/context files or connect to the Docker
+named pipe. This can produce a misleading `unknown command`, `permission
+denied`, or daemon-unavailable message.
+
+When a container-tool command fails with a profile, socket, named-pipe, DNS, or
+access-permission error:
+
+1. Retry the same diagnostic with host-level/escalated permissions when the
+   environment permits it.
+2. Check the executable version, Compose plugin version, active context, and
+   daemon connectivity separately (`docker version`, `docker compose version`,
+   `docker context ls`, and a read-only `docker info`).
+3. Only then classify the tool as unavailable. Record whether the failure was
+   a sandbox permission problem, a missing executable/plugin, a stopped daemon,
+   or a genuine network/VPN failure.
+
+Never start containers, apply manifests, or run load traffic merely to diagnose
+this distinction. Keep the first retry read-only.
+
 For each candidate service or module row:
 
 1. Confirm deployment exists and record environment, namespace, deployment
