@@ -3,17 +3,15 @@
 Canonical Executive 13-Column Layout (1,680 px display budget):
 1. Проект (120 px)
 2. People (150 px) - staffing with workstream tags
-3. Engagement outlook (140 px) - contractual date, outlook, confidence
-4. Цель клиента / Ценность QA (160 px) - stated goal + alignment flag
-5. Текущий результат (180 px) - composite outcome: Baseline [status] → Показатель [status] → Target [status]
-6. Общий уровень риска (90 px) - Низкий / Средний / Высокий
-7. Ранний сигнал / Прогноз (200 px) - deterministic top-risk item: RSK-ID: <Statement> [<Prediction Status>]
-8. Качество QA-процесса (110 px) - fixed-core process rating
-9. People requiring attention (120 px) - privacy-safe management signal (with [Stale: review required] if >30d)
-10. Действие M2 (140 px) - primary mitigation / value expansion action
-11. Уверенность в данных (110 px) - synthesized confidence: min(outcome_conf, risk_conf) with breakdown
-12. Owner (80 px) - action accountability owner
-13. Следующий review (80 px) - next review date (YYYY-MM-DD)
+3. Общий уровень риска (130 px) - Низкий / Средний / Высокий
+4. Текущее состояние QA / результат (350 px) - one analytical M2 statement
+5. Engagement outlook (180 px) - contractual date, outlook, confidence
+6. Цель клиента / Ценность QA (260 px) - higher-level client/product hypothesis
+7. Ранний сигнал / Прогноз (280 px) - deterministic top-risk item
+8. People requiring attention (160 px) - privacy-safe management signal
+9. Действие M2 (280 px) - primary mitigation / value expansion action
+10. Уверенность в данных (120 px) - synthesized confidence
+11. Следующий review (100 px) - next review date (YYYY-MM-DD)
 
 Inactive Gate:
 Projects with 'Статус проекта' = 'Не активен' are excluded from the registry.
@@ -24,28 +22,34 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import re
 import sys
 from pathlib import Path
 from typing import Any
 
 from google_api_smoke_test import build_services, ensure_utf8_stdout, load_credentials
-from m2_workspace_layout import PRIVATE_FOLDER, SHEET_MIME, find_child_folder, find_document, list_children
+from m2_workspace_layout import (
+    PRIVATE_FOLDER,
+    SHEET_MIME,
+    find_child_folder,
+    find_document,
+    list_children,
+    list_project_people,
+)
 from pipeline_common import reformat_sheet
 from sync_m2_source_docs_to_sheets import ROOT_FOLDER_ID, find_or_create_folder, find_sheet_in_folder, read_sheet_values
 
 REGISTRY_HEADER = [
     "Проект",
     "People",
-    "Engagement outlook",
-    "Цель клиента / Ценность QA",
-    "Текущий результат",
     "Общий уровень риска",
+    "Текущее состояние QA / результат (оценка M2)",
+    "Engagement outlook",
+    "Цель клиента / Ценность QA (гипотеза M2)",
     "Ранний сигнал / Прогноз",
-    "Качество QA-процесса",
     "People requiring attention",
     "Действие M2",
     "Уверенность в данных",
-    "Owner",
     "Следующий review",
 ]
 
@@ -61,6 +65,62 @@ PROJECT_STATUS_VALUES = {"Активен", "Не активен"}
 INACTIVE_STATUS_VALUE = "Не активен"
 
 
+def compact_summary(value: str, max_sentences: int = 2, max_chars: int | None = None) -> str:
+    """Keep executive cells concise while leaving source tables unchanged."""
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    if not text:
+        return ""
+
+    # These prefixes add provenance to the detailed record, but not signal to
+    # the one-glance registry. The source/evidence fields retain them.
+    text = re.sub(
+        r"^(?:ОБНОВЛЕНО|Обновлено)\s+\d{2}\.\d{2}\.\d{4}(?:\s*\([^)]*\))?,\s*"
+        r"(?:предварительный вывод\s*[-:]\s*)?",
+        "",
+        text,
+    )
+    text = re.sub(r"^(?:Оценено M2|Синтезировано M2)[^:]{0,140}:\s*", "", text)
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+(?=[A-ZА-ЯЁ])", text)
+        if part.strip()
+    ]
+    if len(sentences) > max_sentences:
+        # Keep the opening fact and the final conclusion; intermediate
+        # evidence remains available in project_metrics/project_risk.
+        sentences = [sentences[0], sentences[-1]]
+    result = " ".join(sentences[:max_sentences])
+    if max_chars is None or len(result) <= max_chars:
+        return result
+    shortened = result[: max_chars - 1].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    return f"{shortened}…"
+
+
+def best_evidence_sentence(value: str) -> str:
+    """Choose the most outcome-bearing sentence from a longer evidence note."""
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+(?=[A-ZА-ЯЁ])", text)
+        if part.strip()
+    ]
+    if not sentences:
+        return ""
+    keywords = (
+        "%", "баг", "bug", "coverage", "покрыт", "автомат", "framework",
+        "фреймворк", "feedback", "обратн", "релиз", "release", "sync",
+        "эскалац", "эскалаций", "взаимозамен", "handoff", "метрик",
+    )
+    scored = []
+    for index, sentence in enumerate(sentences):
+        lowered = sentence.casefold()
+        score = sum(lowered.count(word.casefold()) for word in keywords)
+        score += 2 if re.search(r"\d", sentence) else 0
+        score -= 2 if lowered.startswith(("статус", "обновление", "m2-суждение", "не отвечает")) else 0
+        scored.append((score, -index, sentence))
+    return max(scored)[2]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--credentials", default=".local/google/credentials.json")
@@ -71,13 +131,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def dashboard_value(rows: list[list[str]], metric: str, default: str = "") -> str:
+    if not rows:
+        return default
+    header = [cell.strip() for cell in rows[0]]
+    try:
+        value_index = header.index("Показатель")
+    except ValueError:
+        value_index = 4 if len(rows[0]) > 4 else 3
     for row in rows:
         if len(row) > 2 and row[2].strip() == metric:
-            # Handle 12-col schema (Показатель at idx 4) vs 7-col schema (Показатель at idx 3)
-            if len(row) > 4 and row[4].strip():
-                return row[4].strip()
-            elif len(row) > 3 and row[3].strip():
-                return row[3].strip()
+            if len(row) > value_index and row[value_index].strip():
+                return row[value_index].strip()
             return default
     return default
 
@@ -180,10 +244,10 @@ def build_composite_outcome(pm_rows: list[list[str]]) -> tuple[str, str]:
     """Extract composite outcome: Baseline [status] → Показатель [status] → Target [status] and outcome confidence."""
     proxy_row = dashboard_row_dict(pm_rows, "Outcome proxy:")
     if not proxy_row:
-        # Fallback to general process/value metrics
-        val = dashboard_value(pm_rows, "Качество QA-процесса", default="—")
-        conf = "Средняя"
-        return val, conf
+        # Do not copy QA-process quality into the outcome column. The two
+        # columns answer different management questions; missing outcome
+        # proxies must remain visible as a data gap.
+        return "—", "Низкая"
 
     baseline = proxy_row.get("Baseline", "").strip() or "—"
     current = proxy_row.get("Показатель", "").strip() or "—"
@@ -200,6 +264,66 @@ def build_composite_outcome(pm_rows: list[list[str]]) -> tuple[str, str]:
         outcome_str = f"{metric_title}: {current}{ev_tag}"
 
     return outcome_str, conf
+
+
+def build_current_result(pm_rows: list[list[str]]) -> tuple[str, str]:
+    """Use outcome proxies first, then the best current contribution evidence."""
+    outcome, confidence = build_composite_outcome(pm_rows)
+    if outcome != "—":
+        return compact_summary(outcome, max_sentences=2), confidence
+
+    contribution = dashboard_row_dict(pm_rows, CONTRIBUTION_PREFIX)
+    if contribution:
+        status = contribution.get("Показатель", "").strip()
+        explanation = contribution.get("Пояснение", "").strip()
+        summary = best_evidence_sentence(explanation)
+        if status and summary:
+            return f"{status}: {summary}", "Средняя"
+        if status:
+            return status, "Средняя"
+        if summary:
+            return summary, "Низкая"
+    return "—", "Низкая"
+
+
+def analysis_fragment(value: str) -> str:
+    """Remove provenance clutter before placing evidence in the executive cell."""
+    text = best_evidence_sentence(value)
+    text = re.sub(r"^Визуальное подтверждение[^:]{0,180}:\s*", "", text)
+    text = re.sub(r"^(?:Обоснование|Позитивный):\s*", "", text)
+    text = re.sub(r"^Обновлено M2.*?\):\s*", "", text)
+    text = re.sub(r"^Оценено M2.*?:\s*", "", text)
+    text = re.sub(r"^M2-суждение.*?:\s*", "", text)
+    text = re.sub(r"^Собственное мнение M2.*?\)\s*(?:плюс|и)\s*", "", text)
+    text = re.sub(r"\([^)]*(?:\d{2}\.\d{2}\.\d{4}|см\.|individual_|project_|m2_input|action_items|plan)[^)]*\)", "", text)
+    text = re.sub(r"\b\d{2}\.\d{2}\.\d{4}\b", "", text)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.;])", r"\1", text)
+    text = re.sub(r"\s*,\s*\)", ")", text)
+    text = re.sub(r"^\s*(?:Соответствует\)|\d+\s*\(\)\s*плюс)\s*,?\s*", "", text)
+    return text.strip(" ,-:")
+
+
+def build_current_state_summary(pm_rows: list[list[str]]) -> tuple[str, str]:
+    """Combine process/result evidence into one cautious analytical statement."""
+    contribution = dashboard_row_dict(pm_rows, CONTRIBUTION_PREFIX)
+    if not contribution:
+        return "Неизвестно: подтверждённых данных о текущем состоянии QA недостаточно.", "Низкая"
+
+    status = contribution.get("Показатель", "").strip()
+    explanation = contribution.get("Пояснение", "").strip()
+    if status.casefold() in {"неизвестно", ""} or "данных пока недостаточно" in explanation.casefold():
+        return "Неизвестно: подтверждённых данных о текущем состоянии QA недостаточно.", "Низкая"
+
+    fact = analysis_fragment(explanation)
+    if not fact:
+        return "Неизвестно: подтверждённых данных о текущем состоянии QA недостаточно.", "Низкая"
+
+    # Qualitative contribution plus incomplete independent validation is a
+    # mixed state, not a positive result. Positive is reserved for validated
+    # outcome-level evidence, which is not present in the current registry.
+    caveat = "Независимая проверка клиентом и полноценный количественный baseline не собраны, поэтому устойчиво позитивный результат не подтверждён."
+    return f"Смешанный: {fact} {caveat}", "Низкая"
 
 
 def select_top_risk_item(items_rows: list[list[str]]) -> tuple[dict[str, str] | None, list[str]]:
@@ -293,6 +417,36 @@ def derive_people_attention(
     return ", ".join(attention_list) if attention_list else "—"
 
 
+def load_people_attention_signals(
+    services: dict[str, Any], drive: Any, project_folder_id: str
+) -> list[dict[str, Any]]:
+    """Return privacy-safe flags for non-empty private individual-risk rows."""
+    signals: list[dict[str, Any]] = []
+    for person in list_project_people(drive, project_folder_id):
+        risk_sheet = find_document(
+            drive,
+            project_folder_id,
+            "individual_risk",
+            "individual_risk",
+            SHEET_MIME,
+            person,
+        )
+        if not risk_sheet:
+            continue
+        rows = read_sheet_values(services, risk_sheet["id"])
+        if len(rows) < 2:
+            continue
+        row = rows[-1]
+        # Columns 4–7 are private risk/judgment fields. Only emit a person
+        # flag; never copy the private text into the shared registry.
+        if any(len(row) > index and row[index].strip() for index in range(3, 7)):
+            signals.append({
+                "person": person,
+                "last_reviewed": row[2].strip() if len(row) > 2 else "",
+            })
+    return signals
+
+
 def build_registry_row(
     project: str,
     pm_rows: list[list[str]],
@@ -321,6 +475,7 @@ def build_registry_row(
 
     # 3. Engagement Outlook
     horizon = dashboard_value(pm_rows, "Engagement outlook") or dashboard_value(pm_rows, "Горизонт совместной работы", default="—")
+    horizon = compact_summary(horizon, max_sentences=1) or "—"
 
     # 4. Client Goal & Alignment
     client_goal = dashboard_value(pm_rows, "Цель клиента / Ценность QA")
@@ -331,9 +486,11 @@ def build_registry_row(
         client_goal_str = client_goal
     else:
         client_goal_str = "—"
+    client_goal_str = compact_summary(client_goal_str, max_sentences=1) or "—"
 
-    # 5. Composite Outcome & Outcome Confidence
-    outcome_str, outcome_conf = build_composite_outcome(pm_rows)
+    # 5. Combined analytical current state
+    current_state_str, current_state_conf = build_current_state_summary(pm_rows)
+    outcome_conf = current_state_conf
 
     # 6. Risk Level, Summary & Top-Risk Item
     overall_risk = "Низкий"
@@ -368,36 +525,32 @@ def build_registry_row(
         early_signal_str = key_signal
     else:
         early_signal_str = "Рисков не обнаружено"
-
-    # 7. QA Process Quality
-    qa_quality = dashboard_value(pm_rows, "Качество QA-процесса", default="—")
+    early_signal_str = compact_summary(early_signal_str, max_sentences=2)
 
     # 8. People Requiring Attention
     attention_str = derive_people_attention(private_people_signals, today_date=today_date)
 
     # 9. M2 Action
     action_str = risk_action or dashboard_value(pm_rows, "Фокус M2", default="—")
+    action_str = compact_summary(action_str, max_sentences=2) or "—"
 
     # 10. Synthesized Confidence
     syn_conf = synthesize_confidence(outcome_conf, risk_conf)
 
-    # 11. Owner & Review
-    final_owner = risk_owner or dashboard_value(pm_rows, "Owner", default="M2")
+    # 11. Review
     final_review = risk_review or dashboard_value(pm_rows, "Следующий review", default="—")
 
     row = [
         project,
         people_str,
+        overall_risk,
+        current_state_str,
         horizon,
         client_goal_str,
-        outcome_str,
-        overall_risk,
         early_signal_str,
-        qa_quality,
         attention_str,
         action_str,
         syn_conf,
-        final_owner,
         final_review,
     ]
 
@@ -471,6 +624,7 @@ def main() -> int:
             pm_rows=pm_rows,
             risk_summary_rows=risk_summary_rows,
             risk_items_rows=risk_items_rows,
+            private_people_signals=load_people_attention_signals(services, drive, folder["id"]),
         )
         for warning in warnings:
             print(f"WARNING: {warning}")

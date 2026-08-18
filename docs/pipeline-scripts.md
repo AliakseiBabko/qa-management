@@ -742,7 +742,8 @@ These are what actually runs day to day, once a project's folder already exists:
   of the project. Safe to rerun; every artifact is created only if
   missing, and an existing `project_metrics` is always left untouched.
 - `format_all_sheets.py` — applies consistent formatting (wrap, alignment,
-  column widths targeting ≤5 lines) across every Sheet under both
+  column widths targeting ≤10 lines, widening profiled columns when their
+  actual content needs more room) across every Sheet under both
   `10_M1_People_Management` and `20_M2_Project_Management` by default
   (`--root-folder-id` to target a different/specific folder instead,
   repeatable). Safe to rerun anytime after a schema change. `--dry-run`
@@ -777,7 +778,17 @@ These are what actually runs day to day, once a project's folder already exists:
   extraction; `--dry-run` previews without writing.
 - `refresh_project_registry.py` — the one script safe to run mechanically
   with no judgment step: copies each project's already-curated
-  `project_metrics` dashboard values into `_project_registry`
+  `project_metrics` dashboard values into `_project_registry`, compacting
+  executive text to short one- or two-sentence summaries while retaining
+  detailed evidence in the source tables. It combines QA-process evidence
+  and current-result evidence into one cautious analytical statement and
+  derives privacy-safe
+  `People requiring attention` flags from private `individual_risk` rows and
+  keeps the client-goal column as a higher-level M2 hypothesis rather than a
+  duplicate of QA operating metrics.
+  It reads the actual `Показатель` field in both legacy 7-column and current
+  12-column `project_metrics` schemas; the registry itself omits the
+  redundant `Owner` column because it is always M2.
   (worst-known-status for `Наименьший вклад в проект`, never averaged). A
   project whose `Статус проекта` is `Не активен` (the manual marker M2 sets
   in `project_metrics` — pause or permanent stop alike, see

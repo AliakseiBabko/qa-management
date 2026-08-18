@@ -131,17 +131,15 @@ project M2 owns, sourced mechanically from each project's `project_metrics` and
 
 1. `Проект` (120 px) — Project name
 2. `People` (150 px) — Staffing with workstream tags (e.g. `<Person 1> (AQA), <Person 2> (Manual)`)
-3. `Engagement outlook` (140 px) — Structured: `<date> [Contractual] — <Outlook> (<Confidence>)`
-4. `Цель клиента / Ценность QA` (160 px) — Stated client objective with alignment flag
-5. `Текущий результат` (180 px) — Composite outcome (`Baseline [status] → Current [status] → Target [status]`)
-6. `Общий уровень риска` (90 px) — `Низкий` / `Средний` / `Высокий` (color-coded badge)
-7. `Ранний сигнал / Прогноз` (200 px) — Composite from top active risk item (`RSK-ID: <Statement> [<Prediction Status>]`)
-8. `Качество QA-процесса` (110 px) — Fixed-core process rating with data-confidence label
-9. `People requiring attention` (120 px) — Mechanically derived candidate signal (appends `[Stale: review required]` if underlying private risk is >30d unreviewed; `—` if none; strictly preserves privacy without exposing private risk detail)
-10. `Действие M2` (140 px) — Primary mitigation action (and Upsell / Expansion tags when value is proven)
-11. `Уверенность в данных` (110 px) — Synthesized confidence with breakdown (`Executive: Med (Out: High, Risk: Low)`)
-12. `Owner` (80 px) — Action accountability owner
-13. `Следующий review` (80 px) — Next review date (`YYYY-MM-DD`)
+3. `Общий уровень риска` (130 px) — `Низкий` / `Средний` / `Высокий` (color-coded badge)
+4. `Текущее состояние QA / результат (оценка M2)` (350 px) — One analytical statement combining QA-process evidence, current delivery facts, and evidence gaps
+5. `Engagement outlook` (180 px) — Structured: `<date> [Contractual] — <Outlook> (<Confidence>)`
+6. `Цель клиента / Ценность QA (гипотеза M2)` (260 px) — Higher-level hypothesis about the client's product goal and the value/role of our QA team
+7. `Ранний сигнал / Прогноз` (280 px) — Composite from top active risk item (`RSK-ID: <Statement> [<Prediction Status>]`)
+8. `People requiring attention` (160 px) — Mechanically derived candidate signal
+9. `Действие M2` (280 px) — Primary mitigation action
+10. `Уверенность в данных` (120 px) — Synthesized confidence with breakdown
+11. `Следующий review` (100 px) — Next review date (`YYYY-MM-DD`)
 
 ### Top-Risk Selection & Confidence Synthesis
 
