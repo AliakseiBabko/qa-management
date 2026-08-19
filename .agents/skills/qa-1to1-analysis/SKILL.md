@@ -53,6 +53,25 @@ folder.
      produce none; don't force it.
 5. State uncertainty explicitly when the source lacks evidence.
 
+### Runtime and identity guardrails
+
+- Use the repository's supported source-reader/pipeline path for Drive-backed
+  transcripts. Do not probe the Google API ad hoc before checking the local
+  reader and its documented authentication path.
+- Resolve the person and project once against the canonical registries. Email,
+  display name, transliteration, and queue scope are aliases, not independent
+  identities; carry the resolved identity forward to every writer and closure
+  check.
+- Preserve source encoding end to end. On Windows, configure UTF-8 for both
+  subprocess input and output before passing Russian text to a script. If a
+  returned identity contains replacement characters or question marks, stop
+  and correct the encoding before any append or overwrite.
+- Treat approximate coverage percentages, AI-generated estimates, and similar
+  measurements as directional evidence unless the denominator, collection
+  method, and verification status are explicit. Record the estimate with its
+  caveat and route the missing methodology as an open question when it could
+  affect project judgment.
+
 ## Deliverable
 
 Prepare structured findings that another skill can consume:
