@@ -26,6 +26,36 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    current state before editing anything — a transcript often corroborates
    or resolves something already recorded, not just adds new content.
 
+### Efficiency and reliability protocol
+
+Before starting a live Drive pass:
+
+- Resolve the project and person through the registry/queue identity first.
+  Keep the canonical IDs and names in variables; do not repeatedly rediscover
+  the same folder by display-name search or mix a registry name with an ad-hoc
+  transliteration in later closure commands.
+- Use the existing Drive source-reader and pipeline helpers. Do not begin
+  with an experimental raw Drive API download when a supported reader already
+  exists; this avoids duplicate OAuth/network round trips and inconsistent
+  decoding.
+- Prefer targeted state reads for the documents in this route. Use the full
+  project-state view only when the judgment actually depends on unrelated
+  project documents.
+- Build the touched-document set once from the routing decision, then apply
+  the direct updates and downstream rollups in dependency order. Do not run
+  broad refresh/export commands between individual document writes.
+- All subprocesses that receive or print business text must use UTF-8
+  explicitly, especially on Windows. Before continuing after a write, reject
+  replacement characters or `?`-filled names; a malformed identity or closure
+  row is a failed write, not a cosmetic warning.
+- Treat a snapshot as a finalization step. Prefer a valid scoped snapshot;
+  if scope resolution fails, diagnose the identity/path problem before
+  falling back to a workspace-wide export, because the latter is materially
+  slower and can mask the original defect.
+- Keep the required telemetry closeout as the final bounded step. For a
+  queue-backed run use `closeout_telemetry.py`; do not create an additional
+  current-session central row for the same pass.
+
 ## Workflow
 
 1. Update the person's `individual_metrics`/`individual_development_plan`
@@ -56,6 +86,12 @@ documents." It mirrors `m2-strategy-chat-analysis`'s workflow, just for a
    --touched <routed_to list>`. Resolve every OPEN item it reports —
    update the document, run the named script, or state "no change needed"
    with a reason — before declaring the intake done.
+
+7. Refresh only mechanical dependants required by the touched set (for
+   example `refresh_project_registry.py` after `project_metrics` changes),
+   then archive the source, take the final snapshot, complete the queue, and
+   close telemetry. These finalization operations should not be interleaved
+   with judgment edits.
 
 - A single finding can legitimately belong in more than one place at once
   - don't under-scope it to just the first document that seems to fit. A
