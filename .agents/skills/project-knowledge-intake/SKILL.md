@@ -19,7 +19,14 @@ distinction, open questions, M1/M2 boundary, QA-docs-are-downstream rule).
 2. Confirm the project scope - never infer or guess a project name; if
    unclear, resolve it before proceeding (same discipline as every other
    intake skill).
-3. Read the project's current `pk_knowledge_base` (if it exists) so new
+3. Determine the project type before selecting downstream work. Check the
+   M2 project registry and whether `20_M2_Project_Management/<Project>/`
+   exists. An M2-owned project gets both Project Knowledge updates and the
+   applicable M2 cascade for project-management findings. A project absent
+   from both is knowledge-only: do not create M2 documents; update the
+   Project Knowledge lane and relevant QA knowledge documents only. This
+   distinction must be recorded in the pass notes when it changes scope.
+4. Read the project's current `pk_knowledge_base` (if it exists) so new
    content can be judged against what's already captured. Before
    concluding a project has no knowledge base yet, check for a
    same-named doc anywhere under the project's own root folder, not just

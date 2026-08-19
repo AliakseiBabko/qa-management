@@ -23,6 +23,32 @@ prerequisite - do not wait for one before starting a knowledge base, and
 do not treat a project as "not ready" for this lane just because no KT
 happened yet.
 
+## Project-Type Routing: Knowledge-Only vs M2-Owned
+
+Before choosing the update scope, check whether the project is an M2-owned
+project: it must be present in the M2 project registry and have a project
+folder under `20_M2_Project_Management/<Project>/`. These projects have two
+parallel lanes. Update the Project Knowledge documents for durable technical
+and business understanding, and route project-management findings through
+the M2 documents (for example `project_status`, `project_development_plan`,
+`project_risk`, `project_metrics`, `m2_input`, `action_items`, and
+`evidence_log`) according to the applicable M2 intake skill.
+
+If the project is not in the M2 registry and has no M2 project folder, it is
+a knowledge-only project (for example, a consultant or QA-engineer
+assignment outside the user's project-owner responsibility). Update only
+the Project Knowledge lane and genuinely relevant downstream QA knowledge
+documents. Do not create M2 risk, status, plan, metrics, or action-tracking
+artifacts merely because a transcript mentions delivery, staffing, or risk.
+Record such facts as project knowledge when durable, and keep unresolved
+details as non-blocking Open Questions. If a source contains a separate M2
+management signal for another owner, flag it for that owner rather than
+silently creating M2 records here.
+
+This routing check is a scope decision, not a completeness gate: missing
+details and unanswered questions never justify skipping the knowledge-base
+update.
+
 ## Required Start
 
 1. Identify the project's `30_Project_Knowledge/<Project>/` folder (create
