@@ -1,6 +1,6 @@
 """Refresh `_project_registry` from each project's living Layer 2 artifacts.
 
-Canonical Executive 13-Column Layout (1,680 px display budget):
+Canonical Executive 9-Column Layout:
 1. Проект (120 px)
 2. People (150 px) - staffing with workstream tags
 3. Общий уровень риска (130 px) - Низкий / Средний / Высокий
@@ -9,9 +9,7 @@ Canonical Executive 13-Column Layout (1,680 px display budget):
 6. Цель клиента / Ценность QA (260 px) - higher-level client/product hypothesis
 7. Ранний сигнал / Прогноз (280 px) - deterministic top-risk item
 8. People requiring attention (160 px) - privacy-safe management signal
-9. Действие M2 (280 px) - primary mitigation / value expansion action
-10. Уверенность в данных (120 px) - synthesized confidence
-11. Следующий review (100 px) - next review date (YYYY-MM-DD)
+9. Следующий review (100 px) - next review date (YYYY-MM-DD)
 
 Inactive Gate:
 Projects with 'Статус проекта' = 'Не активен' are excluded from the registry.
@@ -48,8 +46,6 @@ REGISTRY_HEADER = [
     "Цель клиента / Ценность QA (гипотеза M2)",
     "Ранний сигнал / Прогноз",
     "People requiring attention",
-    "Действие M2",
-    "Уверенность в данных",
     "Следующий review",
 ]
 
@@ -106,6 +102,16 @@ def best_evidence_sentence(value: str) -> str:
     ]
     if not sentences:
         return ""
+    priority_terms = (
+        "нагруз", "перегруз", "инцидент", "retention", "переход", "жалоб",
+        "контракт", "бюджет", "governance",
+    )
+    priority = next(
+        (sentence for sentence in sentences if any(term in sentence.casefold() for term in priority_terms)),
+        "",
+    )
+    if priority:
+        return priority
     keywords = (
         "%", "баг", "bug", "coverage", "покрыт", "автомат", "framework",
         "фреймворк", "feedback", "обратн", "релиз", "release", "sync",
@@ -417,10 +423,111 @@ def derive_people_attention(
     return ", ".join(attention_list) if attention_list else "—"
 
 
+def risk_note_sentence(value: str) -> str:
+    """Select the risk-bearing sentence from a private/current-state note."""
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?])\s+(?=[A-ZА-ЯЁ])", text)
+        if part.strip()
+    ]
+    if not sentences:
+        return ""
+    keywords = (
+        "жалоб", "риск", "не подтверж", "лид", "нагруз", "контракт",
+        "бюджет", "переход", "внешн", "замен", "governance", "архитектор",
+    )
+    scored = []
+    for index, sentence in enumerate(sentences):
+        lowered = sentence.casefold()
+        score = sum(lowered.count(word) for word in keywords)
+        scored.append((score, -index, sentence))
+    return max(scored)[2]
+
+
+def build_early_signal_prognosis(
+    pm_rows: list[list[str]],
+    overall_risk: str,
+    summary_map: dict[str, str],
+    key_signal: str,
+    top_risk: dict[str, str] | None,
+    private_people_signals: list[dict[str, Any]] | None,
+) -> str:
+    """Turn an observed signal into a concise future-risk prognosis."""
+    dimension_order = (
+        ("Риск staffing / continuity", "перегрузка, потеря continuity или необходимость срочной замены"),
+        ("Риск communication / client", "снижение доверия клиента и устойчивости нашей роли"),
+        ("Риск QA process", "позднее обнаружение дефектов и непредсказуемое качество релизов"),
+        ("Риск delivery", "пропуск релизного объёма или сроков"),
+    )
+    dominant_consequence = "ухудшению delivery или устойчивости нашей роли"
+    for field, consequence in dimension_order:
+        if summary_map.get(field, "").casefold().startswith(("высок", "средн")):
+            dominant_consequence = consequence
+            break
+
+    source = ""
+    if private_people_signals:
+        notes = [sig.get("risk_comment", "") for sig in private_people_signals if sig.get("risk_comment", "").strip()]
+        if notes:
+            keywords = ("жалоб", "риск", "не подтверж", "лид", "нагруз", "контракт", "бюджет", "переход", "внешн", "замен", "governance", "архитектор")
+            source = max(notes, key=lambda note: sum(note.casefold().count(word) for word in keywords))
+    if not source and top_risk:
+        source = top_risk.get("Формулировка риска", "")
+    if not source and key_signal and key_signal.casefold() not in {"рисков не обнаружено", "нет открытых рисков"}:
+        source = key_signal
+
+    if source:
+        signal = risk_note_sentence(source)
+        if "нагруз" in source.casefold():
+            load_sentences = [
+                part.strip()
+                for part in re.split(r"(?<=[.!?])\s+(?=[A-ZА-ЯЁ])", source)
+                if "нагруз" in part.casefold()
+            ]
+            if load_sentences:
+                signal = load_sentences[0]
+        signal = (signal or compact_summary(source, max_sentences=1)).rstrip(" .")
+        lowered = signal.casefold()
+        source_lowered = source.casefold()
+        if "лид" in lowered or "жалоб" in lowered:
+            consequence = "решению о расширении команды или лидерской роли без этого специалиста и сохранению неподтверждённого доверия к QA"
+        elif "нагруз" in lowered or "инцидент" in lowered or "перегруз" in lowered:
+            consequence = "перегрузке, пропуску дефектов перед релизом и потере устойчивости delivery"
+        elif "retention" in lowered or "переход" in lowered or "замен" in lowered:
+            consequence = "потере continuity и необходимости срочной замены при неподтверждённой устойчивости состава"
+        elif "контракт" in lowered or "бюджет" in lowered or "внешн" in lowered or "ai-агент" in lowered or "ai" in source_lowered or "вендор" in source_lowered:
+            consequence = "изменению бизнес-плана или бюджета, которое может сократить внешнюю QA-ставку даже при приемлемой текущей работе"
+        else:
+            consequence = dominant_consequence
+        return compact_summary(
+            f"Сигнал: {signal}. Прогноз: сохранение сигнала может привести к {consequence}.",
+            max_sentences=2,
+        )
+
+    goal = dashboard_value(pm_rows, "Цель клиента / Ценность QA", default="")
+    if any(marker in goal.casefold() for marker in ("внешн", "outstaff", "вендор")):
+        return (
+            "Сигнал: клиентская потребность в нашей внешней QA-роли и её бюджет не подтверждены независимо. "
+            "Прогноз: изменение бизнес-плана может сократить или заменить внешнюю ставку даже при приемлемой текущей работе."
+        )
+    if overall_risk == "Неизвестно":
+        return "Сигнал: данных о текущем проекте пока недостаточно. Прогноз: без первичной проверки нельзя надёжно оценить риск delivery, QA-процесса или продолжения роли."
+    return "Сигналов, указывающих на конкретное будущее ухудшение, пока не зафиксировано. Прогноз: сохраняется потребность в регулярной проверке текущих источников и проектных рисков."
+
+
 def load_people_attention_signals(
-    services: dict[str, Any], drive: Any, project_folder_id: str
+    services: dict[str, Any],
+    drive: Any,
+    project_folder_id: str,
+    include_all: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return privacy-safe flags for non-empty private individual-risk rows."""
+    """Return privacy-safe attention flags from private individual-risk rows.
+
+    A high project-level risk surfaces everyone on the project. Otherwise,
+    any medium/high risk recorded in the person's risk assessment creates a
+    person signal.
+    """
     signals: list[dict[str, Any]] = []
     for person in list_project_people(drive, project_folder_id):
         risk_sheet = find_document(
@@ -432,17 +539,26 @@ def load_people_attention_signals(
             person,
         )
         if not risk_sheet:
+            if include_all:
+                signals.append({"person": person, "last_reviewed": ""})
             continue
         rows = read_sheet_values(services, risk_sheet["id"])
         if len(rows) < 2:
             continue
         row = rows[-1]
-        # Columns 4–7 are private risk/judgment fields. Only emit a person
+        # Only active person-risk fields create an exception signal. Notes,
+        # plans, and ordinary staffing context must not populate this column.
+        # Only emit a person
         # flag; never copy the private text into the shared registry.
-        if any(len(row) > index and row[index].strip() for index in range(3, 7)):
+        risk_values = [row[index].strip().casefold() for index in (3, 4) if len(row) > index]
+        has_active_risk = any(
+            value.startswith(("средн", "высок", "крит")) for value in risk_values
+        )
+        if include_all or has_active_risk:
             signals.append({
                 "person": person,
                 "last_reviewed": row[2].strip() if len(row) > 2 else "",
+                "risk_comment": row[5].strip() if len(row) > 5 else "",
             })
     return signals
 
@@ -455,7 +571,7 @@ def build_registry_row(
     private_people_signals: list[dict[str, Any]] | None = None,
     today_date: str | None = None,
 ) -> tuple[list[str] | None, list[str]]:
-    """Build one 13-column `_project_registry` row from Layer 2 documents.
+    """Build one 9-column `_project_registry` row from Layer 2 documents.
     Returns (None, warnings) if project is 'Не активен'.
     """
     warnings: list[str] = []
@@ -494,50 +610,35 @@ def build_registry_row(
 
     # 6. Risk Level, Summary & Top-Risk Item
     overall_risk = "Низкий"
-    risk_action = ""
-    risk_owner = ""
     risk_review = ""
-    risk_conf = "Средняя"
     key_signal = ""
+    s_map: dict[str, str] = {}
 
     if risk_summary_rows and len(risk_summary_rows) > 1:
         s_hdr = [c.strip() for c in risk_summary_rows[0]]
         s_row = risk_summary_rows[1]
         s_map = {s_hdr[i]: s_row[i].strip() for i in range(min(len(s_hdr), len(s_row)))}
         overall_risk = s_map.get("Общий уровень риска", "Низкий") or "Низкий"
-        risk_action = s_map.get("План действий M2", "") or s_map.get("План действий", "")
-        risk_owner = s_map.get("Owner", "")
         risk_review = s_map.get("Следующий review", "")
-        risk_conf = s_map.get("Уверенность в данных", "Средняя") or "Средняя"
         key_signal = s_map.get("Ключевой ранний сигнал", "")
 
     # Top-Risk selection from Risk Items
     top_risk, risk_warns = select_top_risk_item(risk_items_rows or [])
     warnings.extend(risk_warns)
 
-    if top_risk:
-        rsk_id = top_risk.get("Risk ID", "")
-        stmt = top_risk.get("Формулировка риска", "")
-        pred_status = top_risk.get("Статус прогнозирования", "")
-        pred_tag = f" [{pred_status}]" if pred_status else ""
-        early_signal_str = f"{rsk_id}: {stmt}{pred_tag}"
-    elif key_signal:
-        early_signal_str = key_signal
-    else:
-        early_signal_str = "Рисков не обнаружено"
-    early_signal_str = compact_summary(early_signal_str, max_sentences=2)
+    early_signal_str = build_early_signal_prognosis(
+        pm_rows=pm_rows,
+        overall_risk=overall_risk,
+        summary_map=s_map,
+        key_signal=key_signal,
+        top_risk=top_risk,
+        private_people_signals=private_people_signals,
+    )
 
     # 8. People Requiring Attention
     attention_str = derive_people_attention(private_people_signals, today_date=today_date)
 
-    # 9. M2 Action
-    action_str = risk_action or dashboard_value(pm_rows, "Фокус M2", default="—")
-    action_str = compact_summary(action_str, max_sentences=2) or "—"
-
-    # 10. Synthesized Confidence
-    syn_conf = synthesize_confidence(outcome_conf, risk_conf)
-
-    # 11. Review
+    # 9. Review
     final_review = risk_review or dashboard_value(pm_rows, "Следующий review", default="—")
 
     row = [
@@ -549,8 +650,6 @@ def build_registry_row(
         client_goal_str,
         early_signal_str,
         attention_str,
-        action_str,
-        syn_conf,
         final_review,
     ]
 
@@ -619,12 +718,25 @@ def main() -> int:
             except Exception:
                 risk_items_rows = None
 
+        summary_risk = ""
+        if risk_summary_rows and len(risk_summary_rows) > 1:
+            summary_header = [c.strip() for c in risk_summary_rows[0]]
+            summary_row = risk_summary_rows[1]
+            if "Общий уровень риска" in summary_header:
+                idx = summary_header.index("Общий уровень риска")
+                summary_risk = summary_row[idx].strip() if len(summary_row) > idx else ""
+
         row, warnings = build_registry_row(
             project=project,
             pm_rows=pm_rows,
             risk_summary_rows=risk_summary_rows,
             risk_items_rows=risk_items_rows,
-            private_people_signals=load_people_attention_signals(services, drive, folder["id"]),
+            private_people_signals=load_people_attention_signals(
+                services,
+                drive,
+                folder["id"],
+                include_all=summary_risk == "Высокий",
+            ),
         )
         for warning in warnings:
             print(f"WARNING: {warning}")
@@ -633,7 +745,7 @@ def main() -> int:
             continue
 
         rows.append(row)
-        print(f"{project}: refreshed (13-column executive row)")
+        print(f"{project}: refreshed (9-column executive row)")
 
     if args.dry_run:
         print(f"\n[DRY RUN] Would write {len(rows) - 1} project rows to _project_registry.")

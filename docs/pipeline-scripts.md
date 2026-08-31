@@ -793,7 +793,11 @@ These are what actually runs day to day, once a project's folder already exists:
   derives privacy-safe
   `People requiring attention` flags from private `individual_risk` rows and
   keeps the client-goal column as a higher-level M2 hypothesis rather than a
-  duplicate of QA operating metrics.
+  duplicate of QA operating metrics. The registry intentionally omits M2
+  actions and a generic confidence column: actions remain in `action_items`,
+  while uncertainty is stated in the analytical current-state cell. Its
+  early-signal column is rendered as `signal -> plausible consequence`, using
+  project-risk and person-risk evidence rather than copying raw risk notes.
   It reads the actual `Показатель` field in both legacy 7-column and current
   12-column `project_metrics` schemas; the registry itself omits the
   redundant `Owner` column because it is always M2.
