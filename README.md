@@ -7,7 +7,9 @@ This repo stores:
 - shared skill definitions under `.agents/skills/`
 - canonical CSV templates under `Templates/`
 - shared 1to1 analysis rules under `.agents/skills/qa-1to1-analysis/references/`
-- shared M1/M2 role rules under `.agents/skills/qa-management-roles/references/`
+- a machine-local adapter at `.agents/skills/qa-management-roles/`; the
+  canonical role skill is in the private sibling
+  `../ai-management/skills/qa-management-roles/`
 
 Operational data and generated report files are managed in the QA Management Google Drive workspace:
 
@@ -57,6 +59,13 @@ Full per-lane folder shapes, document conventions, and sharing/visibility
 rules for every folder above:
 [docs/workspace-layout.md](docs/workspace-layout.md).
 
+The role-skill adapter is a junction, not a second copy. Recreate it after a
+fresh clone with:
+
+```powershell
+python .agents\scripts\link_management_adapters.py --project .
+```
+
 No raw video/multimedia is stored in Drive - only transcripts and
 documents. Folder moves use the Drive API so file IDs, links, revisions,
 and existing permissions are preserved. See
@@ -88,15 +97,16 @@ This README is the entry point; detailed reference lives in `docs/`:
   the department traffic light, timeline/action items, self-review, and
   monthly KPI reports.
 
-Large generic implementation plans and cross-agent review notes are kept in
-the repository-local [management/](management/) collaboration folder so
-agents can review a stable file link instead of exchanging long pasted
-documents in chat.
+Large implementation plans and cross-agent review notes are kept in the
+private sibling repository [`ai-management`](../ai-management/management/),
+shared across project repositories. This repository retains only the local
+adapter and wrapper.
 
 For a multi-model planning dialogue, use the
 [`management-plan-dialogue`](.agents/skills/management-plan-dialogue/SKILL.md)
 skill. It defines how models exchange canonical plans, attributable reviews,
 responses, disagreements, and independently proposed improvements.
+The adapter delegates to the canonical skill in `../ai-skills`.
 
 Skill inventory and behavior live in each skill's own `.agents/skills/<name>/SKILL.md`,
 not in this README or AGENTS.md — see `.agents/skills/`.
