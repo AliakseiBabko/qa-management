@@ -320,6 +320,46 @@ These are what actually runs day to day, once a project's folder already exists:
   `replace-paragraph` is this primitive plus `find_paragraph_by_prefix()`
   wired together as one command. Prefer the CLI (or these primitives)
   over hand-writing `batchUpdate` request lists in a one-off script.
+- `markdown_to_docs.py` — importable Markdown → Google Docs engine: the
+  supported Markdown subset (headings, paragraphs with `**bold**`,
+  bullet/numbered lists, tables, fenced code, images), `parse()` into
+  blocks, the Docs append primitives, `create_or_reset_doc()`,
+  `render_blocks()`, and the dry-run helpers `block_counts()`/
+  `print_outline()`. Every insert goes at the document's current end
+  index, one batch per block, so no edit's index is ever computed against
+  a state a later edit already shifted. Not a CLI — use
+  `publish_markdown_doc.py` (generic) or `publish_perf_report.py`
+  (performance sessions). Images embed only by uploading to Drive and
+  granting `anyone/reader`, so `share=False` refuses rather than sharing
+  silently.
+- `publish_markdown_doc.py` — publish any local Markdown file as a Google
+  Doc in a named folder: `--folder-id`, or `--folder-path` for a path
+  under the workspace root (resolved by name, like `resolve_drive_path.py`),
+  or `--doc-id` to replace an existing Doc's body instead of creating a
+  second copy. `--dry-run` prints the parsed outline without touching the
+  API; `--share-images` is required before any embedded image is uploaded
+  and link-shared (without it an image block is a hard error, since
+  feedback/report documents are text). Used by the Assessments &
+  Interviews skills, which author their report as reviewable local
+  Markdown first. For a *targeted* edit inside an existing Doc — append
+  one section, replace one paragraph — use `docs_editing.py` instead; this
+  script only ever writes a whole document.
+- `publish_perf_report.py` — the performance-session bridge on top of
+  `markdown_to_docs.py`: takes a session directory (`<session>/report.md`
+  plus its chart PNGs), prechecks that every referenced chart exists,
+  defaults the Doc title from the session name, and refuses to publish
+  images under `--no-share`. `--dry-run`, `--folder-id`, `--doc-id` as
+  above.
+- `assessment_workspace_layout.py` — pure layout rules for
+  `60_Assessments_And_Interviews` (find/ensure the lane root, a session
+  *type* folder, a person folder; `find_session_document`, `find_index`,
+  `session_document_name`, `INDEX_COLUMNS`). Type-first, per-session,
+  append-only: `<root>/<type folder>/<Person>/<YYYY-MM-DD>_<role> - <Person>`,
+  because the session type owns the assessment criteria and the output
+  form. `find_*` never creates anything; `ensure_*` creates only what a
+  real session being processed needs. Same shape and same reuse of
+  `m2_workspace_layout`'s Drive helpers as
+  `qa_dept_standards_workspace_layout.py`.
 - `validate_repo.py` — mechanical consistency validation of this repo's
   convention-mirrored files (the `repo-maintenance` checklist automated):
   AGENTS.md skill table ↔ `.agents/skills/`, README/docs ↔ `.agents/scripts/`,

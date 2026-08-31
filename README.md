@@ -44,6 +44,11 @@ Current Drive layout:
 - `50_QA_Department_Standards/`: flat, personal-reference department
   standards (current tools/process requirements/direction) plus a
   personal lessons-learned log
+- `60_Assessments_And_Interviews/`: session-based — session *type* folder
+  (`internal_assessments/`, `external_interviews/`, `other_interviews/`),
+  then `<Person>/`, then one dated feedback document per session, plus a
+  flat `_assessment_index` at the lane root. Append-only: a new session
+  never rewrites an earlier one's document
 - `80_Exports/` (optional): created only when an explicit immutable package
   or copy is prepared for external sharing; internal extracts do not belong here
 - `90_Storage/`: the single non-actionable storage root:
@@ -86,7 +91,8 @@ This README is the entry point; detailed reference lives in `docs/`:
   Registry, M1 Person Layout, M2 Project Layout (visibility boundaries,
   update chain, process checklist, presale/upsell, Outstaff Delivery
   milestone reports), Project Knowledge Layout, PM Case Library Layout,
-  QA Department Standards Layout, and the Visual Evidence Drop folder.
+  QA Department Standards Layout, Assessments & Interviews Layout, and the
+  Visual Evidence Drop folder.
 - [docs/pipeline-scripts.md](docs/pipeline-scripts.md) — source
   extraction, the Google API smoke test, the legacy M2 batch-generation
   tool, and the full reference for every script under `.agents/scripts/`
