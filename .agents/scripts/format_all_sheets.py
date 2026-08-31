@@ -2,7 +2,7 @@
 """Format every Google Sheet under the workspace root for readability.
 
 Supports explicit formatting profiles for executive and living M2 sheets:
-- `_project_registry`: 13-column executive layout (1,680 px budget) with risk traffic-light and stale warnings.
+- `_project_registry`: 9-column executive layout with risk traffic-light and stale warnings.
 - `project_metrics`: 12-column layout (1,600 px) with trend and confidence conditional formatting.
 - `project_risk` (Summary tab): 14-column layout (1,600 px) with 5-dimension risk traffic-lights and prediction signals.
 - `project_risk` (Risk Items tab): 20-column layout with severity, lifecycle dates, prediction status, and item status formatting.
@@ -65,7 +65,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "_project_registry": {
         # Give the long risk header enough horizontal room to avoid a clipped
         # third line, while preserving the executive layout budget.
-        "widths": [120, 150, 130, 350, 180, 260, 280, 160, 280, 120, 100],
+        "widths": [120, 150, 130, 350, 180, 260, 280, 160, 100],
         "freeze_rows": 1,
         "conditional_rules": [
             # Col C (idx 2): Общий уровень риска
