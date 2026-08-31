@@ -102,7 +102,15 @@ needed again, rather than reusing hardcoded historical data.
 
 These are what actually runs day to day, once a project's folder already exists:
 
-- `management_dialogue.py` — local, dependency-free coordinator for a
+- `management_dialogue.py` — project-local wrapper around the shared,
+  dependency-free coordinator in `C:\Users\User\Documents\ai-skills\scripts\`,
+  with plans and state stored in private `C:\Users\User\Documents\ai-management\management\`.
+  Any `--unresolved` entry puts the dialogue into `waiting_for_user`; `next`
+  is rejected until a user decision is recorded.
+
+- `link_management_adapters.py` — project-local wrapper that recreates the
+  machine-local junction to the canonical private
+  `ai-management/skills/qa-management-roles` skill after a fresh clone.
   multi-model implementation-plan dialogue. `init` creates a state file for a
   canonical plan and agent rotation; `next` writes a targeted model brief with
   plan hash, acceptance criteria, unresolved items, and decisions;

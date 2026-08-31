@@ -86,16 +86,27 @@ cleaned automatically; it never gets written to `.local/`.
   template, document type, or dependency) - load `repo-maintenance`
   before editing.
 - Large implementation plans, architecture proposals, and review feedback
-  must be saved as shared Markdown files under `management/` rather than
+  must be saved as shared Markdown files under the private sibling
+  `C:\Users\User\Documents\ai-management\management\` rather than
   pasted in full into chat. Treat the linked canonical plan as the source of
   truth; write substantial agent review comments to a dated file under
-  `management/reviews/` and return file links in chat. Use the
+  `ai-management\management\reviews\` and return file links in chat. Use the
   `management-plan-dialogue` skill when conducting a multi-model plan review:
   each model may challenge the plan and add independent ideas, and the
   receiving model must record accepted, rejected, deferred, and independently
   added items before updating the canonical plan. Do not create a competing
   plan copy for an ordinary review. The public-repository sensitive-data rule
   still applies: use placeholders only.
+- When handing work to Antigravity, save the full prompt in the designated
+  `ai-management\management\dialogue\*_NEXT_TURN.md` file and use this exact short chat
+  handoff instead of pasting the prompt:
+  `Continue the dialogue by reading and following:` followed by the full path
+  to that file.
+- Stop the multi-agent dialogue when the current planning package is complete
+  and the next step depends on external owner input or an explicit user
+  decision. Do not generate another Antigravity prompt merely to continue a
+  waiting state. Prepare a new handoff only when the user asks to continue or
+  provides new evidence/responses to process.
 - Working the intake queue? Start with
   `.agents/scripts/qa_manage.py dashboard` - it names the next run and
   the exact next command. Use `guide <run-id>` for what to do on a

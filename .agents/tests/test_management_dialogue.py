@@ -9,13 +9,18 @@ from pathlib import Path
 from unittest import mock
 
 import sys
+import importlib.util
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / ".agents" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-import management_dialogue  # noqa: E402
+SHARED_COORDINATOR = REPO_ROOT.parent / "ai-skills" / "scripts" / "management_dialogue.py"
+_spec = importlib.util.spec_from_file_location("management_dialogue", SHARED_COORDINATOR)
+assert _spec and _spec.loader
+management_dialogue = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(management_dialogue)
 
 
 class ManagementDialogueTests(unittest.TestCase):
@@ -121,6 +126,43 @@ class ManagementDialogueTests(unittest.TestCase):
                     ]),
                     2,
                 )
+
+    def test_unresolved_questions_hard_stop_until_user_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "plan.md").write_text("# Generic plan\n", encoding="utf-8")
+            (root / "review.md").write_text("# Blocked review\n", encoding="utf-8")
+            (root / "decision.md").write_text("# User direction\n", encoding="utf-8")
+            with mock.patch.object(management_dialogue, "REPO_ROOT", root), \
+                 mock.patch.object(management_dialogue, "MANAGEMENT_ROOT", root / "management"), \
+                 mock.patch.object(management_dialogue, "DIALOGUE_ROOT", root / "management" / "dialogue"):
+                management_dialogue.main([
+                    "init", "--topic", "BLOCKED_PLAN", "--plan", "plan.md",
+                    "--agents", "CODEX", "GEMINI",
+                ])
+                management_dialogue.main(["next", "--topic", "BLOCKED_PLAN"])
+                self.assertEqual(
+                    management_dialogue.main([
+                        "complete-turn", "--topic", "BLOCKED_PLAN", "--agent", "CODEX",
+                        "--artifact", "review.md", "--kind", "review",
+                        "--unresolved", "Need owner decision on scope",
+                    ]),
+                    0,
+                )
+                state_file = root / "management" / "dialogue" / "BLOCKED_PLAN_state.json"
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+                self.assertEqual(state["status"], "waiting_for_user")
+                self.assertEqual(
+                    management_dialogue.main(["next", "--topic", "BLOCKED_PLAN"]), 2
+                )
+                self.assertEqual(
+                    management_dialogue.main([
+                        "user-input", "--topic", "BLOCKED_PLAN", "--artifact", "decision.md",
+                    ]),
+                    0,
+                )
+                state = json.loads(state_file.read_text(encoding="utf-8"))
+                self.assertEqual(state["status"], "ready_for_agent")
 
 
 if __name__ == "__main__":
