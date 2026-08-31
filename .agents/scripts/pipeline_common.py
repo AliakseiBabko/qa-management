@@ -136,6 +136,11 @@ SKILL_INVOCATION_SOURCE_TYPES = {
     # `lanes:` mapping and operational-registries.md.
     "project_knowledge_transcript", "project_knowledge_document",
     "project_knowledge_chat", "project_knowledge_notes",
+    # Assessments & Interviews lane (60_Assessments_And_Interviews) - one
+    # per-session evaluation event about one named person, never a
+    # management conversation. See operational-registries.md and
+    # interview-assessment-roles.
+    "assessment_transcript", "external_interview_transcript",
 }
 
 

@@ -53,6 +53,8 @@ lanes:
     root_folder: 30_Project_Knowledge
   m1_people_management:
     root_folder: 10_M1_People_Management
+  assessments_and_interviews:
+    root_folder: 60_Assessments_And_Interviews
 
 sources:
   qa_1to1:
@@ -216,6 +218,33 @@ sources:
       own.
     skills: [project-knowledge-intake]
     entry: [pk_source_index, pk_knowledge_base, _skill_invocations]
+
+  assessment_transcript:
+    lane: assessments_and_interviews
+    scope_required: [person]
+    description: >-
+      An internal competency-assessment (or pre-assessment) session with
+      one named engineer, assessed against our own grade matrix. Inputs
+      are the candidate's self-assessment matrix plus the session
+      transcript; the output is one dated feedback document. Never routed
+      to any M1/M2 management document - a gap found here becomes a
+      development-plan item through M1/M2's own skills, as a separate
+      pass, so that stays a judgment the user makes rather than a
+      required edge.
+    skills: [interview-assessment-roles, internal-assessment-feedback]
+    entry: [assessment_feedback, _assessment_index, _skill_invocations]
+
+  external_interview_transcript:
+    lane: assessments_and_interviews
+    scope_required: [person]
+    description: >-
+      A client-side interview for a seat, assessed against the client's
+      own questions and the CV they received - not against our grade
+      matrix. Same per-session, non-routing treatment as
+      assessment_transcript, distinguished by its inputs and its output
+      form.
+    skills: [interview-assessment-roles, external-interview-feedback]
+    entry: [interview_feedback, _assessment_index, _skill_invocations]
 
 documents:
   # ---- per-person (M2 project scope) ----
@@ -539,6 +568,39 @@ documents:
     scope: workspace
     append_only: true
     downstream: []
+
+  # ---- Assessments & Interviews (60_Assessments_And_Interviews) ----
+  # Per-session evaluation documents about one named person: type folder,
+  # then person, then one dated document per session. Append-only in the
+  # strongest sense - a new session never rewrites an earlier session's
+  # document, because that document is the record of what was true at
+  # that meeting (contrast the M1/M2 current-state convention). No
+  # downstream edges: a development-plan item, a PM case, or a department
+  # standard that a session surfaces is a separate, judged pass through
+  # that lane's own skill, never a required cascade target.
+  assessment_feedback:
+    scope: person
+    append_only: true
+    downstream: []
+    note: >-
+      Internal competency-assessment feedback, assessed against our own
+      grade matrix; publishable verdict plus per-topic matrix ratings.
+
+  interview_feedback:
+    scope: person
+    append_only: true
+    downstream: []
+    note: >-
+      External client-interview debrief, assessed against the client's own
+      questions and the CV they received - never against the grade matrix.
+
+  _assessment_index:
+    scope: workspace
+    append_only: true
+    downstream: []
+    note: >-
+      One row per processed session, flat at the lane root - the same
+      ground-truth role pk_source_index and pm_case_index play in theirs.
 
 # Documents produced on a calendar cadence, not per intake. Excluded from
 # per-intake closure checks; listed so the graph stays the complete map.

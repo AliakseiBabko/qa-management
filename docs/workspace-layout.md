@@ -324,6 +324,62 @@ department-wide standards change, or as a standalone pass on direct
 M3/department-head relay or a direct request to log a lesson learned —
 most passes route nothing, and that's the normal outcome, not a gap.
 
+## Assessments & Interviews Layout
+
+A sixth lane: `60_Assessments_And_Interviews`, per-session evaluation
+documents about one named person. Not current-state (unlike M1/M2) and
+not a reference library (unlike the PM Case Library or QA Department
+Standards) — each document is the record of one meeting that already
+happened, so a new session never rewrites an earlier session's document.
+
+Type-first, then person, because the session *type* owns both the
+assessment criteria and the output form: an internal grade assessment is
+scored against our own competency matrix, a client interview against that
+client's own questions and the CV they received.
+
+```
+60_Assessments_And_Interviews/
+  internal_assessments/
+    <Person>/
+      2026-08-28_assessment_feedback - <Person>   (Doc)
+      2026-08-28_transcript - <Person>            (Doc, optional)
+  external_interviews/
+    <Person>/
+      2026-09-02_interview_feedback - <Person>    (Doc)
+  other_interviews/                               (mock/screening/internal
+                                                    role interviews — no
+                                                    owning skill, no scored
+                                                    verdict)
+  _assessment_index                               (Sheet - one row per
+                                                    processed session)
+```
+
+Names come from `assessment_workspace_layout.session_document_name()` —
+never hand-built. `find_*` never creates a folder; `ensure_*` creates only
+what a real session needs, so an unused type folder never appears.
+Reports are authored as local Markdown first and published with
+`publish_markdown_doc.py`; a re-publish of the same session replaces that
+document's body (`--doc-id`) rather than adding a second copy.
+
+Three skills: `interview-assessment-roles` (lane boundary, evidence
+discipline — including the unaided-vs-led distinction that drives every
+verdict — storage/indexing, privacy), `internal-assessment-feedback`
+(matrix + transcript in, publishable grade feedback out), and
+`external-interview-feedback` (CV + transcript in, client-interview
+debrief out).
+
+**A primary intake lane, but with no downstream cascade.** It owns two
+`source_type` values — `assessment_transcript` and
+`external_interview_transcript` — and its own entry documents, but no
+edge into any M1/M2 document. A gap found in a session becomes a
+development-plan item, a PM case, or a department standard only through a
+separate, judged pass into that lane's own skill; making it a required
+cascade target would turn every assessment into a mandatory edit of
+someone's development plan.
+
+Raw video/audio never lands here — transcripts and documents only, same
+rule as the rest of the workspace.
+
 ## Visual Evidence Drop
 
 `00_Inbox/_Visual_Drop/` is a special subfolder for raw screenshot dumps
