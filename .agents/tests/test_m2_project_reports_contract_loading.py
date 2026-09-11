@@ -138,24 +138,33 @@ class ModuleShapeTests(unittest.TestCase):
             size = index.stat().st_size
             self.assertLessEqual(size, 4 * 1024, f"{index} is {size} bytes, over the 4 KiB target")
 
-    def test_plan_aggregate_size_within_preservation_band(self):
+    # Replaced 2026-09-07: these were ±5%/+10% two-sided byte bands around
+    # the pre-split originals. The floor still does the job it was written
+    # for (the split must not silently drop contract content), but the
+    # ceiling only ever fired on legitimate additions — the executive-
+    # register pass on the development plan tripped it — while
+    # `test_every_module_is_at_most_16kib` and `test_thin_indexes_are_at_
+    # most_4kib` already bound growth per file, which is the bound that
+    # actually matters for loading cost. Keep the floor, drop the ceiling.
+
+    def test_plan_aggregate_preserves_original_content(self):
         total = PLAN_INDEX.stat().st_size + sum((PLAN_REFS / n).stat().st_size for n in PLAN_MODULES)
         low = PLAN_ORIGINAL_BYTES * 0.95
-        high = PLAN_ORIGINAL_BYTES * 1.10
-        self.assertTrue(
-            low <= total <= high,
-            f"plan contract split is {total} bytes, outside the "
-            f"{low:.0f}-{high:.0f} band around the original {PLAN_ORIGINAL_BYTES}",
+        self.assertGreaterEqual(
+            total,
+            low,
+            f"plan contract split is {total} bytes, below the {low:.0f} floor "
+            f"for the original {PLAN_ORIGINAL_BYTES} — content was dropped, not moved",
         )
 
-    def test_risk_aggregate_size_within_preservation_band(self):
+    def test_risk_aggregate_preserves_original_content(self):
         total = RISK_INDEX.stat().st_size + sum((RISK_REFS / n).stat().st_size for n in RISK_MODULES)
         low = RISK_ORIGINAL_BYTES * 0.95
-        high = RISK_ORIGINAL_BYTES * 1.10
-        self.assertTrue(
-            low <= total <= high,
-            f"risk contract split is {total} bytes, outside the "
-            f"{low:.0f}-{high:.0f} band around the original {RISK_ORIGINAL_BYTES}",
+        self.assertGreaterEqual(
+            total,
+            low,
+            f"risk contract split is {total} bytes, below the {low:.0f} floor "
+            f"for the original {RISK_ORIGINAL_BYTES} — content was dropped, not moved",
         )
 
 

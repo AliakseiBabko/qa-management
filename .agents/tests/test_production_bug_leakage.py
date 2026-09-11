@@ -130,7 +130,7 @@ class ProjectDocumentContractLeakageTests(unittest.TestCase):
         )
 
     def test_core_count_updated_to_six(self):
-        self.assertIn("Core (6 metrics)", self.text)
+        self.assertIn("Core / Tier 1 (6 metrics)", self.text)
         self.assertNotIn("Core (5 metrics)", self.text)
 
     def test_describes_new_metric_and_classification(self):
@@ -226,11 +226,14 @@ class ScaffoldScriptLeakageTests(unittest.TestCase):
         names = [name for name, _ in self.module.QA_METRICS_TEMPLATE]
         self.assertIn("Production bug leakage (Баги, утекшие в прод)", names)
 
-    def test_qa_process_rows_produces_six_rows(self):
-        rows = self.module.qa_process_rows("TestProject", "Test Owner", "2026-07-26")
-        self.assertEqual(len(rows), 6)
-        metrics = [row[2] for row in rows]
+    def test_qa_process_rows_are_wide_and_carry_every_tier(self):
+        # 3 group label rows + 3 Baseline + 6 Core, one empty sprint cell each.
+        rows = self.module.qa_process_rows("Test Owner")
+        self.assertEqual(len(rows), 12)
+        self.assertEqual({len(row) for row in rows}, {4})
+        metrics = [row[0] for row in rows]
         self.assertIn("Production bug leakage (Баги, утекшие в прод)", metrics)
+        self.assertIn("Тикеты за спринт (QA)", metrics)
 
 
 if __name__ == "__main__":

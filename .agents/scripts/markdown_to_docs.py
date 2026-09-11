@@ -34,8 +34,15 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
+
+try:  # guarded: --dry-run must still parse on a machine without the Google libs
+    from googleapiclient.errors import HttpError
+except ImportError:  # pragma: no cover - exercised only without the dependency
+    class HttpError(Exception):  # type: ignore[no-redef]
+        """Stand-in so this module imports for dry runs; never raised."""
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -54,21 +61,37 @@ STYLE_FOR_LEVEL = {1: "TITLE", 2: "HEADING_1", 3: "HEADING_2", 4: "HEADING_3",
 
 
 def strip_inline(text: str) -> tuple[str, list[tuple[int, int]]]:
-    """Remove ** markers, returning the clean text and the bold ranges within it."""
-    out, bolds, pos = [], [], 0
-    cursor = 0
+    """Remove ** markers, returning the clean text and the bold ranges within it.
+
+    Backticks carry no style here (the surrounding prose already reads as code)
+    and are dropped as the text is scanned, not afterwards: a backtick removed
+    after the ranges were computed shifts every later offset left by one, which
+    on a paragraph ending in bold pushes the range past the paragraph and the
+    Docs API rejects the batch ("Index N must be less than the end index of the
+    referenced segment").
+    """
+    out: list[str] = []
+    bolds: list[tuple[int, int]] = []
+    pos = 0          # offset in the clean text being built
+    cursor = 0       # offset in the source text
+
+    def emit(fragment: str) -> int:
+        """Append `fragment` minus its backticks; return the clean length added."""
+        nonlocal pos
+        clean_fragment = fragment.replace("`", "")
+        out.append(clean_fragment)
+        pos += len(clean_fragment)
+        return len(clean_fragment)
+
     for m in BOLD.finditer(text):
-        out.append(text[cursor:m.start()])
-        pos += m.start() - cursor
-        inner = m.group(1)
-        bolds.append((pos, pos + len(inner)))
-        out.append(inner)
-        pos += len(inner)
+        emit(text[cursor:m.start()])
+        start = pos
+        emit(m.group(1))
+        if pos > start:
+            bolds.append((start, pos))
         cursor = m.end()
-    out.append(text[cursor:])
-    clean = "".join(out)
-    # Backticks carry no style here; the surrounding prose already reads as code.
-    return clean.replace("`", ""), bolds
+    emit(text[cursor:])
+    return "".join(out), bolds
 
 
 def parse(md: str) -> list[dict]:
@@ -188,6 +211,73 @@ def upload_image(services, path: Path, folder_id: str | None, share: bool) -> st
 
 # --------------------------------------------------------------- docs writes
 
+# --- write pacing -----------------------------------------------------------
+#
+# The Docs API allows 60 write requests per minute per user, and this engine
+# deliberately sends one batchUpdate per block (see the module docstring: that
+# is what makes it immune to index invalidation). Any document longer than
+# ~60 blocks therefore CANNOT publish in a single pass unpaced - it fails
+# partway with HTTP 429 and leaves the document half written, which is worse
+# than failing before the first write.
+#
+# Measured 2026-09-01: a 65-block document failed twice at exactly this limit,
+# the second time after an 80-second backoff, because the shortfall is
+# structural rather than transient.
+#
+# Pacing keeps the steady state under the quota; the 429 retry mirrors
+# call_with_retry() in format_all_sheets.py rather than inventing a second
+# backoff policy for the same API.
+MIN_WRITE_INTERVAL_S = 1.05
+MAX_WRITE_RETRIES = 6
+_last_write = 0.0
+
+
+class _PacedRequest:
+    def __init__(self, inner):
+        self._inner = inner
+
+    def execute(self, *args, **kwargs):
+        global _last_write
+        delay = 5.0
+        for attempt in range(MAX_WRITE_RETRIES):
+            wait = MIN_WRITE_INTERVAL_S - (time.monotonic() - _last_write)
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                _last_write = time.monotonic()
+                return self._inner.execute(*args, **kwargs)
+            except HttpError as exc:
+                if exc.resp.status == 429 and attempt < MAX_WRITE_RETRIES - 1:
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                raise
+
+
+class _PacedDocuments:
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def batchUpdate(self, **kwargs):
+        return _PacedRequest(self._inner.batchUpdate(**kwargs))
+
+
+class _PacedDocs:
+    """Wraps the Docs service so every write is paced and 429-retried."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def documents(self):
+        return _PacedDocuments(self._inner.documents())
+
+
 def end_index(docs, doc_id: str) -> int:
     doc = docs.documents().get(documentId=doc_id).execute()
     return doc["body"]["content"][-1]["endIndex"] - 1
@@ -296,7 +386,7 @@ def render_blocks(services: dict[str, Any], doc_id: str, blocks: list[dict],
     """Append every parsed block to the document, in order. `asset_root` is
     the directory image `src` paths resolve against; an images-free document
     never needs it."""
-    docs = services["docs"]
+    docs = _PacedDocs(services["docs"])
     for n, b in enumerate(blocks, 1):
         kind = b["kind"]
         if kind == "heading":

@@ -39,7 +39,20 @@ from m2_workspace_layout import ensure_document_folder, list_project_people
 
 EMPTY_ROUND_PLACEHOLDER = "(placeholder - раунд создан автоматически, вопросов ещё нет)"
 
-QA_HEADER = ["Проект", "Период", "Метрика", "Показатель", "Пояснение", "Owner", "Тренд"]
+# Legacy 7-column shape still used for the project_metrics placeholder this
+# script writes; the real project_metrics schema is 12 columns and gets built
+# conversationally by M2 (see project-metrics-schema.md).
+PROJECT_METRICS_HEADER = ["Проект", "Период", "Метрика", "Показатель", "Пояснение", "Owner", "Тренд"]
+
+# qa_process_metrics is a wide sheet: three fixed columns, then one column per
+# sprint appended on the right (2026-09-09). It used to be a long 7-column
+# table with a `Период` column and one row per (metric, period), which buried
+# each metric's own history in a pile of rows instead of showing it as a line.
+# The scaffold cannot know the project's sprint calendar - that lives in
+# project_metrics' `Ритм спринтов` row and is filled by M2 - so it lays down a
+# single placeholder sprint column for the team to rename.
+QA_PROCESS_FIXED_HEADER = ["Метрика", "Пояснение", "Owner"]
+SPRINT_COLUMN_PLACEHOLDER = "<спринт 1: 2026-Sxx (дд.мм-дд.мм)>"
 INTERNAL_RISK_HEADER = [
     "Проект", "Сотрудник", "Дата обновления",
     "Риск с нашей стороны (мы недовольны)", "Риск со стороны сотрудника (он недоволен)",
@@ -47,30 +60,50 @@ INTERNAL_RISK_HEADER = [
 ]
 ACTION_ITEMS_HEADER = ["Проект", "Дата события", "Тип", "Что нужно сделать", "Статус", "Owner", "Источник", "Комментарии"]
 
-# Core 6 only (2026-07-17, extended 2026-07-26 with production bug leakage)
-# - the old 16-metric full catalog was scaffolded onto every new project by
-# default, which is exactly the unrealistic-ask problem that prompted the
-# Core/Extended split (see Templates\метрики_проекта_qa.md §2 History).
-# Extended-catalog metrics are still valid but only get added by hand once
-# a project actually has the supporting tooling - never scaffolded blank.
-QA_METRICS_TEMPLATE = [
+# Tier 0 Baseline (3 rows, mandatory on every project, never removed) plus the
+# Core 6 (added where the project has any tooling for them), grouped so the
+# sheet reads top-down: what every project can count, then automation, then
+# defects. The Extended catalog is never scaffolded blank - a row is added by
+# hand once the project actually has the supporting tooling (see
+# Templates\\метрики_проекта_qa.md §2).
+QA_BASELINE_TEMPLATE = [
+    ("Тикеты за спринт (QA)",
+     "Количество задач, закрытых QA за спринт. Где искать: фильтр в трекере по спринту и "
+     "исполнителю/типу задачи. Если отдельных QA-тикетов на проекте нет и QA-работа зашита внутрь "
+     "задач разработки - считай задачи разработки, которые QA реально провёл через тестирование, и "
+     "пометь здесь: относительная величина, отдельных QA-тикетов нет."),
+    ("Story points за спринт (QA)",
+     "Только если проект вообще использует SP. Если не использует - значения по спринтам пустые, а "
+     "здесь причина: проект не использует story points. Оценку задним числом ради заполнения строки "
+     "не заводим."),
+    ("Git-активность за спринт (AQA)",
+     "Коммиты и добавленные/удалённые строки за спринт, суммарно по AQA-стриму проекта. Только когда "
+     "_metrics_collector_registry помечает Metrics validity участников как Reliable (см. "
+     "m2-git-metrics-onboarding). На чисто ручном проекте: Не применимо (manual QA stream)."),
+]
+
+QA_AUTOMATION_TEMPLATE = [
     ("Покрытие (грубая оценка)",
      "(число автотестов) / (грубая оценка функциональной поверхности - страницы/компоненты/эндпоинты, что "
      "подходит стеку). Не сертифицированный %, явно оценка. Собирается через "
      "Templates\\qa_repo_metrics_prompt.md - промпт для любого доступного кодинг-агента против своего "
      "репозитория с тестами, не ручной подсчёт."),
-    ("Количество автотестов (тренд)",
-     "Общее число автотестов, помесячно - тот же запуск qa_repo_metrics_prompt.md, что и для покрытия выше. "
+    ("Количество автотестов",
+     "Общее число автотестов на конец спринта - тот же запуск qa_repo_metrics_prompt.md, что и для покрытия выше. "
      "Даже без деноминатора рост числа тестов - рабочий сигнал прогресса."),
     ("Pass rate последнего прогона",
-     "Доля прошедших тестов в последнем прогоне (regression или обычный CI). Одна цифра, которую QA-инженер "
-     "обычно и так знает."),
+     "Доля прошедших тестов в последнем прогоне спринта (regression или обычный CI). Одна цифра, которую "
+     "QA-инженер обычно и так знает."),
     ("Ощущение по flaky-тестам",
      "Не точный процент, а короткая качественная оценка одним предложением (\"стабильно\" / \"есть заметные "
      "flaky-падения, мешают доверять прогону\")."),
+]
+
+QA_DEFECT_TEMPLATE = [
     ("Снимок открытых/известных багов",
-     "Сырое число, если трекер (Jira и т.п.) доступен; если недоступен или баги не тегируются системно - "
-     "оставь пустым с причиной (\"нет доступа к трекеру\" и т.п.) - это тоже валидный результат."),
+     "Сырое число на конец спринта, если трекер (Jira и т.п.) доступен; если недоступен или баги не тегируются "
+     "системно - значения по спринтам пустые, а здесь причина (\"нет доступа к трекеру\" и т.п.) - это тоже "
+     "валидный результат."),
     ("Production bug leakage (Баги, утекшие в прод)",
      "Отдельно от снимка открытых багов выше - дефекты, найденные ПОСЛЕ релиза/в проде/пользователями/"
      "клиентом/бизнесом/продакт-оунером, не найденные QA до релиза. Где возможно, классифицируй каждый "
@@ -78,6 +111,16 @@ QA_METRICS_TEMPLATE = [
      "известный принятый риск / неясно-требует триажа. Если точное число неизвестно - качественное "
      "значение с опорой на свидетельства: \"нет данных\" / \"утечек не подтверждено\" / \"подтверждённые "
      "случаи есть, число неизвестно\" / \"N подтверждённых случаев\"."),
+]
+
+# The 6 Core rows as one flat list (automation + defects), for callers that
+# only care about the tooling-gated tier.
+QA_METRICS_TEMPLATE = QA_AUTOMATION_TEMPLATE + QA_DEFECT_TEMPLATE
+
+QA_PROCESS_GROUPS = [
+    ("[Базовые метрики: каждый спринт, обязательны на любом проекте]", QA_BASELINE_TEMPLATE),
+    ("[Автоматизация: заводится, если на проекте есть автотесты]", QA_AUTOMATION_TEMPLATE),
+    ("[Дефекты]", QA_DEFECT_TEMPLATE),
 ]
 
 
@@ -99,20 +142,36 @@ def parse_args() -> argparse.Namespace:
         "otherwise must be given explicitly (see m2-role/m2-metrics-attribution.md on picking an owner for multi-person "
         "projects).",
     )
+    parser.add_argument(
+        "--sprint",
+        default=SPRINT_COLUMN_PLACEHOLDER,
+        help="Header for the first sprint column of qa_process_metrics, e.g. "
+        "\"2026-S14 (19.08-01.09)\". Defaults to a placeholder, since the sprint calendar "
+        "comes from project_metrics' `Ритм спринтов` row, which M2 fills in later.",
+    )
     parser.add_argument("--credentials", default=".local/google/credentials.json")
     parser.add_argument("--token", default=".local/google/token.json")
     return parser.parse_args()
 
 
-def qa_process_rows(project: str, owner: str, period: str) -> list[list[str]]:
-    return [[project, period, metric, "", text, owner] for metric, text in QA_METRICS_TEMPLATE]
+def qa_process_rows(owner: str) -> list[list[str]]:
+    """Wide rows: (Метрика, Пояснение, Owner) plus one empty sprint cell.
+
+    Group label rows are plain text rows in the Метрика column - they keep the
+    sheet readable for the team that fills it in, and carry no values.
+    """
+    rows: list[list[str]] = []
+    for label, metrics in QA_PROCESS_GROUPS:
+        rows.append([label, "", "", ""])
+        rows.extend([metric, text, owner, ""] for metric, text in metrics)
+    return rows
 
 
-def scaffold_qa_process_metrics(services: dict, project_folder_id: str, project: str, owner: str, period: str) -> str:
+def scaffold_qa_process_metrics(services: dict, project_folder_id: str, owner: str, sprint: str) -> str:
     drive = services["drive"]
     if find_sheet_in_folder(drive, project_folder_id, "qa_process_metrics"):
         return "qa_process_metrics: already exists, skipped"
-    values = [QA_HEADER] + qa_process_rows(project, owner, period)
+    values = [QA_PROCESS_FIXED_HEADER + [sprint]] + qa_process_rows(owner)
     create_sheet(services, "qa_process_metrics", project_folder_id, values)
     return "qa_process_metrics: created"
 
@@ -145,7 +204,7 @@ def scaffold_project_metrics(services: dict, project_folder_id: str, project: st
                      "Данных пока недостаточно для оценки.", "M2"])
     rows.append([project, period, "Качество QA-процесса", "",
                  "Пока не оценено — qa_process_metrics ещё не заполнен командой.", "M2"])
-    create_sheet(services, "project_metrics", project_folder_id, [QA_HEADER] + rows)
+    create_sheet(services, "project_metrics", project_folder_id, [PROJECT_METRICS_HEADER] + rows)
     return "project_metrics: created (placeholder rows only, needs real M2 judgment)"
 
 
@@ -210,7 +269,7 @@ def main() -> int:
     private_folder = ensure_document_folder(drive, project_folder["id"], "project_metrics")
     team_folder = ensure_document_folder(drive, project_folder["id"], "qa_process_metrics")
     print(" ", scaffold_project_metrics(services, private_folder["id"], args.project, people, period))
-    print(" ", scaffold_qa_process_metrics(services, team_folder["id"], args.project, owner, period))
+    print(" ", scaffold_qa_process_metrics(services, team_folder["id"], owner, args.sprint))
     for person in people:
         private_person = ensure_document_folder(
             drive, project_folder["id"], "individual_risk", person

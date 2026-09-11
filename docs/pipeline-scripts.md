@@ -167,6 +167,20 @@ These are what actually runs day to day, once a project's folder already exists:
   requires explicit `--apply` flag to write changes. Supports both Google Drive
   and local directory trees (`--local-dir <path>`). Idempotent: already compliant
   worksheets are detected and preserved without modification.
+- `migrate_qa_process_metrics_layout.py` — one-time, idempotent Drive
+  migration turning every project's long `qa_process_metrics` Sheet (a
+  `Период` column, one row per (metric, period)) into the wide
+  sprint-per-column layout: `Метрика`, `Пояснение`, `Owner`, then one
+  column per sprint. Defaults to a dry run; `--apply` writes into the same
+  spreadsheet, so file IDs, links, and sharing survive. Carries over every
+  `Пояснение`, `Owner`, and non-empty `Показатель` (a period earns a column
+  only if something was actually measured in it), keeps any non-canonical
+  metric row under its own group label, and prints - never silently drops -
+  text found in the removed `Тренд` column. `--period-label "OLD=NEW"`
+  renames or merges old period stamps into one column header. Rerunning it
+  on an already-wide sheet only refreshes boilerplate `Пояснение` wording
+  the layout change made stale, leaving M2's own appended findings intact.
+  Applied across all 9 projects on 2026-09-09.
 - `m2_workspace_layout.py` — not a script to run; canonical mapping from M2
   document roles to visibility folders. Readers use canonical-first,
   legacy-compatible lookup during migration; writers create only in the
@@ -350,6 +364,25 @@ These are what actually runs day to day, once a project's folder already exists:
   defaults the Doc title from the session name, and refuses to publish
   images under `--no-share`. `--dry-run`, `--folder-id`, `--doc-id` as
   above.
+- `publish_department_artifacts.py` — publish this M2's per-project
+  artifacts into the department's shared folder (the `QA Common` shared
+  drive, folder `M2 / DC Projects AQA`), one `<Project>_<Surname>` folder
+  per active project. Writes Drive **shortcuts**, never moves or copies:
+  the pipeline resolves these documents by their path under
+  `20_M2_Project_Management/<Project>/`, so a move breaks every script
+  that walks that tree and a copy goes stale on the next skill write. A
+  shortcut only opens if its *target* is shared, so publishing also
+  grants `reader` to the department groups — both steps together, and
+  `--unpublish` reverses both. `ARTIFACTS` is deliberately limited to
+  `project_development_plan`, `project_metrics` and `qa_process_metrics`;
+  the audience is the whole QA/AQA department, so adding `project_risk`,
+  `individual_*`, `m2_input` or `evidence_log` is a disclosure decision,
+  not a config tweak. Closed projects are skipped by name
+  (`CLOSED_PROJECTS`) because `_project_registry` has no binary status
+  column to derive that from. Default is a dry run; `--apply` writes,
+  `--verify` audits that every shortcut resolves and is department-readable.
+  All Drive calls pass `supportsAllDrives` — without it a create against
+  the shared drive fails with a bare 404.
 - `assessment_workspace_layout.py` — pure layout rules for
   `60_Assessments_And_Interviews` (find/ensure the lane root, a session
   *type* folder, a person folder; `find_session_document`, `find_index`,
@@ -358,6 +391,21 @@ These are what actually runs day to day, once a project's folder already exists:
   because the session type owns the assessment criteria and the output
   form. `find_*` never creates anything; `ensure_*` creates only what a
   real session being processed needs. Same shape and same reuse of
+  `m2_workspace_layout`'s Drive helpers as
+  `qa_dept_standards_workspace_layout.py`.
+- `ai_adoption_workspace_layout.py` - pure layout rules for
+  `55_AI_Adoption` (find/ensure the lane root and its `reviews/`
+  subfolder; `find_document` for the workspace-level knowledge base
+  documents - the three tiers plus the Russian derived edition of tier 3, whose
+  source is recorded in `DERIVED_EDITIONS`;
+  `review_document_name`/`parse_review_document_name`, and
+  `find_reviews`, which returns a project's reviews newest-first so a
+  review pass can cite the previous one). Two shapes in one lane: a fixed
+  set of workspace-level documents at the root, and an open-ended
+  per-project, per-session review family under `reviews/`, named
+  `<Project>_ai_adoption_review_<YYYY-MM-DD>` and never rewritten.
+  `find_*` never creates anything; `ensure_*` creates only what a real
+  review or processed source needs. Same shape and same reuse of
   `m2_workspace_layout`'s Drive helpers as
   `qa_dept_standards_workspace_layout.py`.
 - `validate_repo.py` — mechanical consistency validation of this repo's
@@ -789,6 +837,11 @@ These are what actually runs day to day, once a project's folder already exists:
   `project_metrics` rows and `m2_input` rounds still need M2's real read
   of the project. Safe to rerun; every artifact is created only if
   missing, and an existing `project_metrics` is always left untouched.
+  `qa_process_metrics` is scaffolded in its wide shape — the Baseline 3
+  and Core 6 rows under their group labels, three fixed columns
+  (`Метрика`, `Пояснение`, `Owner`) and one sprint column, named via
+  `--sprint "2026-S14 (19.08-01.09)"` or left as a placeholder for the
+  team to rename once `Ритм спринтов` is filled in.
 - `format_all_sheets.py` — applies consistent formatting (wrap, alignment,
   column widths targeting ≤10 lines, widening profiled columns when their
   actual content needs more room) across every Sheet under both
@@ -798,7 +851,24 @@ These are what actually runs day to day, once a project's folder already exists:
   prints planned column widths per sheet without writing — worth using
   whenever the scope changes again. A single-sheet read timeout is a
   transient failure, not a real one; the script is idempotent, so just
-  rerun it rather than chasing the one sheet by hand.
+  rerun it rather than chasing the one sheet by hand. Note that a Sheet with
+  no entry in `PROFILES` gets the generic fallback treatment — grid-wide
+  WRAP/LEFT/TOP, every border cleared, a grey bold row 1, content-derived
+  widths and row heights — so any hand-designed workbook stored under those
+  roots needs a `SKIP_SHEET_NAMES` entry, or the sweep will flatten it.
+- `restore_sheet_formatting.py` — copies one tab's *formatting* (per-cell
+  `userEnteredFormat`, column widths, row heights) from a `--source`
+  spreadsheet onto a `--target` one, leaving values, formulas, and notes
+  alone, so a target whose content has moved on since the source copy was
+  taken keeps its newer content. The recovery path when `format_all_sheets.py`
+  has flattened a hand-designed workbook and an untouched copy still exists
+  outside the swept roots. Dumps the target's current formatting to a backup
+  JSON before writing, and reports merge differences without acting on them
+  unless `--merges` is passed (rewriting merges moves content between cells).
+  Scope the fetch with `--max-col`/`--max-row`: asking for a full 999-row grid
+  of formats can trip the HTTP client's decompression-ratio guard, and rows
+  past the content usually only need their default formatting anyway.
+  `--dry-run` reports the planned request count without writing.
 - `qa_source_extract.py` — dependency-free DOCX/XLSX → Markdown/CSV
   extractor; check `90_Storage/_System/extracts/source/*/manifest.csv` for an
   existing extraction before re-running it on the same source file.

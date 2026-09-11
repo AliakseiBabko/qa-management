@@ -25,9 +25,9 @@ individual metrics and how to measure each one (quantitative formula or
 qualitative 3-level definition).
 
 `qa-management-roles\references\qa-metrics-catalog.md` — cross-cutting map
-of all three metric tiers (Core project QA-process, optional
-project/release quality, optional individual contribution) and the
-signals-not-verdicts principle they share; points back here for the
+of all four metric tiers (Baseline project QA-process, Core project
+QA-process, optional project/release quality, optional individual
+contribution) and the signals-not-verdicts principle they share; points back here for the
 individual-tier definitions rather than duplicating them.
 
 ## Choosing metrics from the catalog
@@ -146,6 +146,11 @@ nothing more:
 1. `Проект`
 2. `Сотрудник`
 3. `Дата` — date of this snapshot (a single date, not a range/period).
+   This is why the sprint-scoped Core rows (`Перформанс`,
+   `Git-активность за спринт (AQA)`) carry their sprint inside
+   `Показатель` — e.g. `18 тикетов / 21 SP (спринт 2026-S14,
+   19.08-01.09)`. Do not add a period column; the project's sprint
+   calendar lives in `project_metrics`'s `Ритм спринтов` row.
 4. `Роль / stream` — leave empty when the project has no streams; keep the
    column so the schema stays usable across projects that do have them.
 5. `Метрика` — name from the catalog.
@@ -170,7 +175,11 @@ nothing more:
 8. `Тренд` — filled once there is a prior value to compare against (the
    previous `Показатель` this row held, found via `evidence_log` if the
    row itself was already overwritten in place); leave blank on the
-   first-ever value for a metric.
+   first-ever value for a metric. For `Перформанс` and
+   `Git-активность за спринт (AQA)`, compare against the rolling average
+   of the previous three sprints rather than the single previous value
+   (±20% is `Стабильный`), and leave it blank until three sprints of
+   history exist — otherwise a holiday week reads as a performance drop.
 
 ## Source Priority
 
@@ -183,7 +192,18 @@ nothing more:
 ## Normalization
 
 - Validate that the metric reflects the person's real project role and constraints.
-- Do not use closed tasks, moved tasks, story points, or sprint throughput as primary person-level metrics when scope, task size, estimates, or release cadence are unstable.
+- Closed tasks, story points, and git activity are **trend** metrics, not
+  **level** metrics (revised 2026-09-07 — the earlier blanket "do not use
+  them as primary person-level metrics" was read as a ban and left people
+  with no measurable baseline at all). They are Core rows precisely
+  because they are the only thing collectable on every project. Their
+  absolute values are never compared between people or between projects:
+  a ticket is a different unit on each project, story points are not
+  calibrated across teams, and lines of code track the stack more than
+  the person. The only question they answer is whether this person's own
+  dynamics changed under the same parameters and approach. Where scope,
+  task size, estimates, or cadence are unstable, say so in `Пояснение`
+  and read the trend more loosely — do not drop the row.
 - If the person is constrained by project context, such as vague requirements, missing process, overload, access limits, unclear QA ownership, or senior-level expectations for a junior QA, note that in the individual development plan (not in this table) and choose metrics that separate personal contribution from project constraints.
 - Core metrics feed the project-level `project_metrics` rollup automatically (see that skill's contract) precisely because they use a shared name and calculation method — this is the mechanism that connects individual and project metrics, so do not rename or redefine a Core metric locally even if a project-specific variant would read more naturally.
 - Keep person-level conclusions scoped to contribution and constraints. Do not imply project-level health from one person unless that person's role or stream materially affects the overall project picture.

@@ -490,8 +490,25 @@ def _load_text_file(path: str) -> str:
     """Reads a text file for a write command and guarantees a trailing
     newline (every paragraph this module inserts must end in one - a
     caller-supplied file missing it would otherwise silently merge with
-    whatever paragraph follows the insertion point)."""
+    whatever paragraph follows the insertion point).
+
+    Also refuses a file whose paragraph breaks are literal backslash-n
+    two-character sequences instead of real newlines. Such a file is almost
+    always a shell string built with an escape that nothing ever
+    interpreted (single quotes, a verbatim JSON payload, a here-string),
+    and the Docs API inserts it exactly as given: one enormous paragraph
+    with visible backslash-n between the sentences. This happened to a real
+    `project_development_plan`, and went unnoticed long enough for the same
+    mangled block to be appended to it twice.
+    """
     text = Path(path).read_text(encoding="utf-8")
+    if "\\n" in text and text.strip("\n").count("\n") == 0:
+        raise SystemExit(
+            f"{path}: paragraph breaks are literal backslash-n sequences, not "
+            "real newlines - inserting this would produce a single paragraph "
+            "with visible backslash-n in the document. Write the file with "
+            "real line breaks (printf, a heredoc, or Python) and re-run."
+        )
     return text if text.endswith("\n") else text + "\n"
 
 

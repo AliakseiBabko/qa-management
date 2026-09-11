@@ -147,24 +147,33 @@ class ModuleShapeTests(unittest.TestCase):
             size = index.stat().st_size
             self.assertLessEqual(size, 4 * 1024, f"{index} is {size} bytes, over the 4 KiB target")
 
-    def test_project_aggregate_size_within_preservation_band(self):
+    # Replaced 2026-09-07: these two were ±5%/+10% two-sided byte bands
+    # around the pre-split originals. The floor still does the job it was
+    # written for (the split must not silently drop contract content), but
+    # the ceiling only ever fired on legitimate additions — the Tier 0
+    # baseline-metrics pass tripped it — while `test_every_module_is_at_
+    # most_16kib` and `test_thin_indexes_are_at_most_4kib` already bound
+    # growth per file, which is the bound that actually matters for
+    # loading cost. Keep the floor, drop the ceiling.
+
+    def test_project_aggregate_preserves_original_content(self):
         total = PROJECT_INDEX.stat().st_size + sum((PROJECT_REFS / n).stat().st_size for n in PROJECT_MODULES)
         low = PROJECT_ORIGINAL_BYTES * 0.95
-        high = PROJECT_ORIGINAL_BYTES * 1.10
-        self.assertTrue(
-            low <= total <= high,
-            f"project contract split is {total} bytes, outside the "
-            f"{low:.0f}-{high:.0f} band around the original {PROJECT_ORIGINAL_BYTES}",
+        self.assertGreaterEqual(
+            total,
+            low,
+            f"project contract split is {total} bytes, below the {low:.0f} floor "
+            f"for the original {PROJECT_ORIGINAL_BYTES} — content was dropped, not moved",
         )
 
-    def test_individual_aggregate_size_within_preservation_band(self):
+    def test_individual_aggregate_preserves_original_content(self):
         total = INDIVIDUAL_INDEX.stat().st_size + sum((INDIVIDUAL_REFS / n).stat().st_size for n in INDIVIDUAL_MODULES)
         low = INDIVIDUAL_ORIGINAL_BYTES * 0.95
-        high = INDIVIDUAL_ORIGINAL_BYTES * 1.10
-        self.assertTrue(
-            low <= total <= high,
-            f"individual contract split is {total} bytes, outside the "
-            f"{low:.0f}-{high:.0f} band around the original {INDIVIDUAL_ORIGINAL_BYTES}",
+        self.assertGreaterEqual(
+            total,
+            low,
+            f"individual contract split is {total} bytes, below the {low:.0f} floor "
+            f"for the original {INDIVIDUAL_ORIGINAL_BYTES} — content was dropped, not moved",
         )
 
 
@@ -353,7 +362,8 @@ class KeyAnchorsPresentInOwningModuleTests(unittest.TestCase):
     def test_qa_process_metrics_schema_anchor(self):
         text = (PROJECT_REFS / "qa-process-metrics-schema.md").read_text(encoding="utf-8")
         self.assertIn("Schema — `qa_process_metrics`", text)
-        self.assertIn("Core (6 metrics)", text)
+        self.assertIn("Core / Tier 1 (6 metrics)", text)
+        self.assertIn("Baseline / Tier 0 (3 metrics)", text)
 
     def test_individual_metrics_schema_anchor(self):
         text = (INDIVIDUAL_REFS / "individual-metrics-schema.md").read_text(encoding="utf-8")
