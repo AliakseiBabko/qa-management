@@ -455,10 +455,10 @@ def build_early_signal_prognosis(
 ) -> str:
     """Turn an observed signal into a concise future-risk prognosis."""
     dimension_order = (
-        ("Риск staffing / continuity", "перегрузка, потеря continuity или необходимость срочной замены"),
-        ("Риск communication / client", "снижение доверия клиента и устойчивости нашей роли"),
-        ("Риск QA process", "позднее обнаружение дефектов и непредсказуемое качество релизов"),
-        ("Риск delivery", "пропуск релизного объёма или сроков"),
+        ("Риск staffing / continuity", "перегрузке, потере continuity или необходимости срочной замены"),
+        ("Риск communication / client", "снижению доверия клиента и устойчивости нашей роли"),
+        ("Риск QA process", "позднему обнаружению дефектов и непредсказуемому качеству релизов"),
+        ("Риск delivery", "пропуску релизного объёма или сроков"),
     )
     dominant_consequence = "ухудшению delivery или устойчивости нашей роли"
     for field, consequence in dimension_order:
