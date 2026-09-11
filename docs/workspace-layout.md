@@ -67,7 +67,7 @@ M2 is organized by project context across a 3-layer information architecture:
 | **Layer 2** | `project_risk` | **Living 2-Tab Sheet** | Updated in place (`Summary` + `Risk Items` tabs) |
 | **Layer 2** | `m2_input` | **Living Doc** | Append-only rounds (dated sections from top to bottom) |
 | **Layer 1** | `evidence_log` | **Append-only Sheet/CSV** | Pure historical log (never overwrite old rows) |
-| **Layer 1** | `qa_process_metrics` | **Periodic Sheet** | Append-only rows per sprint/period |
+| **Layer 1** | `qa_process_metrics` | **Periodic Sheet** | Wide layout: fixed metric rows, one column appended per sprint (every tier per sprint) |
 
 ### Workspace-Wide Registries
 
@@ -379,6 +379,70 @@ someone's development plan.
 
 Raw video/audio never lands here — transcripts and documents only, same
 rule as the rest of the workspace.
+
+## AI Adoption Layout
+
+A seventh lane: `55_AI_Adoption`, how AI tooling is actually applied in QA
+work across projects. Two shapes in one lane — a small fixed tiered
+knowledge base at the root, and an open-ended family of per-project scored
+review documents under `reviews/`.
+
+```
+55_AI_Adoption/
+  ai_adoption_source_notes              (Doc - tier 1, one section per
+                                          processed source, append-only,
+                                          confidence-tagged)
+  ai_adoption_knowledge_store           (Doc - tier 2, topic-organized,
+                                          upsert in place with a citation
+                                          per source)
+  ai_in_qa_best_practices               (Doc - tier 3, synthesized
+                                          readable wiki)
+  ai_in_qa_best_practices_ru            (Doc - Russian generic rules digest
+                                          derived from tier 3; states rules
+                                          only, no project/session refs)
+  reviews/
+    <Project>_ai_adoption_review_<YYYY-MM-DD>   (Doc - one scored review
+                                                  per session)
+```
+
+The tiering exists so raw detail and traceability stay separate from
+readability: a source always produces a tier-1 note, usually upserts
+tier 2, and updates tier 3 only when it changes the synthesized
+understanding. Raw transcripts are not part of the lane — they stay next
+to the original recording, and the tier-1 note records the path.
+
+The Russian document is a derived edition, not a translation and not a fourth
+tier. The English wiki is the traceable synthesis and names its sources; the
+Russian edition deliberately drops every project, session and person reference
+and states rules only, so the two differ in content by design. A change to the
+English document leaves the edition stale;
+`ai_adoption_workspace_layout.DERIVED_EDITIONS` maps each edition to its source
+so that is checkable, and the rules for producing one (what to strip, what to
+keep, and how to keep it reading as Russian rather than as translated English)
+live in the skill's `knowledge-base-contract.md`.
+
+Review names come from `ai_adoption_workspace_layout.review_document_name()`
+— never hand-built; `find_reviews()` is how a review pass finds the
+previous one it has to cite. `find_*` never creates a folder; `ensure_*`
+creates only what a real review needs. Documents are authored as local
+Markdown and published with `publish_markdown_doc.py`; a re-publish
+replaces that document's body (`--doc-id`) rather than adding a copy.
+
+One skill, `ai-adoption-review`, owns both shapes, with the 0-4 scored
+rubric in `Templates/ai_adoption_review.md` and the tiering rules in its
+own `references/knowledge-base-contract.md`.
+
+**A primary intake lane, but with no downstream cascade.** It owns one
+`source_type` — `ai_adoption_session` — and its own entry documents, with
+no edge into any M1/M2 document. Two boundaries matter: a review assesses
+a *project's* practice and never carries a verdict about a named person's
+competence (that stays M1's `individual_risk`), and where a 1:1-shaped
+source also carries compensation, staffing or competence content, that
+part is excluded from this lane and routed through the M1/M2 chain — so
+such a source logs two rows, one per half, never one standing in for both.
+Access-legitimacy problems found in a review are recorded as findings with
+an escalation path rather than scored, so a strong tooling score cannot
+offset unapproved client access.
 
 ## Visual Evidence Drop
 

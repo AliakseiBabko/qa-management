@@ -13,7 +13,10 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 
 ## Required Start
 
-1. Read `references/individual-metrics-schema.md`. Read
+1. Read `references/individual-metrics-schema.md` (it owns the rule that
+   `Перформанс` and `Git-активность за спринт (AQA)` are trend metrics
+   scoped to one person's own history, never cross-person or
+   cross-project comparisons). Read
    `references/internal-variant.md` too if also writing or updating the
    private `individual_risk` Sheet.
 2. Read `../qa-management-roles/references/google-workspace/workspace-basics.md`, `../qa-management-roles/references/google-workspace/m2-layout.md`, `../qa-management-roles/references/google-workspace/artifact-conventions.md`, and `../qa-management-roles/references/google-workspace/api-sharing-editing.md`.
@@ -25,7 +28,11 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 
 ## Workflow
 
-1. Produce one row per meaningful individual metric.
+1. Produce one row per meaningful individual metric. The 5 Core rows
+   from `Templates\метрики_qa_по_проекту.md` always exist, including the
+   per-sprint baseline pair (`Перформанс`, `Git-активность за спринт
+   (AQA)`) — blank with a reason, or `Не применимо (manual QA stream)`
+   for git on a manual stream.
 2. Include metrics that show the person's project value, role growth, visibility, trust, delivery impact, and quality impact when evidence exists.
 3. Prefer source scorecard dimensions when available:
    - delivery ownership
@@ -46,3 +53,10 @@ This is currently a placeholder skill boundary. Use it when the outcome must be 
 - Keep this skill scoped to one expected document format.
 - Do not convert manager opinions into numeric scores unless the source already provides a score or clear scale.
 - Do not use abstract goals as metrics. Convert them into observable indicators or leave the data gap explicit.
+- External git-metrics collector figures are not an input here by
+  default. They enter only when `_metrics_collector_registry` marks that
+  person's `Metrics validity` as `Reliable` (the collector grades against
+  whatever branch is checked out when it finds no `main`/`master` trunk,
+  and its direct-to-main anomaly misfires on squash-merge repos) - see
+  `m2-git-metrics-onboarding`, which owns that tool and its registry, not
+  this skill.

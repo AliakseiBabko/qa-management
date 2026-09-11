@@ -55,6 +55,8 @@ lanes:
     root_folder: 10_M1_People_Management
   assessments_and_interviews:
     root_folder: 60_Assessments_And_Interviews
+  ai_adoption:
+    root_folder: 55_AI_Adoption
 
 sources:
   qa_1to1:
@@ -246,6 +248,25 @@ sources:
     skills: [interview-assessment-roles, external-interview-feedback]
     entry: [interview_feedback, _assessment_index, _skill_invocations]
 
+  ai_adoption_session:
+    lane: ai_adoption
+    description: >-
+      A session about how AI tooling is actually applied in QA work - an
+      "AI project support" review of one project team, an expert
+      consultation on AI practice, or the AI-implementation part of another
+      conversation. Always produces a source extraction note; produces a
+      scored per-project review document only when the session was a
+      project review. The scored review never carries a verdict about a
+      named person's competence, and the compensation/staffing content a
+      1:1-shaped source may contain is excluded from this lane and routed
+      through the M1/M2 chain instead. A department-wide tool or process
+      requirement surfaced here is a separate judged pass through
+      qa-department-standards-intake, never a required edge.
+    skills: [ai-adoption-review]
+    entry: [ai_adoption_source_notes, ai_adoption_knowledge_store,
+            ai_in_qa_best_practices, ai_in_qa_best_practices_ru,
+            ai_adoption_review, _skill_invocations]
+
 documents:
   # ---- per-person (M2 project scope) ----
   individual_metrics:
@@ -285,8 +306,11 @@ documents:
           surfaces them as action-item candidates.
 
   qa_process_metrics:
-    # Fixed-core QA process metrics plus optional project-specific metrics
-    # (m2-project-qa-metrics-report scope).
+    # Three metric tiers (m2-project-qa-metrics-report scope): a mandatory
+    # 3-row Baseline (tickets, story points, AQA git activity), the 6 Core
+    # rows where the project has tooling for them, and the optional
+    # Extended catalog. Wide layout since 2026-09-09: fixed metric rows,
+    # one column appended per sprint, every tier collected per sprint.
     scope: project
     downstream:
       - to: project_metrics
@@ -404,6 +428,33 @@ documents:
   _project_registry:
     scope: workspace
     downstream: []
+
+  _metrics_collector_registry:
+    # Cross-project roster of who holds an external git-metrics collector
+    # key, per (Person, Project) pair, plus the authorization/scope gate
+    # state and the per-person validity caveats that override the external
+    # app's own chips (m2-git-metrics-onboarding scope). Hand-maintained on
+    # purpose: its gate and disclosure columns are judgment records that no
+    # script can derive, and a partial mechanical refresh would make a row
+    # look freshly verified when its judgment half had gone stale.
+    scope: workspace
+    downstream:
+      - to: individual_metrics
+        kind: judgment
+        note: >-
+          Only when the row's "Metrics validity" is Reliable. The collector
+          grades against whatever branch is checked out when it cannot
+          detect a main/master trunk, and its direct-to-main anomaly
+          misfires on squash-merge repos that carry any review marker — so
+          a non-Reliable row's figures never enter a person's metrics, a
+          risk level, or anything compensation-adjacent.
+      - to: action_items
+        kind: judgment
+        note: >-
+          An open gate item, an undelivered install handoff, a stale key
+          needing rotation, or a submission-gap follow-up becomes a dated
+          action via m2-timeline. An unanswered authorization basis also
+          goes in as an m2_input question, never straight into project_risk.
 
   timeline_views:
     # Generated trio: _timeline, Google Calendar, _timeline_looker_view.
@@ -602,6 +653,61 @@ documents:
       One row per processed session, flat at the lane root - the same
       ground-truth role pk_source_index and pm_case_index play in theirs.
 
+  # ---- AI Adoption (55_AI_Adoption) ----
+  # A tiered knowledge base of three workspace-level documents, plus an
+  # open-ended family of per-project scored review documents under
+  # reviews/. No downstream edges: a department standard, a PM case, or a
+  # project-knowledge fact surfaced by a session is a separate, judged
+  # pass through that lane's own skill, never a required cascade target.
+  # The tiering rules (what updates which tier, and when the wiki is left
+  # alone) live in ai-adoption-review/references/knowledge-base-contract.md.
+  ai_adoption_source_notes:
+    scope: workspace
+    append_only: true
+    downstream: []
+    note: >-
+      Tier 1. One section per processed source, with a confidence tag on
+      every fact. Never rewritten - a later correction is a new section,
+      not an edit.
+
+  ai_adoption_knowledge_store:
+    scope: workspace
+    downstream: []
+    note: >-
+      Tier 2. Topic-organized, upsert in place with a citation appended
+      per source; contradictions recorded rather than overwritten. Same
+      current-state (not append-only) convention as
+      qa_department_standards.
+
+  ai_in_qa_best_practices:
+    scope: workspace
+    downstream: []
+    note: >-
+      Tier 3. Synthesized readable wiki, updated only when a source
+      changes the synthesized understanding - a source that merely
+      corroborates updates the store and leaves this alone.
+
+  ai_in_qa_best_practices_ru:
+    scope: workspace
+    downstream: []
+    note: >-
+      Russian-language generic rules digest derived from
+      ai_in_qa_best_practices. Not a translation: it deliberately carries no
+      project, session or person references and states rules only, so its
+      content differs from its source by design. A change to the source leaves
+      it stale; regenerate it rather than patching both.
+
+  ai_adoption_review:
+    scope: project
+    append_only: true
+    downstream: []
+    note: >-
+      One dated scored review per project per session under reviews/.
+      Append-only in the strongest sense: a re-review is a new dated
+      document citing the previous one, because the old document records
+      what was true at that session. Access-legitimacy problems are
+      findings with an escalation path, never scores.
+
 # Documents produced on a calendar cadence, not per intake. Excluded from
 # per-intake closure checks; listed so the graph stays the complete map.
 periodic:
@@ -616,6 +722,8 @@ periodic:
 # Alternate spellings seen in routed_to / Documents touched, mapped to
 # canonical node names.
 aliases:
+  metrics_collector_registry: _metrics_collector_registry
+  collector_registry: _metrics_collector_registry
   individual_plan: individual_development_plan
   project_plan: project_development_plan
   светофор_рисков: m1_risk_report
@@ -623,3 +731,9 @@ aliases:
   _timeline_looker_view: timeline_views
   calendar: timeline_views
   1to1: m1_1to1_file
+  ai_best_practices: ai_in_qa_best_practices
+  ai_in_qa_best_practices_russian: ai_in_qa_best_practices_ru
+  ai_best_practices_ru: ai_in_qa_best_practices_ru
+  ai_adoption_wiki: ai_in_qa_best_practices
+  ai_adoption_store: ai_adoption_knowledge_store
+  ai_source_notes: ai_adoption_source_notes

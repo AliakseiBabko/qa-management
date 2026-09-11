@@ -6,6 +6,7 @@ Supports explicit formatting profiles for executive and living M2 sheets:
 - `project_metrics`: 12-column layout (1,600 px) with trend and confidence conditional formatting.
 - `project_risk` (Summary tab): 14-column layout (1,600 px) with 5-dimension risk traffic-lights and prediction signals.
 - `project_risk` (Risk Items tab): 20-column layout with severity, lifecycle dates, prediction status, and item status formatting.
+- `qa_process_metrics`: wide sprint-per-column layout with the 3 fixed columns frozen alongside the header row.
 
 For sheets without an explicit profile, falls back to dynamic content-based column sizing and row height heuristics.
 """
@@ -90,6 +91,15 @@ PROFILES: dict[str, dict[str, Any]] = {
             {"col_start": 11, "col_end": 12, "type": "TEXT_EQ", "val": "Негативный", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
         ],
     },
+    "qa_process_metrics": {
+        # Wide sheet: 3 fixed columns then one column per sprint, so only the
+        # fixed ones get explicit widths - sprint columns fall back to
+        # content-based sizing. Both the metric name and the leftmost columns
+        # stay visible while scrolling right through sprint history.
+        "widths": [230, 400, 110],
+        "freeze_rows": 1,
+        "freeze_columns": 3,
+    },
     "project_risk_summary": {
         "widths": [110, 90, 130, 90, 220, 120, 90, 90, 110, 110, 220, 100, 80, 80],
         "freeze_rows": 1,
@@ -142,6 +152,8 @@ def resolve_profile_for_tab(sheet_name: str, tab_title: str) -> dict[str, Any] |
         return PROFILES["_project_registry"]
     if sheet_name == "project_metrics" or tab_title == "project_metrics":
         return PROFILES["project_metrics"]
+    if sheet_name == "qa_process_metrics" or tab_title == "qa_process_metrics":
+        return PROFILES["qa_process_metrics"]
     if sheet_name == "project_risk" or "риск" in sheet_name.casefold():
         if tab_title == "Risk Items" or "items" in tab_title.casefold():
             return PROFILES["project_risk_items"]
@@ -360,16 +372,21 @@ def build_tab_formatting_requests(
             }
         }
     )
-    # Freeze header row if profile sets it
-    if profile and profile.get("freeze_rows"):
+    # Freeze header row and/or leading columns if profile sets them
+    if profile and (profile.get("freeze_rows") or profile.get("freeze_columns")):
+        grid_properties: dict[str, Any] = {}
+        fields = []
+        if profile.get("freeze_rows"):
+            grid_properties["frozenRowCount"] = profile["freeze_rows"]
+            fields.append("gridProperties.frozenRowCount")
+        if profile.get("freeze_columns"):
+            grid_properties["frozenColumnCount"] = profile["freeze_columns"]
+            fields.append("gridProperties.frozenColumnCount")
         requests.append(
             {
                 "updateSheetProperties": {
-                    "properties": {
-                        "sheetId": grid_id,
-                        "gridProperties": {"frozenRowCount": profile["freeze_rows"]},
-                    },
-                    "fields": "gridProperties.frozenRowCount",
+                    "properties": {"sheetId": grid_id, "gridProperties": grid_properties},
+                    "fields": ",".join(fields),
                 }
             }
         )
@@ -464,6 +481,21 @@ def format_sheet(sheets_service: Any, spreadsheet_id: str, name: str, dry_run: b
 
 DEFAULT_ROOTS = ["10_M1_People_Management", "20_M2_Project_Management"]
 
+# Hand-designed workbooks that live under the swept roots but must keep their
+# own layout.  Without an entry in `PROFILES`, a sheet gets the generic
+# fallback treatment - grid-wide WRAP/LEFT/TOP, all borders cleared, a grey
+# bold row 1, and content-derived widths and row heights - which on 2026-08-18
+# flattened the M2 bonus calculator's design (restored afterwards from an
+# untrashed copy via `restore_sheet_formatting.py`).  Matched case-insensitively
+# against the Drive file name.
+SKIP_SHEET_NAMES = {
+    "алексей бобко бонус",
+}
+
+
+def should_skip(sheet_name: str) -> bool:
+    return sheet_name.casefold().strip() in SKIP_SHEET_NAMES
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Format all Sheets under the workspace root.")
@@ -517,6 +549,9 @@ def main() -> int:
 
     print(f"Found {len(found)} Sheets across {len(root_ids)} root folder(s).")
     for f in found:
+        if should_skip(f["name"]):
+            print(f"{f['name']}: skipped (hand-formatted, see SKIP_SHEET_NAMES)")
+            continue
         try:
             result = format_sheet(sheets, f["id"], f["name"], dry_run=args.dry_run)
         except Exception as exc:  # noqa: BLE001

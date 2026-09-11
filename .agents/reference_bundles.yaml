@@ -45,6 +45,7 @@ bundles:
       - m2-offboarding-report
       - m2-replacement-report
       - m2-shadow-onboarding-report
+      - m2-git-metrics-onboarding
 
   m1-report-writer:
     description: >-

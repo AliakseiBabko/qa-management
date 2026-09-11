@@ -12,7 +12,11 @@ Use this skill for one output family only:
 ## Required Start
 
 1. Read `references/project-metrics-schema.md` and
-   `references/qa-process-metrics-schema.md`. Read
+   `references/qa-process-metrics-schema.md` (the latter owns the
+   Baseline / Core / Extended tier split, the sprint-per-column wide
+   layout, and the sprint-versus-month period model — Baseline is the
+   mandatory floor, Core 6 is expected where tooling exists, Extended is
+   a menu). Read
    `references/extended-metrics-catalog.md` too when adding an
    Extended-tier `qa_process_metrics` row or extracting a raw DOCX/XLSX
    source (steps 5-6 below).
@@ -34,7 +38,9 @@ Use this skill for one output family only:
    `(Project, Metric Key, Role / Stream)`
    where project-wide rows use `Role / Stream = Project-wide`.
 
-2. **Maintain 4-Tier Row Taxonomy**:
+2. **Maintain 4-Tier Row Taxonomy** (`project_metrics`; not to be
+   confused with `qa_process_metrics`'s Baseline/Core/Extended metric
+   tiers):
    - **Canonical Context Rows**:
      - `Статус проекта` — `Активен` or `Не активен`.
      - `Engagement outlook` — `YYYY-MM-DD [Contractual] — <Continuation Outlook> (<Confidence>)`.
@@ -42,6 +48,11 @@ Use this skill for one output family only:
      - `Фокус M2` — technical/delivery management focus.
      - `Статус согласования (Alignment)` — `Согласовано`, `В процессе калибровки`, or `Расхождение ожиданий`.
      - `Сигнал capacity` — delivery/staffing capacity alert.
+     - `Ритм спринтов` — the project's sprint calendar
+       (`<length> дн., якорь <YYYY-MM-DD>, <numbering>`, or
+       `Нет спринтов (Kanban)`). Required before any `qa_process_metrics`
+       sprint column can be written — that Sheet's columns *are* the
+       sprints.
    - **Outcome Proxy Rows** (`Outcome proxy: <Name>`):
      Select 1 to 3 operational business outcome proxies connecting QA activities to client business value (e.g. `Regression turnaround duration`, `Production bug leakage`, `Blocker discovery lead time`, `Onboarding speed`).
      Maintain `Baseline`, `Показатель` (Current Value), `Target`, `Evidence Status`, `Data Confidence`, `Пояснение`, `Owner`, `Тренд`.
@@ -76,3 +87,10 @@ Use this skill for one output family only:
 - Do not mix metrics output with project-risk item registers.
 - Do not invent quantitative metrics. If a score is qualitative or estimated, label `Evidence Status` and `Data Confidence` clearly.
 - `project_metrics` is unshared (M2/M3 only) and lives in `20_M2_Project_Management/<Project>/private/`.
+- External git-metrics collector figures are not an input here by
+  default. They enter only when `_metrics_collector_registry` marks that
+  person's `Metrics validity` as `Reliable` (the collector grades against
+  whatever branch is checked out when it finds no `main`/`master` trunk,
+  and its direct-to-main anomaly misfires on squash-merge repos) - see
+  `m2-git-metrics-onboarding`, which owns that tool and its registry, not
+  this skill.

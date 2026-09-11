@@ -1,6 +1,6 @@
 # M2 Project Development Plan Sources And Normalization
 
-Scope: which evidence to prioritize and how to write each section well, including the Upsell section's evidence rule.
+Scope: which evidence to prioritize, how to reason from indirect client signal, and how to write each section well, including the Upsell section's evidence rule.
 
 ## Source Priority
 
@@ -33,6 +33,18 @@ Scope: which evidence to prioritize and how to write each section well, includin
 - Do not describe the project's business flow as a functional use-case
   ("user does X, then Y"). Business flow is how the product earns money: who
   buys, why, through what channel, what drives revenue.
+- Do not stop at "the client never said." Direct client statements are the
+  best evidence and usually the scarcest; the plan is written from what the
+  client *does* when they say nothing. Reason from staffing and hiring
+  decisions (who they pay for, where, and who they turn down), from what
+  they escalate versus quietly absorb, from which of their products get QA
+  coverage and which get none, from the constraints they impose, from what
+  they ask us to demonstrate, and from the shape of their own backlog.
+  Write the conclusion, mark it `(гипотеза M2)`, name the signal in the same
+  sentence, and state what would confirm or refute it.
+- Do not carry a fact into this document just because it was recorded
+  upstream. Every sentence must be doing work for a reader above M2 — the
+  event plus its consequence, or nothing.
 - Do not attribute the whole product's value to QA. State the value that
   would specifically be missing without QA's work.
 - Do not call the project "successful" because work shipped. State the
@@ -52,7 +64,10 @@ Scope: which evidence to prioritize and how to write each section well, includin
   defect/risk prevention, or client/team feedback.
 - Reviewer feedback belongs in native Google Docs comments tied to the
   relevant paragraph (mirroring how the original homework documents were
-  reviewed in Word), not as an extra column or appended text block.
+  reviewed in Word), not as an extra column or appended text block. The same rule covers
+  maintenance notes about the document itself (a correction, a claim that
+  needs re-confirming, a section a previous pass missed): they go in a Docs
+  comment or `evidence_log`, never into the document's own prose.
 - An expansion/upsell item must name the specific diagnostic signal or
   conversation it's built from (e.g. "regression bugs up this sprint, no
   automation coverage — raised as a POC candidate at Thursday's retro"),

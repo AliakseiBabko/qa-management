@@ -2,10 +2,14 @@
 metrics catalog reference (2026-07-26):
 
 `qa-management-roles/references/qa-metrics-catalog.md` is a new
-cross-cutting map tying together three tiers:
+cross-cutting map tying together the metric tiers (three at the time,
+four since the 2026-09-07 Baseline pass — see
+`test_baseline_sprint_metrics.py`):
 
-1. Core minimum project QA-process metrics (6, mandatory, project-level) —
-   defined in `Templates\метрики_проекта_qa.md` §2 Core.
+1. Core minimum project QA-process metrics (6, project-level) —
+   defined in `Templates\метрики_проекта_qa.md` §2 Core. Mandatory when
+   this file was written; downgraded to expected-where-tooling-exists on
+   2026-09-07, when Tier 0 became the mandatory floor.
 2. Optional project/release quality metrics (incident-tracking, tooling-
    gated) — new subsection in `Templates\метрики_проекта_qa.md` §2
    Extended, "Релизы и инциденты".
@@ -50,7 +54,7 @@ INDIVIDUAL_CONTRACT_PATH = (
 
 CORE_PROJECT_METRICS = (
     "Покрытие (грубая оценка)",
-    "Количество автотестов (тренд)",
+    "Количество автотестов",
     "Pass rate последнего прогона",
     "Ощущение по flaky-тестам",
     "Снимок открытых/известных багов",
@@ -119,7 +123,7 @@ class CatalogFileExistsAndListsTiersTests(unittest.TestCase):
 
     def test_does_not_redefine_schema_owning_source_of_truth(self):
         self.assertIn(
-            "This is not a fourth schema to keep in sync by hand", self.text
+            "This is not a fifth schema to keep in sync by hand", self.text
         )
 
     def test_cross_references_owning_templates(self):

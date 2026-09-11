@@ -57,6 +57,11 @@ EXPECTED_M2_USED_BY = [
     "m2-offboarding-report",
     "m2-replacement-report",
     "m2-shadow-onboarding-report",
+    # External-tool administration skill (roster + per-(person, project)
+    # metrics keys). Writes _metrics_collector_registry at the M2 lane
+    # root, so it needs the same 4 modules every other M2 Sheet writer
+    # does, and reads them mandatorily in its own Required Start.
+    "m2-git-metrics-onboarding",
 ]
 
 EXPECTED_M1_MODULES = [

@@ -141,6 +141,11 @@ SKILL_INVOCATION_SOURCE_TYPES = {
     # management conversation. See operational-registries.md and
     # interview-assessment-roles.
     "assessment_transcript", "external_interview_transcript",
+    # AI Adoption lane (55_AI_Adoption) - a session about how AI tooling is
+    # actually applied in QA work: a project review, an expert consultation,
+    # or the AI-implementation part of another conversation. See
+    # operational-registries.md and ai-adoption-review.
+    "ai_adoption_session",
 }
 
 

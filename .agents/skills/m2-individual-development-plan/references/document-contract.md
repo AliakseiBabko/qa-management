@@ -117,7 +117,7 @@ visible to the employee it's about, and that conclusion is M2's own
 private judgment, not something meant to be shown to the person directly.
 It lives as a per-person row (`Вклад в проект: <Имя>`) in `project_metrics`
 (see
-`Templates\метрики_проекта_qa.md` §2.3) — same three statuses (Позитивный/
+`Templates\метрики_проекта_qa.md` §1.1) — same three statuses (Позитивный/
 Смешанный/Негативный), same reuse into `project_development_plan`/
 `project_risk` rollups, just not visible to the person it describes. Do
 not reintroduce this section here even if it seems convenient — write the

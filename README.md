@@ -36,7 +36,11 @@ Current Drive layout:
   finds it.
 - `10_M1_People_Management/`: person-based (`<Person>/` subfolder per
   team member)
-- `20_M2_Project_Management/`: project-based M2 project-management outputs
+- `20_M2_Project_Management/`: project-based M2 project-management outputs,
+  plus two cross-project rollups at the lane root: `_project_registry` (the
+  generated executive war-room view) and `_metrics_collector_registry` (one
+  row per (Person, Project) pair holding a key for the external git-metrics
+  collector - hand-maintained, M2/M3 only, see `m2-git-metrics-onboarding`)
 - `30_Project_Knowledge/`: project-based, learning/onboarding project
   understanding — distinct from M1/M2 management reporting above
 - `40_PM_Case_Library/`: flat, cross-project, personal-reference
@@ -49,6 +53,11 @@ Current Drive layout:
   then `<Person>/`, then one dated feedback document per session, plus a
   flat `_assessment_index` at the lane root. Append-only: a new session
   never rewrites an earlier one's document
+- `55_AI_Adoption/`: cross-project AI-in-QA practice - a tiered knowledge
+  base at the lane root (source notes, knowledge store, best-practices wiki,
+  plus a Russian generic rules digest derived from the wiki) and one dated
+  scored review per project per session under `reviews/`. Append-only for
+  reviews: a re-review is a new document
 - `80_Exports/` (optional): created only when an explicit immutable package
   or copy is prepared for external sharing; internal extracts do not belong here
 - `90_Storage/`: the single non-actionable storage root:
