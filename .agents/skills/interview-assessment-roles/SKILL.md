@@ -10,7 +10,10 @@ Shared context for `internal-assessment-feedback` and
 evidence discipline, storage/indexing, and the privacy rules. It does not
 own either output format - the two skills and their templates
 (`Templates/internal_assessment_feedback.md`,
-`Templates/external_interview_feedback.md`) own that.
+`Templates/external_interview_feedback.md`) own that, and the department's
+own published-feedback forms (for a Business Focus / Architecture session,
+`Templates/business_focus_feedback_form.md`) own the shape of the part that
+gets copied into the tracker.
 
 ## What This Lane Is, And Isn't
 

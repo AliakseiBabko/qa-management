@@ -58,7 +58,17 @@ Three short paragraphs, no lists:
 ## 2. Feedback draft (tracker publication structure)
 
 Mirror whatever structure the process requires for the published feedback,
-so this section can be copied out without rewriting. The common shape:
+so this section can be copied out without rewriting.
+
+**For a Business Focus / Architecture session, that structure is
+`Templates/business_focus_feedback_form.md`** — the department's own published
+form, with its own three-valued status field (`Ассессмент сдан / Требуется
+повторный ассесмент / Не сдан`) and its own section order. Follow it, do not
+substitute the generic shape below. A full grade session that also covered the
+technical base uses the manual-QA or AQA feedback template the process page
+names instead.
+
+The generic shape, for a session whose own form is not documented:
 
 ### Verdict
 

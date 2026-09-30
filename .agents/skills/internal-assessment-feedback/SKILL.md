@@ -47,6 +47,26 @@ priority attention this time.
    schema: facts/decisions/action items is the wrong shape for an
    evaluation, and it will quietly drop the thing that matters most -
    whether an answer was unaided.
+   For a business-focus block at any grade, check whether the session
+   reached the **economic** half of it, not only the risk-and-consequence
+   half. Translating a defect into a consequence for the user gets asked
+   naturally; reasoning about whether an automation or staffing decision
+   pays for itself, and defending the value of one's own work in numbers,
+   is the half a short session routinely drops. An answer that reasons
+   about effectiveness (what to cover, who checks what, where redundancy
+   is worth keeping) without ever costing it has answered half the
+   question; say which half.
+   When that half is thin, separate the two causes before writing, and
+   never state it as "business focus was not covered". One cause is the
+   route: the question was not asked. The other is the project itself:
+   a team with no access to product data and no sight of end users cannot
+   produce real numbers, and demanding them is assessing the engagement,
+   not the engineer. Where the second applies, say so, and narrow the
+   finding to what is genuinely still expected - reasoning in the
+   hypothetical about what would be measured given access, and the
+   calculations that need only internally-known data such as team time.
+   That distinction also tells the next assessor what to probe and what
+   not to bother probing.
 3. **Tag every extracted answer** as unaided, partially led, led, or not
    covered, and for a led answer record who supplied the frame. This
    distinction drives the whole document; recover it now while the
@@ -67,7 +87,12 @@ priority attention this time.
    from real observations worth acting on. See the roles skill's rule.
 8. **Write the Markdown** per `Templates/internal_assessment_feedback.md`,
    in the language the session was conducted in, keeping grade labels and
-   rating vocabulary in their original form.
+   rating vocabulary in their original form. Its feedback-draft section
+   must mirror the department's own published form for this session type:
+   for a Business Focus / Architecture session that is
+   `Templates/business_focus_feedback_form.md`, whose status field is
+   three-valued and is not the `Approve / Not Approve` pair. Re-read the
+   live form as part of step 1 - it is external and it changes.
 9. **Publish** with `publish_markdown_doc.py --folder-path
    "60_Assessments_And_Interviews/internal_assessments/<Person>"` and the
    name from `assessment_workspace_layout.session_document_name(
