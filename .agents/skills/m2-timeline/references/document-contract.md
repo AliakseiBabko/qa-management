@@ -71,26 +71,6 @@ Use exactly the columns in `Templates\action_items.csv`:
    (a clarification owed to or from someone), `Weekly Review` (the one
    recurring Monday M2 planning/review item — see Calendar policy below),
    `Прочее`.
-
-## Calendar Policy (2026-07-28 revision)
-
-`sync_timeline_to_calendar.py` colors events by *kind*, not by
-overdue/due-soon urgency: yellow (`colorId 5`) for a specific scheduled
-deadline/action, green (`colorId 10`) for the `Weekly Review` row. The
-Calendar is meant to show only real scheduled commitments — a project
-closure date, an explicit M2 deadline, a scheduled 1:1, a promised
-deliverable with a real date, or the timesheet-check window — not
-informational events owned by someone else, wishlist ideas, or vague
-follow-ups with no real deadline. Non-scheduled "needs attention" items
-(verify an overdue promise was kept, chase a soft commitment with no fixed
-meeting, etc.) belong inside the weekly `Weekly Review` row's task text,
-not as their own dated Calendar rows — do not assign a row a date just to
-force it onto the Calendar. There is deliberately no automatic weekly/
-monthly recurrence for either the timesheet window or the `Weekly Review`
-row (the sync script fully regenerates the Calendar from current
-`action_items` rows each run, which doesn't compose cleanly with the
-Calendar API's native RRULE recurrence) — log the next period's row by
-hand when it comes due.
 4. `Что нужно сделать` — concrete, one action, not a vague intention.
 5. `Статус` — `Открыто`, `Выполнено`, or `Отменено`.
 6. `Owner` — who acts on it: `M2`, a named QA, or the client side. Never blank.
@@ -100,6 +80,28 @@ hand when it comes due.
 
 `_timeline` uses the same columns as `action_items` (all projects
 concatenated, `Статус = Открыто` rows only, sorted by `Дата события`).
+
+## Calendar Policy
+
+`sync_timeline_to_calendar.py` colors events by *kind*, not by
+overdue/due-soon urgency: yellow (`colorId 5`) for a specific scheduled
+deadline/action, green (`colorId 10`) for the `Weekly Review` row.
+
+The Calendar is strictly meant to show events requiring **direct action from the manager**:
+- **Meetings to conduct**: `Тип == Встреча` (or `1to1`, `Meeting`) — scheduled 1:1s, syncs, client calls.
+- **Deadlines to meet**: `Тип == Дедлайн` — forms to fill, reports to submit, timesheet checks, metric verification.
+- **Status commitments**: `Тип == Отчёт/статус в чат` with fixed dates.
+- **Weekly planning**: `Тип == Weekly Review` (the Monday planning block).
+
+**Excluded from the Calendar** (kept in Sheets only):
+- **Engineer tasks**: Any item where `Owner` is an engineer (`Owner != M2`), or passive tracking (`(M2 отслеживает)`). Internal project events and engineer to-dos belong in project sheets, not in the manager's calendar.
+- **Soft follow-ups & wishes**: `Тип == Follow-up`, `Задача`, or `Событие` derived from 1:1 transcript analysis without an external deadline. Do not invent calendar dates for soft checks; use cadence labels (`Следующий цикл планирования`, `Backlog`, `Еженедельный review`).
+
+**End-of-Month Working Days Cadence (M2 Monthly Report)**:
+During the last working days of each month (e.g. Monday-Wednesday), M2 logs:
+1. `Дедлайн` (`START..END` window, e.g. `2026-09-28..2026-09-29`): check timesheets across all QA engineers on all projects.
+2. `Дедлайн` (`START..END` window, e.g. `2026-09-28..2026-09-30`): check that all metrics (`qa_process_metrics`), statistics, and reports are collected across projects; fill in project statuses in one place in the M2 monthly report workbook.
+3. `Дедлайн` (last working day of the month, e.g. `2026-09-30`): complete and submit M2 monthly report (KPI).
 
 ## Inputs
 

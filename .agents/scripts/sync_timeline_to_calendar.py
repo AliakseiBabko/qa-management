@@ -55,6 +55,58 @@ COLOR_SPECIFIC = "5"
 COLOR_WEEKLY_REVIEW = "10"
 WEEKLY_REVIEW_TYPE = "Weekly Review"
 
+# Types allowed on the Calendar: only events that require direct action from the manager
+CALENDAR_ALLOWED_TYPES = {
+    "Встреча",
+    "Meeting",
+    "1to1",
+    "1:1",
+    "Performance Review",
+    "OKR закрытие",
+    "Дедлайн",
+    "Deadline",
+    "Weekly Review",
+    "Отчёт/статус в чат",
+}
+
+
+def is_calendar_candidate(item: dict[str, str]) -> tuple[bool, str]:
+    """Calendar Policy: The Calendar is meant to show only real scheduled
+    commitments that need direct action from the manager (M2, or M1 for M1 scope) -
+    meetings to conduct (1:1s, syncs), hard deadlines for reports/forms/
+    submissions/timesheets, and the weekly Monday review.
+
+    It excludes:
+    - Events owned by engineers or third parties (e.g. engineer filling metrics,
+      or passive tracking where Owner contains 'отслеживает').
+    - Internal project events that don't need action from M2.
+    - Soft follow-ups ('Follow-up'), informational milestones ('Событие'),
+      and informal wishes/to-dos ('Задача') derived from transcript analysis.
+    """
+    owner = item.get("owner", "").strip()
+    scope = item.get("scope", "")
+    item_type = item.get("type", "").strip()
+
+    # 1. Ownership check: Must require action from M2 (or M1 in M1 scope)
+    if scope == "M2":
+        if "ОТСЛЕЖИВАЕТ" in owner.upper():
+            return False, f"owner '{owner}' is passive tracking"
+        if not owner.upper().startswith("M2"):
+            return False, f"owner '{owner}' is not M2"
+    elif scope == "M1":
+        if "ОТСЛЕЖИВАЕТ" in owner.upper():
+            return False, f"owner '{owner}' is passive tracking"
+        if not owner.upper().startswith("M1"):
+            return False, f"owner '{owner}' is not M1"
+    else:
+        return False, f"unknown scope '{scope}'"
+
+    # 2. Type check: Must be an action-oriented calendar type
+    if item_type not in CALENDAR_ALLOWED_TYPES:
+        return False, f"type '{item_type}' is not an actionable calendar event type"
+
+    return True, "OK"
+
 
 def parse_mixed_date(value: str) -> dt.date | None:
     """`_timeline` mixes ISO (YYYY-MM-DD) and DD.MM.YYYY in the same column
@@ -222,7 +274,12 @@ def main() -> int:
     today = dt.date.today()
     events = []
     unparsed = []
+    filtered_out = []
     for item in items:
+        candidate, reason = is_calendar_candidate(item)
+        if not candidate:
+            filtered_out.append((item, reason))
+            continue
         event = build_event(item, today)
         if event is None:
             unparsed.append(item)
@@ -231,7 +288,12 @@ def main() -> int:
 
     events.sort(key=lambda e: e["start"]["date"])
 
-    print(f"{len(items)} open row(s) found ({len(events)} with a parseable date, {len(unparsed)} without).")
+    print(
+        f"{len(items)} open row(s) checked: {len(events)} calendar event(s) to sync, "
+        f"{len(filtered_out)} filtered out by policy, {len(unparsed)} skipped (unparseable date)."
+    )
+    for item, reason in filtered_out:
+        print(f"  POLICY SKIP ({reason}): [{item['project']}] {item['type']}: {item['task'][:50]!r} (owner={item['owner']!r}, date={item['date']!r})")
     for item in unparsed:
         print(f"  SKIPPED (no parseable date): [{item['project']}] {item['task'][:60]!r} date={item['date']!r}")
     for event in events:

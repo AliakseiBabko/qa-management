@@ -78,11 +78,19 @@ hand.
    when you intend to review/rewrite each row in the Sheet immediately
    afterward, not as a substitute for step 2's judgment.
 
+### End-of-Month working days cadence (M2 monthly report)
+
+During the final working days of each month (e.g. Monday-Wednesday), ensure the recurring month-end action items are active in `20_M2_Project_Management\M2\action_items`:
+1. `Дедлайн` (`START..END` window, e.g. `2026-09-28..2026-09-29`): check timesheets across all QA engineers on all projects.
+2. `Дедлайн` (`START..END` window, e.g. `2026-09-28..2026-09-30`): check that all metrics (`qa_process_metrics`), statistics, and reports are collected across projects; fill in project statuses in one place in the M2 monthly report workbook.
+3. `Дедлайн` (last working day of the month, e.g. `2026-09-30`): complete and submit M2 monthly report (KPI).
+
 ## Guardrails
 
 - Do not use this Sheet for project health/risk judgment — that's `project_risk`. An action item is a dated to-do, not an assessment.
 - Do not use it for the append-only evidence trail — that's `evidence_log`. `action_items` rows get edited/closed in place; `evidence_log` rows never do.
 - Do not fabricate a due date — not a nearest-concrete-date guess, not "today." If genuinely unknown, use a cadence label (`Еженедельный review`/`Backlog`/`Следующий цикл планирования`) in `Дата события` and state in `Комментарии` who owes clarifying a real date — don't skip logging just because the date is fuzzy.
 - `_timeline` is a generated rollup, never edited directly — edits always go into the owning project's `action_items`, then `refresh_all_timeline_views.py`. The same applies to its two further-derived views: the "QA Management Timeline" Google Calendar (`sync_timeline_to_calendar.py`) and `_timeline_looker_view` (`refresh_timeline_looker_view.py`, feeds the Data Studio report) — never edit either directly, they're regenerated wholesale on every run.
+- The Google Calendar view (`sync_timeline_to_calendar.py`) strictly projects events requiring direct action from the manager (`Встреча`, `Дедлайн`, `Отчёт/статус в чат`, `Weekly Review` where `Owner` is M2 and not passive tracking). Engineer-owned tasks (`Owner != M2`), internal project events, and soft follow-ups (`Follow-up`/`Задача` without explicit hard deadlines) remain in the Sheets and are not pushed as individual calendar events.
 - `scan_open_questions.py` only reads `m2_input`, `project_risk`, and `project_metrics` — it does not read status reports, strategy chats, or raw transcripts. A real open item mentioned only in a chat/transcript still needs manual logging; the scan is a floor, not a complete list.
 - Never treat a scan candidate's placeholder wording/date as final without the review in step 2 above — writing it into `action_items` unreviewed defeats the point of picking a concrete, actionable next step.

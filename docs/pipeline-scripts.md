@@ -428,7 +428,10 @@ These are what actually runs day to day, once a project's folder already exists:
   individual scripts.
 - `sync_timeline_to_calendar.py` — projects `_timeline`/`_m1_timeline`
   into the "QA Management Timeline" Google Calendar (regenerated wholesale;
-  never edit the calendar directly). Normally invoked via
+  never edit the calendar directly). Strictly filters for events requiring
+  direct action from the manager (`Owner == M2/M1`, actionable types `Встреча`,
+  `Дедлайн`, `Отчёт/статус в чат`, `Weekly Review`); excludes engineer-owned tasks,
+  passive tracking, and soft follow-ups. Normally invoked via
   `refresh_all_timeline_views.py`.
 - `refresh_timeline_looker_view.py` — rebuilds `_timeline_looker_view`,
   the flattened Sheet the Looker Studio report reads. Normally invoked via
@@ -1111,17 +1114,41 @@ These are what actually runs day to day, once a project's folder already exists:
   browser/interactive login required. Basic Auth with an Atlassian API
   token (`.local/atlassian/credentials.json` — email + token + base
   URL, same gitignored trust boundary as `.local/google/`, see AGENTS.md).
-  `--page-id` fetches one page's title + body text (storage-format XHTML
-  converted to plain text via a small stdlib-only extractor, no bs4/
-  html2text dependency); `--children` lists a page/folder's direct
   Several sites are separate profiles (`.local/atlassian/<profile>_credentials.json`,
   picked with `--profile`); with more than one, `.local/atlassian/default_profile`
   names the one used when `--profile` is omitted.
+  `--page-id` fetches one page's title + body text (storage-format XHTML
+  converted to plain text via a small stdlib-only extractor, no bs4/
+  html2text dependency); `--children` lists a page/folder's direct
   children; `--cql` runs an arbitrary CQL search (e.g.
   `ancestor=<folder-id>` for every descendant page). Used as a library
   (`get_session`/`get_page`/`get_children`/`search_cql`/`storage_to_text`)
   by any pass that needs to pull a Confluence source instead of scraping
   it through a live browser session.
+
+- `meeting_recording_audit.py` — read-only reconciliation of Google
+  Calendar events against the recordings that actually exist, answering the
+  one completeness question the document graph structurally cannot: *did a
+  scheduled meeting produce any record at all?* Every other check here
+  starts from a source that exists, so a meeting held with no artifact is
+  invisible to all of them. For each matching event it reports `REC` (a Meet
+  recording attached to the event, with its Drive `fileId`, plus any
+  attached transcript Doc — read that instead of transcribing again),
+  `LOCAL` (an unnamed local screen capture whose timestamp falls in the
+  event window) or `GAP` (no recording anywhere). Identity comes from the
+  event's `summary`/`attendees`, which is what makes a bare
+  `<date> <time>.mkv` attributable to a person and project at all.
+  `--since`/`--until` bound the period, `--pattern`/`--exclude` select which
+  event titles count, `--recordings-dir` points at the local capture folder,
+  `--missing-only` shows just the gaps, `--json` emits the full report.
+  Known gap: a `LOCAL` match is circumstantial — overlapping meetings share
+  a slot, so confirm identity from content before processing (a real audit
+  found a department meeting sitting inside a per-person sync slot).
+  Recurring series copy their series-level attachment onto every expanded
+  instance, so the script compares the timestamp in Meet's own artefact
+  title against the instance window and reports anything outside it as
+  ignored rather than counting it as a false green. Uses the Calendar scope
+  the repo's OAuth token already carries; no separate connector needed.
 
 There is no automated observer/dispatcher watching inbox folders — every
 sync above runs because M2 asked for it in conversation. See
