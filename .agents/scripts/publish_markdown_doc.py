@@ -39,6 +39,7 @@ error. Feedback reports are text; this is deliberately opt-in.
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import sys
 from pathlib import Path
@@ -47,7 +48,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import markdown_to_docs as md2docs  # noqa: E402
 import pipeline_common  # noqa: E402
 
-sys.stdout.reconfigure(encoding="utf-8")
+if isinstance(sys.stdout, io.TextIOWrapper):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def resolve_folder_path(drive, relative_path: str) -> str:
@@ -71,7 +73,7 @@ def resolve_folder_path(drive, relative_path: str) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     ap.add_argument("markdown", help="path to the Markdown file to publish")
     ap.add_argument("--title", default=None,
                     help="Doc name; defaults to the Markdown file's stem")

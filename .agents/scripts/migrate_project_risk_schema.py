@@ -434,6 +434,7 @@ def main() -> None:
     is_apply = args.apply  # Explicit --apply overrides default dry-run
 
     plans: list[RiskMigrationPlan] = []
+    services: Any = None
 
     if args.local_dir:
         plans = plan_local_directory_migration(args.local_dir)
@@ -443,9 +444,8 @@ def main() -> None:
             services = get_services()
             plans = plan_google_drive_migration(services, project_name_filter=args.project)
         except Exception as exc:
-            if not args.local_dir:
-                print(f"[WARN] Google Drive services unavailable ({exc}). Use --local-dir to run on local folders.", file=sys.stderr)
-                sys.exit(1)
+            print(f"[WARN] Google Drive services unavailable ({exc}). Use --local-dir to run on local folders.", file=sys.stderr)
+            sys.exit(1)
 
     results: list[dict[str, Any]] = []
 

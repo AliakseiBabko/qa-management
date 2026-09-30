@@ -33,8 +33,8 @@ class FormattingProfilesTests(unittest.TestCase):
     def test_project_registry_profile_budget(self):
         profile = PROFILES["_project_registry"]
         widths = profile["widths"]
-        self.assertEqual(len(widths), 13, "13-column executive layout")
-        self.assertEqual(sum(widths), 1680, "1,680 px display budget")
+        self.assertEqual(len(widths), 9, "9-column executive layout")
+        self.assertEqual(sum(widths), 1730, "1,730 px display budget")
         self.assertEqual(profile["freeze_rows"], 1)
 
     def test_project_metrics_profile_budget(self):
@@ -48,7 +48,7 @@ class FormattingProfilesTests(unittest.TestCase):
         profile = PROFILES["project_risk_summary"]
         widths = profile["widths"]
         self.assertEqual(len(widths), 14, "14-column summary risk layout")
-        self.assertEqual(sum(widths), 1600, "1,600 px display budget")
+        self.assertEqual(sum(widths), 1640, "1,640 px display budget")
         self.assertEqual(profile["freeze_rows"], 1)
 
     def test_project_risk_items_profile_budget(self):
@@ -81,13 +81,13 @@ class ExactConditionalFormattingRangeTests(unittest.TestCase):
 
     def test_project_registry_conditional_ranges(self):
         rules = PROFILES["_project_registry"]["conditional_rules"]
-        # Col F (idx 5:6): Общий уровень риска
-        risk_rules = [r for r in rules if r["col_start"] == 5 and r["col_end"] == 6]
+        # Col C (idx 2:3): Общий уровень риска
+        risk_rules = [r for r in rules if r["col_start"] == 2 and r["col_end"] == 3]
         self.assertEqual(len(risk_rules), 3)
         self.assertEqual({r["val"] for r in risk_rules}, {"Высокий", "Средний", "Низкий"})
 
-        # Col I (idx 8:9): People requiring attention
-        stale_rules = [r for r in rules if r["col_start"] == 8 and r["col_end"] == 9]
+        # Col H (idx 7:8): People requiring attention
+        stale_rules = [r for r in rules if r["col_start"] == 7 and r["col_end"] == 8]
         self.assertEqual(len(stale_rules), 1)
         self.assertEqual(stale_rules[0]["val"], "[Stale: review required]")
 
@@ -149,22 +149,22 @@ class TabFormattingRequestsTests(unittest.TestCase):
     def test_build_requests_for_project_registry(self):
         profile = PROFILES["_project_registry"]
         header = [
-            "Проект", "People", "Engagement outlook", "Цель клиента / Ценность QA", "Текущий результат",
-            "Общий уровень риска", "Ранний сигнал / Прогноз", "Качество QA-процесса",
-            "People requiring attention", "Действие M2", "Уверенность в данных", "Owner", "Следующий review"
+            "Проект", "People", "Общий уровень риска", "Текущее состояние QA / результат (оценка M2)",
+            "Engagement outlook", "Цель клиента / Ценность QA (гипотеза M2)", "Ранний сигнал / Прогноз",
+            "People requiring attention", "Следующий review"
         ]
-        row1 = ["<Project>", "<Person>", "2026-12-31", "Goal", "Outcome", "Высокий", "RSK-01", "—", "—", "Action", "Высокая", "M2", "2026-08-24"]
+        row1 = ["<Project>", "<Person>", "Высокий", "Outcome", "2026-12-31", "Goal", "RSK-01", "—", "2026-08-24"]
         values = [header, row1]
 
         requests, widths = build_tab_formatting_requests(
             grid_id=0,
             row_count=100,
-            col_count=13,
+            col_count=9,
             values=values,
             profile=profile,
         )
 
-        self.assertEqual(len(widths), 13)
+        self.assertEqual(len(widths), 9)
         self.assertEqual(list(widths.values()), profile["widths"])
 
         # Check frozen row request

@@ -36,13 +36,16 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:  # guarded: --dry-run must still parse on a machine without the Google libs
+if TYPE_CHECKING:
     from googleapiclient.errors import HttpError
-except ImportError:  # pragma: no cover - exercised only without the dependency
-    class HttpError(Exception):  # type: ignore[no-redef]
-        """Stand-in so this module imports for dry runs; never raised."""
+else:
+    try:  # guarded: --dry-run must still parse on a machine without the Google libs
+        from googleapiclient.errors import HttpError
+    except ImportError:  # pragma: no cover - exercised only without the dependency
+        class HttpError(Exception):
+            """Stand-in so this module imports for dry runs; never raised."""
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -191,7 +194,7 @@ def upload_image(services, path: Path, folder_id: str | None, share: bool) -> st
     from googleapiclient.http import MediaFileUpload
 
     drive = services["drive"]
-    meta = {"name": path.name}
+    meta: dict[str, Any] = {"name": path.name}
     if folder_id:
         meta["parents"] = [folder_id]
     media = MediaFileUpload(str(path), mimetype="image/png", resumable=False)

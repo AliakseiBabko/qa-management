@@ -73,23 +73,24 @@ M2 is organized by project context across a 3-layer information architecture:
 
 Two workspace-wide Sheets sit directly under `20_M2_Project_Management`:
 
-- `_project_registry` — one row per **active** project, the 13-column top-level
+- `_project_registry`: one row per **active** project, the 9-column top-level
   "war room" dashboard:
-  1. `Проект` (120 px) — Project name
-  2. `People` (150 px) — Staffing with workstream tags (e.g. `<Person 1> (AQA), <Person 2> (Manual)`)
-  3. `Engagement outlook` (140 px) — Structured: `<date> [Contractual] — <Outlook> (<Confidence>)`
-  4. `Цель клиента / Ценность QA` (160 px) — Stated client objective with alignment flag
-  5. `Текущий результат` (180 px) — Composite outcome (`Baseline [status] → Current [status] → Target [status]`)
-  6. `Общий уровень риска` (90 px) — `Низкий` / `Средний` / `Высокий` (color-coded badge)
-  7. `Ранний сигнал / Прогноз` (200 px) — Composite from top active risk item (`RSK-ID: <Statement> [<Prediction Status>]`)
-  8. `Качество QA-процесса` (110 px) — Fixed-core process rating with data-confidence label
-  9. `People requiring attention` (120 px) — Mechanically derived candidate signal (appends `[Stale: review required]` if underlying private risk is >30d unreviewed; `—` if none; strictly preserves privacy)
-  10. `Действие M2` (140 px) — Primary mitigation action (and Upsell / Expansion tags when value is proven)
-  11. `Уверенность в данных` (110 px) — Synthesized confidence with breakdown (`Executive: Med (Out: High, Risk: Low)`)
-  12. `Owner` (80 px) — Action accountability owner
-  13. `Следующий review` (80 px) — Next review date (`YYYY-MM-DD`)
+  1. `Проект` (120 px): project name
+  2. `People` (150 px): staffing with workstream tags (e.g. `<Person 1> (AQA), <Person 2> (Manual)`)
+  3. `Общий уровень риска` (130 px): `Низкий` / `Средний` / `Высокий` (color-coded badge)
+  4. `Текущее состояние QA / результат (оценка M2)` (350 px): one analytical M2 statement combining
+     process evidence, delivery facts and evidence gaps; uncertainty is stated here, next to the claim it qualifies
+  5. `Engagement outlook` (180 px): `<date> [Contractual] — <Outlook> (<Confidence>)`
+  6. `Цель клиента / Ценность QA (гипотеза M2)` (260 px): M2's hypothesis about the client's objective
+     and the value of our QA team in reaching it, with the alignment flag
+  7. `Ранний сигнал / Прогноз` (280 px): the deterministically selected top risk, rendered as an observable
+     signal plus its plausible consequence
+  8. `People requiring attention` (160 px): mechanically derived, privacy-safe signal (appends
+     `[Stale: review required]` if the underlying private risk is >30d unreviewed; `—` if none)
+  9. `Следующий review` (100 px): next review date (`YYYY-MM-DD`)
 
-  Total layout allocation is 1,680 px, maintaining a 100 px buffer within the nominal 1,780 px screen budget.
+  Total layout width is 1,730 px. The registry deliberately has no M2 action or generic confidence
+  column: actions live in each project's `action_items`, uncertainty in column 4.
   A project not currently active (`project_metrics`'s `Статус проекта` is `Не активен`) is excluded from this registry.
 - `_timeline` — generated rollup of every project's open `action_items`
   rows, sorted by date; the one place to see what's due today/tomorrow/this

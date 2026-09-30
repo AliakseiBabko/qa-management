@@ -351,6 +351,7 @@ def _load_docs_editing():
     spec = importlib.util.spec_from_file_location(
         "docs_editing", SCRIPTS_DIR / "docs_editing.py"
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules["docs_editing"] = module
     spec.loader.exec_module(module)

@@ -26,7 +26,7 @@ import pipeline_common  # noqa: E402
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     ap.add_argument("session", help="path to the session directory (may be absolute)")
     ap.add_argument("--report", default="report.md")
     ap.add_argument("--title", default=None)

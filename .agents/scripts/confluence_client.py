@@ -7,27 +7,32 @@ no refresh/expiry to manage.
 
 Setup (per site / project profile):
 1. Generate a token at https://id.atlassian.com/manage-profile/security/api-tokens
-2. Create `.local/atlassian/<profile>_credentials.json` (e.g. `<Company>_credentials.json` or `<Project>_credentials.json`):
+2. Create `.local/atlassian/<profile>_credentials.json` (e.g. `work_credentials.json` or `client_credentials.json`):
    {"email": "you@example.com", "api_token": "...", "base_url": "https://<site>.atlassian.net"}
    (.local/ is gitignored - same trust boundary as .local/google/.)
+3. With more than one profile, optionally name the one to use when --profile
+   is omitted in `.local/atlassian/default_profile` (a single line, e.g. `work`).
+   Profile names are real site/engagement names, so they live there and never
+   in this repository.
 
 Usage as a library:
     from confluence_client import get_session, get_page, create_page, update_page, storage_to_text
-    session, base_url = get_session(profile="<Project>")
-    page = get_page(session, base_url, "1601339413", expand="body.storage,version")
+    session, base_url = get_session(profile="<profile>")
+    page = get_page(session, base_url, "<page-id>", expand="body.storage,version")
     print(storage_to_text(page["body"]["storage"]["value"]))
 
 CLI examples:
-    python confluence_client.py --profile <Project> --page-id 1601339413
-    python confluence_client.py --profile <Project> --update-page 1601339413 --file update.html --comment "Update test strategy"
-    python confluence_client.py --profile <Project> --create-page --space TB --title "New Plan" --file plan.html --parent-id 1601339413
-    python confluence_client.py --profile <Company> --children 4564713491
-    python confluence_client.py --cql "ancestor=4564713491"
+    python confluence_client.py --profile <profile> --page-id <page-id>
+    python confluence_client.py --profile <profile> --update-page <page-id> --file update.html --comment "Update test strategy"
+    python confluence_client.py --profile <profile> --create-page --space <space-key> --title "New Plan" --file plan.html --parent-id <page-id>
+    python confluence_client.py --profile <profile> --children <page-id>
+    python confluence_client.py --cql "ancestor=<page-id>"
 """
 
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import sys
 from html.parser import HTMLParser
@@ -36,8 +41,9 @@ from typing import Any
 
 import requests
 
-ATLASSIAN_DIR = Path(".local/atlassian")
+ATLASSIAN_DIR = Path(__file__).resolve().parents[2] / ".local" / "atlassian"
 DEFAULT_CREDENTIALS = ATLASSIAN_DIR / "credentials.json"
+DEFAULT_PROFILE_FILE = ATLASSIAN_DIR / "default_profile"
 
 BLOCK_TAGS = {
     "p", "div", "table", "tr", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -126,13 +132,14 @@ def resolve_credentials_path(path: Path | str | None = None, profile: str | None
             '  {"email": "you@example.com", "api_token": "...", "base_url": "https://<site>.atlassian.net"}'
         )
 
-    # Default lookup: credentials.json -> <Company>_credentials.json -> single available config
+    # Default lookup: credentials.json -> the profile named in default_profile -> single available config
     if DEFAULT_CREDENTIALS.exists():
         return DEFAULT_CREDENTIALS
 
-    <Company> = ATLASSIAN_DIR / "<Company>_credentials.json"
-    if <Company>.exists():
-        return <Company>
+    if DEFAULT_PROFILE_FILE.exists():
+        default_profile = DEFAULT_PROFILE_FILE.read_text(encoding="utf-8").strip()
+        if default_profile:
+            return resolve_credentials_path(profile=default_profile)
 
     if ATLASSIAN_DIR.exists():
         configs = list(ATLASSIAN_DIR.glob("*credentials*.json")) + list(ATLASSIAN_DIR.glob("*.json"))
@@ -143,7 +150,8 @@ def resolve_credentials_path(path: Path | str | None = None, profile: str | None
             names = [c.stem.replace("_credentials", "").replace("credentials_", "") for c in configs]
             raise SystemExit(
                 f"Multiple Atlassian credential profiles found in {ATLASSIAN_DIR}: {', '.join(names)}\n"
-                "Please specify one using --profile <name> or --credentials <path>."
+                "Please specify one using --profile <name> or --credentials <path>,\n"
+                f"or name a default in {DEFAULT_PROFILE_FILE}."
             )
 
     return DEFAULT_CREDENTIALS
@@ -339,7 +347,7 @@ def page_url(base_url: str, page: dict[str, Any]) -> str:
 
 def _main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--profile", "-p", help="Credential profile name (e.g. '<Project>', '<Company>')")
+    parser.add_argument("--profile", "-p", help="Credential profile name (e.g. 'work', 'client')")
     parser.add_argument("--credentials", "-c", help="Path to credentials JSON file")
 
     # Read actions
@@ -359,7 +367,7 @@ def _main() -> None:
 
     args = parser.parse_args()
 
-    if sys.platform == "win32":
+    if sys.platform == "win32" and isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
 
     session, base_url = get_session(credentials_path=args.credentials, profile=args.profile)

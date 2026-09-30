@@ -73,7 +73,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Высокий", "bg": COLOR_RED_BG, "fg": COLOR_RED_TEXT},
             {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Средний", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
             {"col_start": 2, "col_end": 3, "type": "TEXT_EQ", "val": "Низкий", "bg": COLOR_GREEN_BG, "fg": COLOR_GREEN_TEXT},
-            # Col I (idx 8): People requiring attention
+            # Col H (idx 7): People requiring attention
             {"col_start": 7, "col_end": 8, "type": "TEXT_CONTAINS", "val": "[Stale: review required]", "bg": COLOR_YELLOW_BG, "fg": COLOR_YELLOW_TEXT},
         ],
     },

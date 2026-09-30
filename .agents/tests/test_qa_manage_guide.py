@@ -15,6 +15,7 @@ import io
 import json
 import sys
 import unittest
+from typing import Any
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -64,7 +65,7 @@ def ready_eval() -> qa_manage.EvaluationResult:
 
 
 def broken_eval(**overrides) -> qa_manage.EvaluationResult:
-    base = dict(ready_for_completion=False, entry_problems=[], unresolved_edges=[],
+    base: dict[str, Any] = dict(ready_for_completion=False, entry_problems=[], unresolved_edges=[],
                 warnings=[], snapshot_sha="", snapshot_problem="", invocation_present=True)
     base.update(overrides)
     return qa_manage.EvaluationResult(**base)

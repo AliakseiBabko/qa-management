@@ -1,4 +1,4 @@
-"""Tests for the repo-maintenance pass that added a reusable, tiered QA
+r"""Tests for the repo-maintenance pass that added a reusable, tiered QA
 metrics catalog reference (2026-07-26):
 
 `qa-management-roles/references/qa-metrics-catalog.md` is a new

@@ -1,7 +1,7 @@
-"""Unit tests for refresh_project_registry.py's 13-column executive layout and pure aggregation logic.
+"""Unit tests for refresh_project_registry.py's 9-column executive layout and pure aggregation logic.
 
 Covers:
-1. 13-column REGISTRY_HEADER structure.
+1. 9-column REGISTRY_HEADER structure.
 2. Inactive project exclusion gate (Статус проекта = 'Не активен' -> None).
 3. Deterministic Top-Risk Selection (Severity -> Expected Impact Date -> Late over Early -> Last Changed).
 4. Composite outcome derivation (Baseline -> Current -> Target with evidence status).
@@ -38,27 +38,23 @@ def status_row(status: str, date: str = "2026-01-01") -> list[str]:
     return ["<Project>", date, "Статус проекта", "Project-wide", status, "—", "—", "observed", "Высокая", "x", "M2", "—"]
 
 
-class Executive13ColumnLayoutTests(unittest.TestCase):
-    def test_registry_header_has_13_columns(self):
-        self.assertEqual(len(REGISTRY_HEADER), 13)
+class Executive9ColumnLayoutTests(unittest.TestCase):
+    def test_registry_header_has_9_columns(self):
+        self.assertEqual(len(REGISTRY_HEADER), 9)
         expected = [
             "Проект",
             "People",
-            "Engagement outlook",
-            "Цель клиента / Ценность QA",
-            "Текущий результат",
             "Общий уровень риска",
+            "Текущее состояние QA / результат (оценка M2)",
+            "Engagement outlook",
+            "Цель клиента / Ценность QA (гипотеза M2)",
             "Ранний сигнал / Прогноз",
-            "Качество QA-процесса",
             "People requiring attention",
-            "Действие M2",
-            "Уверенность в данных",
-            "Owner",
             "Следующий review",
         ]
         self.assertEqual(REGISTRY_HEADER, expected)
 
-    def test_build_registry_row_emits_13_columns(self):
+    def test_build_registry_row_emits_9_columns(self):
         pm_rows = [
             [
                 "Проект", "Период", "Метрика", "Role / Stream", "Показатель", "Baseline", "Target",
@@ -73,14 +69,17 @@ class Executive13ColumnLayoutTests(unittest.TestCase):
         ]
 
         row, warnings = build_registry_row(project="<Project>", pm_rows=pm_rows)
-        self.assertIsNotNone(row)
-        self.assertEqual(len(row), 13)
+        assert row is not None
+        self.assertEqual(len(row), 9)
         self.assertEqual(row[0], "<Project>")
         self.assertIn("<Person 1> (AQA)", row[1])
-        self.assertEqual(row[2], "2026-12-31 [Contractual] — Continuation likely (High)")
-        self.assertEqual(row[3], "Сокращение регресса [Согласовано]")
-        self.assertIn("Regression duration: 5d → 2d [observed]", row[4])
-        self.assertEqual(row[5], "Низкий")
+        self.assertEqual(row[2], "Низкий")
+        # No client validation or quantitative baseline yet, so the analytical
+        # current-state cell must not read as an unqualified positive result.
+        self.assertTrue(row[3].startswith("Смешанный"), row[3])
+        self.assertEqual(row[4], "2026-12-31 [Contractual] — Continuation likely (High)")
+        self.assertEqual(row[5], "Сокращение регресса [Согласовано]")
+        self.assertEqual(row[7], "—")
         self.assertEqual(warnings, [])
 
 
@@ -123,7 +122,7 @@ class TopRiskSelectionTests(unittest.TestCase):
             ["RSK-02", "<P>", "High threat", "delivery", "Высокий", "2026-08-01", "2026-08-05", "2026-10-01", "", "", "2026-08-17", "2026-08-17", "Detected Early", "", "Normal", "Высокая", "", "", "", "Open"],
         ]
         top, warnings = select_top_risk_item(rows)
-        self.assertIsNotNone(top)
+        assert top is not None
         self.assertEqual(top["Risk ID"], "RSK-02", "Higher severity must win")
 
     def test_earliest_expected_impact_tie_breaking(self):
@@ -133,7 +132,7 @@ class TopRiskSelectionTests(unittest.TestCase):
             ["RSK-02", "<P>", "Earlier impact", "delivery", "Высокий", "2026-08-01", "2026-08-05", "2026-09-15", "", "", "2026-08-17", "2026-08-17", "Detected Early", "", "Normal", "Высокая", "", "", "", "Open"],
         ]
         top, warnings = select_top_risk_item(rows)
-        self.assertIsNotNone(top)
+        assert top is not None
         self.assertEqual(top["Risk ID"], "RSK-02", "Earlier expected impact date must win")
 
     def test_detected_late_over_detected_early(self):
@@ -143,7 +142,7 @@ class TopRiskSelectionTests(unittest.TestCase):
             ["RSK-02", "<P>", "Late detected", "delivery", "Высокий", "2026-08-01", "2026-08-05", "2026-09-15", "", "", "2026-08-17", "2026-08-17", "Detected Late", "", "Normal", "Высокая", "", "", "", "Open"],
         ]
         top, warnings = select_top_risk_item(rows)
-        self.assertIsNotNone(top)
+        assert top is not None
         self.assertEqual(top["Risk ID"], "RSK-02", "Detected Late must be prioritized over Detected Early on equal severity/impact")
 
     def test_excludes_closed_and_legacy_items(self):
@@ -154,7 +153,7 @@ class TopRiskSelectionTests(unittest.TestCase):
             ["RSK-03", "<P>", "Active medium threat", "delivery", "Средний", "2026-08-01", "2026-08-05", "2026-09-20", "", "", "2026-08-17", "2026-08-17", "Detected Early", "", "Normal", "Высокая", "", "", "", "Mitigating"],
         ]
         top, warnings = select_top_risk_item(rows)
-        self.assertIsNotNone(top)
+        assert top is not None
         self.assertEqual(top["Risk ID"], "RSK-03", "Closed and Legacy items must be excluded")
 
 

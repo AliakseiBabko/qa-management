@@ -16,7 +16,7 @@ can call directly instead of falling back to opening a browser.
 
 Usage:
     python resolve_drive_path.py "G:\\My Drive\\QA_Management\\00_Inbox\\<Project>"
-    python resolve_drive_path.py "G:\\My Drive\\QA_Management\\00_Inbox\\<Project>\\<Project> - Perfomance Strategy v2.gdoc"
+    python resolve_drive_path.py "G:\\My Drive\\QA_Management\\00_Inbox\\<Project>\\<document>.gdoc"
     python resolve_drive_path.py --json "<path>"
 
 Prints id, name, mimeType, and webViewLink (the browser-openable Drive URL)

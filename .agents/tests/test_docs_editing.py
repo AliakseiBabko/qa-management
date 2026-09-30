@@ -126,7 +126,7 @@ class FindParagraphContainingTests(unittest.TestCase):
         ])
         service = FakeDocsService(doc)
         result = de.find_paragraph_containing(service, "doc-1", "needle")
-        self.assertIsNotNone(result)
+        assert result is not None
         start, end, text = result
         self.assertEqual(start, doc["body"]["content"][1]["startIndex"])
         self.assertIn("Second placeholder paragraph", text)

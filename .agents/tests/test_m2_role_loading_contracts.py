@@ -307,13 +307,12 @@ class KeyAnchorsPresentInOwningModuleTests(unittest.TestCase):
 
     def test_project_rollups_column_mappings_and_contracts(self):
         text = self._text("m2-project-rollups.md")
-        self.assertIn("13-column executive sheet", text)
-        self.assertIn("Column 5 (`Текущий результат`)", text)
-        self.assertIn("Column 6: `Общий уровень риска`", text)
+        self.assertIn("9-column executive sheet", text)
+        self.assertIn("Column 3: `Общий уровень риска`", text)
+        self.assertIn("Column 4 (`Текущее состояние QA / результат`)", text)
         self.assertIn("Column 7: `Ранний сигнал / Прогноз`", text)
-        self.assertIn("Column 9", text)
-        self.assertIn("Column 11 (`Уверенность в данных`)", text)
-        self.assertIn(r"\min(\text{outcome\_confidence}, \text{risk\_confidence})", text)
+        self.assertIn("Column 8", text)
+        self.assertIn("intentionally omits both M2 actions and a generic confidence column", text)
         self.assertIn("[Stale: review required]", text)
 
 

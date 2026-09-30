@@ -15,7 +15,7 @@ logic from scratch each time. This is that logic, once, as a CLI.
 Read-only: never writes to Drive, only ever reads.
 
 Usage:
-    python read_google_doc.py "G:\\My Drive\\QA_Management\\30_Project_Knowledge\\<Project>\\qa_docs\\ops_runbook.gdoc"
+    python read_google_doc.py "G:\\My Drive\\QA_Management\\30_Project_Knowledge\\<Project>\\qa_docs\\<document>.gdoc"
     python read_google_doc.py --id 1oMKzoyQs-i0mcxjflGM6BeFAU-rI4oaBg5r9zkEsvw0
     python read_google_doc.py "<path>" --out notes.txt
 

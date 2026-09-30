@@ -29,6 +29,8 @@ SCOPES = [
 
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 def ensure_utf8_stdout() -> None:
     """Rewrap stdout/stderr as UTF-8 so Cyrillic prints don't crash under the
@@ -62,8 +64,22 @@ def import_google_libs() -> tuple[Any, Any, Any, Any]:
     return Request, Credentials, InstalledAppFlow, build
 
 
+def resolve_local_path(path: Path) -> Path:
+    """Resolve a relative `.local/...` path from any working directory.
+
+    A relative path that exists from the current directory wins, so an
+    explicit --credentials/--token still means what it says. Otherwise it is
+    anchored to the repo root, where `.local/` lives - including a token that
+    does not exist yet, so a fresh OAuth flow writes it there too."""
+    if path.is_absolute() or path.exists():
+        return path
+    return REPO_ROOT / path
+
+
 def load_credentials(credentials_path: Path, token_path: Path):
     Request, Credentials, InstalledAppFlow, _ = import_google_libs()
+    credentials_path = resolve_local_path(credentials_path)
+    token_path = resolve_local_path(token_path)
 
     creds = None
     if token_path.exists():

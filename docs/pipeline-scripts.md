@@ -377,9 +377,12 @@ These are what actually runs day to day, once a project's folder already exists:
   `project_development_plan`, `project_metrics` and `qa_process_metrics`;
   the audience is the whole QA/AQA department, so adding `project_risk`,
   `individual_*`, `m2_input` or `evidence_log` is a disclosure decision,
-  not a config tweak. Closed projects are skipped by name
-  (`CLOSED_PROJECTS`) because `_project_registry` has no binary status
-  column to derive that from. Default is a dry run; `--apply` writes,
+  not a config tweak. Closed projects are skipped by reading each
+  project's `private/project_metrics` `Статус проекта` row, failing closed
+  when it cannot be read. The folder-name surname and the department group
+  addresses come from the `QA_DEPT_SURNAME` and `QA_DEPT_GROUPS`
+  (comma-separated) environment variables, never from this repository;
+  the script refuses to run without them. Default is a dry run; `--apply` writes,
   `--verify` audits that every shortcut resolves and is department-readable.
   All Drive calls pass `supportsAllDrives` — without it a create against
   the shared drive fails with a bare 404.
@@ -1111,6 +1114,9 @@ These are what actually runs day to day, once a project's folder already exists:
   `--page-id` fetches one page's title + body text (storage-format XHTML
   converted to plain text via a small stdlib-only extractor, no bs4/
   html2text dependency); `--children` lists a page/folder's direct
+  Several sites are separate profiles (`.local/atlassian/<profile>_credentials.json`,
+  picked with `--profile`); with more than one, `.local/atlassian/default_profile`
+  names the one used when `--profile` is omitted.
   children; `--cql` runs an arbitrary CQL search (e.g.
   `ancestor=<folder-id>` for every descendant page). Used as a library
   (`get_session`/`get_page`/`get_children`/`search_cql`/`storage_to_text`)

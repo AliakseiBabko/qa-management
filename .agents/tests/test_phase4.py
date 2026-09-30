@@ -29,7 +29,7 @@ class TestPhase4(unittest.TestCase):
             sys.executable,
             "-c",
             "import qa_manage, commit_workspace_state, export_source_text"
-        ], cwd=".agents/scripts", capture_output=True, text=True)
+        ], cwd=repo_root / ".agents" / "scripts", capture_output=True, text=True)
         self.assertEqual(res.returncode, 0, f"Import smoke test failed: {res.stderr}")
 
     def setUp(self):

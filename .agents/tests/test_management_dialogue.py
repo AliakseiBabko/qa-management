@@ -40,6 +40,7 @@ class ManagementDialogueTests(unittest.TestCase):
                     management_dialogue.main([
                         "init", "--topic", "TEST_PLAN", "--plan", "plan.md",
                         "--agents", "CODEX", "GEMINI",
+                        "--agent-model", "CODEX=gpt-5", "--agent-model", "GEMINI=gemini-2.5-pro",
                     ]),
                     0,
                 )
@@ -53,8 +54,8 @@ class ManagementDialogueTests(unittest.TestCase):
                 artifact.write_text("# Review\n", encoding="utf-8")
                 self.assertEqual(
                     management_dialogue.main([
-                        "complete-turn", "--topic", "TEST_PLAN", "--agent", "CODEX",
-                        "--artifact", "review.md", "--kind", "review",
+                        "complete-turn", "--topic", "TEST_PLAN", "--agent", "CODEX", "--model-id", "gpt-5",
+                        "--artifact", "review.md", "--kind", "review", "--finding", "Generic defect reproduced against the plan",
                         "--validation", "focused tests: passed",
                     ]),
                     0,
@@ -78,7 +79,8 @@ class ManagementDialogueTests(unittest.TestCase):
                  mock.patch.object(management_dialogue, "DIALOGUE_ROOT", root / "management" / "dialogue"):
                 management_dialogue.main([
                     "init", "--topic", "TEST_PLAN", "--plan", "plan.md",
-                    "--agents", "CODEX", "GEMINI", "--phase", "phase-2",
+                    "--agents", "CODEX", "GEMINI",
+                        "--agent-model", "CODEX=gpt-5", "--agent-model", "GEMINI=gemini-2.5-pro", "--phase", "phase-2",
                     "--acceptance-criteria", "Template headers are synchronized",
                 ])
                 self.assertEqual(
@@ -116,12 +118,13 @@ class ManagementDialogueTests(unittest.TestCase):
                 management_dialogue.main([
                     "init", "--topic", "TEST_PLAN", "--plan", "plan.md",
                     "--agents", "CODEX", "GEMINI",
+                        "--agent-model", "CODEX=gpt-5", "--agent-model", "GEMINI=gemini-2.5-pro",
                 ])
                 (root / "review.md").write_text("# Review\n", encoding="utf-8")
                 management_dialogue.main(["next", "--topic", "TEST_PLAN"])
                 self.assertEqual(
                     management_dialogue.main([
-                        "complete-turn", "--topic", "TEST_PLAN", "--agent", "GEMINI",
+                        "complete-turn", "--topic", "TEST_PLAN", "--agent", "GEMINI", "--model-id", "gemini-2.5-pro",
                         "--artifact", "review.md", "--kind", "review",
                     ]),
                     2,
@@ -139,12 +142,13 @@ class ManagementDialogueTests(unittest.TestCase):
                 management_dialogue.main([
                     "init", "--topic", "BLOCKED_PLAN", "--plan", "plan.md",
                     "--agents", "CODEX", "GEMINI",
+                        "--agent-model", "CODEX=gpt-5", "--agent-model", "GEMINI=gemini-2.5-pro",
                 ])
                 management_dialogue.main(["next", "--topic", "BLOCKED_PLAN"])
                 self.assertEqual(
                     management_dialogue.main([
-                        "complete-turn", "--topic", "BLOCKED_PLAN", "--agent", "CODEX",
-                        "--artifact", "review.md", "--kind", "review",
+                        "complete-turn", "--topic", "BLOCKED_PLAN", "--agent", "CODEX", "--model-id", "gpt-5",
+                        "--artifact", "review.md", "--kind", "review", "--no-findings",
                         "--unresolved", "Need owner decision on scope",
                     ]),
                     0,

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from typing import Any
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -86,7 +87,7 @@ class Args:
 
 
 def run_mark_superseded(rows, **arg_overrides):
-    args_kwargs = {"run_id": "old-run"}
+    args_kwargs: dict[str, Any] = {"run_id": "old-run"}
     args_kwargs.update(arg_overrides)
     mock_services = {"drive": MagicMock(), "sheets": MagicMock()}
     with patch("qa_manage.get_services_cached", return_value=mock_services), \

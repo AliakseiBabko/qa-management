@@ -33,6 +33,8 @@ wrongly publishing a closed project department-wide is the costlier error.
 The M2 surname used in the `<Project>_<Surname>` folder name comes from the
 `QA_DEPT_SURNAME` environment variable; it is a real person's name and so is
 never hardcoded here (see AGENTS.md, "No Sensitive Data In This Repository").
+The department group addresses come from `QA_DEPT_GROUPS` (comma-separated)
+for the same reason: they are real contact details on a real domain.
 
 Every Drive call needs `supportsAllDrives`/`includeItemsFromAllDrives`: the
 destination is a shared drive, and a plain `files().create()` against it fails
@@ -57,7 +59,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pipeline_common  # noqa: E402
 
 DEPARTMENT_FOLDER_ID = "1c9XmjoqN9ajURJot4bHnrgHeJJYyyzAJ"  # "M2 / DC Projects AQA" on QA Common
-DEPARTMENT_GROUPS = ("qa@<Company>.com", "aqa@<Company>.com")
+DEPARTMENT_GROUPS = tuple(
+    g.strip() for g in os.environ.get("QA_DEPT_GROUPS", "").split(",") if g.strip())
 SURNAME = os.environ.get("QA_DEPT_SURNAME", "").strip()
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -277,7 +280,7 @@ def verify(drive: Any) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     ap.add_argument("--apply", action="store_true",
                     help="actually write; without it every action is a dry run")
     ap.add_argument("--verify", action="store_true",
@@ -294,6 +297,10 @@ def main() -> int:
         raise SystemExit(
             "QA_DEPT_SURNAME is not set - it supplies the <Project>_<Surname> "
             "folder name and is deliberately not hardcoded in this repository.")
+    if not DEPARTMENT_GROUPS:
+        raise SystemExit(
+            "QA_DEPT_GROUPS is not set - it lists the department group addresses "
+            "(comma-separated) and is deliberately not hardcoded in this repository.")
     if args.verify:
         return 1 if verify(drive) else 0
     if args.unpublish:

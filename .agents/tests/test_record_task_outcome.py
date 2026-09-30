@@ -145,6 +145,15 @@ class TestExtractFromRunEntriesParsing(unittest.TestCase):
     silently hidden this bug (the old test's mock used a flat shape and
     always passed while the real CLI produced all-zero counts)."""
 
+    def setUp(self):
+        # These tests cover entries parsing only; closure derivation would
+        # otherwise reach real Google auth (see TestDeriveClosureCounts).
+        patcher = mock.patch(
+            "record_task_outcome._derive_closure_counts", return_value=(0, 0, 0, 0, "ok")
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_nested_entries_are_counted_by_outcome(self):
         entries = {
             "ProjectA|": {
