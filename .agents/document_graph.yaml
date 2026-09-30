@@ -715,6 +715,7 @@ periodic:
   - m2_monthly_report
   - department_traffic_light
   - status_reports
+  - qa_sprint_status_report
   - okr
   - salary_review_self_feedback
   - self_review

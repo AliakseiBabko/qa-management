@@ -48,6 +48,7 @@ EXPECTED_M2_USED_BY = [
     "m2-timeline",
     "m2-project-qa-metrics-report",
     "m2-project-status-report",
+    "m2-qa-sprint-status-report",
     # GDO Outstaff Delivery process-standard skills (added after this list
     # was first written) - each mandatorily reads the same 4 m2-report-writer
     # modules in its own Required Start, confirmed both by direct inspection
