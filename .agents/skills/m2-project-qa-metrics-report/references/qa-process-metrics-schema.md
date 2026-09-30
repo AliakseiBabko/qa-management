@@ -54,7 +54,7 @@ belongs to the calendar month its **end date** falls in, so an M2 monthly
 review aggregates whichever sprints closed inside that month (usually
 1-3), and one sprint is never split across two months. On a project with
 no sprints (`Ритм спринтов = Нет спринтов (Kanban)`), the columns are
-calendar months instead, noted in `Пояснение`.
+calendar months instead, which the column headers themselves show.
 
 **Trend is read across columns, not stored.** For any numeric row,
 compare the latest column against the **rolling average of the previous
@@ -62,7 +62,8 @@ three sprints**, not the single previous one, with ±20% as the stable
 band — a holiday week or one oversized scope otherwise reads as a real
 swing. Below three sprints of history there is no trend to read yet. What
 is known about a swing's cause (vacation, scope change, release crunch,
-environment downtime) goes in `Пояснение`.
+environment downtime) goes in that **sprint's own cell**, never in
+`Пояснение` — see the `Пояснение` rule below.
 
 If `project_metrics`'s `Статус проекта` row is `Не активен`, freeze this
 Sheet entirely — don't add a new sprint column, don't chase the team for
@@ -71,13 +72,47 @@ data covering inactive sprints. Resume once `Статус проекта` goes b
 (that's about one metric not fitting the project; this is about the whole
 process being on hold).
 
-When creating this Sheet, leave every sprint cell empty but **write a
-real `Пояснение` for every row** — what the metric means, why it matters
-on this specific project, and where to actually find the data (Jira/CI
-dashboard/TestRail/other TMS, or an explicit "no tool yet" when that's the
-truth) — tailored to what's already known about the project's tooling
-from its source docs, not generic boilerplate. Without this, whoever the
-Sheet gets shared with has no way to know what's being asked of them.
+### `Пояснение` is a short definition, not a findings column
+
+`Пояснение` answers one question for whoever fills the row: **what is this
+metric and how is it measured.** One or two short sentences, the same
+wording on every project — the canonical text is
+`Templates\qa_process_metrics.csv`, and there is no reason to tailor it
+per project.
+
+Nothing else belongs there. Not the numbers, not what a particular sprint's
+value turned out to be, not a breakdown by functional area, not a date, not
+a link to supporting material, not why a value is still empty, not the
+cause of a swing. **The value of this Sheet is the sprint columns on the
+right**; the left columns are a legend for them, and a legend that grows
+into a report stops working as a legend.
+
+This drifts in practice, so it is worth stating what the failure looks
+like: one real `Покрытие` cell reached 900 characters, carrying an
+estimation date, the method used, a per-zone coverage breakdown and a list
+of uncovered areas — every fact of which already lived in
+`individual_metrics` and `evidence_log`. The row was no longer readable as
+a definition, and the actual coverage number was in a sprint column two
+cells to the right.
+
+Where that content goes instead:
+
+- A number, or a number with a one-line qualifier — the **sprint column**
+  for that sprint. That is what the column is.
+- Why a value is empty, or what caused a swing (vacation, scope change,
+  release crunch, environment downtime) — the **sprint cell** it applies
+  to, briefly. It is a fact about that sprint, not about the metric.
+- Evidence, breakdowns, method write-ups, findings — the documents that
+  own them (`individual_metrics`, `project_metrics`, `evidence_log`), never
+  duplicated here.
+- A project-specific collection rule (no separate QA tickets, no story
+  points, no tracker access, Kanban instead of sprints) — this schema file,
+  under "Collection rules" below. It is the same rule on every project that
+  hits that situation, so it belongs in the contract, not copied into ten
+  Sheets.
+
+When creating this Sheet, copy `Пояснение` from the template verbatim and
+leave every sprint cell empty.
 
 A sprint column is never a bare date or "date filled in": it always names
 the sprint and its range, from the project's own `Ритм спринтов`. Same
@@ -98,6 +133,42 @@ filled in.
 Column schema template: `Templates\qa_process_metrics.csv` (also the CSV
 fallback). Full Baseline + Core + Extended metric list and per-metric
 collection instructions: `Templates\метрики_проекта_qa.md` §2.
+
+## Collection rules
+
+These are the situations that used to get written into a Sheet's
+`Пояснение` one project at a time. They are the same rule wherever they
+apply, so they live here and the Sheet keeps its short definition.
+
+- **No separate QA tickets** (QA work is folded into development tasks):
+  count the development tasks QA actually took through testing, and treat
+  the number as relative rather than comparable to a project that tickets
+  QA work separately.
+- **Project doesn't use story points:** leave the row's sprint cells empty.
+  Never reconstruct an estimate after the fact just to fill the row — an
+  invented number is worse than a blank.
+- **Purely manual project:** `Git-активность` is not applicable. Leave it
+  blank rather than deleting the row, so the Sheet stays comparable in
+  shape across projects.
+- **Git metrics not yet trustworthy:** fill `Git-активность` only once
+  `_metrics_collector_registry` marks that person's Metrics validity as
+  `Reliable` (see `m2-git-metrics-onboarding`). Partial collector coverage
+  reads as a productivity drop that never happened.
+- **Coverage and autotest count** both come from one run of
+  `Templates\qa_repo_metrics_prompt.md` against the project's own test
+  repository — a coding agent's count, not a hand tally. Coverage is an
+  estimate and is always written with a `~`.
+- **Coverage percentage and autotest count are different numbers.** A
+  per-functional-area coverage estimate does not yield a total test count;
+  if only one was produced, leave the other blank rather than deriving it.
+- **No tracker access, or bugs aren't tagged systematically:** leave
+  `Снимок открытых/известных багов` empty. A blank with a known reason is a
+  valid result.
+- **Leakage count unknown:** a qualitative value carries real information —
+  no data / no confirmed leaks / confirmed cases exist, count unknown / N
+  confirmed cases. Where the count is known, classify each case (QA miss /
+  requirements-product gap / environment-data-config / known accepted risk
+  / unclear, needs triage).
 
 ## Source Priority
 
