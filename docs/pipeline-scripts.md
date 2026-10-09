@@ -900,6 +900,17 @@ These are what actually runs day to day, once a project's folder already exists:
   filename, not content — a new batch of messages must land in a new file,
   never appended into an already-logged one. Also stops at fact
   extraction; `--dry-run` previews without writing.
+- `fetch_chat_export.py` — replaces the hand copy-paste of a strategy
+  chat: takes the chat link, `--project`, and a window (`--since`/`--days`,
+  optional `--until`), reads the messages through the Google Chat API
+  (read-only scopes), and writes `00_Inbox/<Project>_strategy_<date>.txt`
+  in the same header shape a paste produces, so `detect_strategy_chats.py`
+  picks it up unchanged. Dry-run by default (count, date range, preview);
+  `--apply` writes; never overwrites. A thread link limits it to that
+  thread, and `--print` sends the text to stdout with no file (used by
+  `m2-chat-reply` to read the message being answered). Known gaps: a sender who has left the
+  space prints as `users/<id>`; attachments are listed by name only; one
+  batch must stay within ~11 months (headers carry no year).
 - `refresh_project_registry.py` — the one script safe to run mechanically
   with no judgment step: copies each project's already-curated
   `project_metrics` dashboard values into `_project_registry`, compacting

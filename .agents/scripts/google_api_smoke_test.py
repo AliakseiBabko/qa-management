@@ -25,6 +25,15 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/calendar",
+    # Read-only Chat: resolve which strategy-chat space is which (name,
+    # type, members) when a project has more than one. Needs the Chat API
+    # enabled, a Chat app configured, and these scopes on the consent
+    # screen of the Cloud project.
+    "https://www.googleapis.com/auth/chat.spaces.readonly",
+    "https://www.googleapis.com/auth/chat.memberships.readonly",
+    # fetch_chat_export.py: pull a chat's messages from its link instead of
+    # a hand-copied paste.
+    "https://www.googleapis.com/auth/chat.messages.readonly",
 ]
 
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
@@ -83,7 +92,11 @@ def load_credentials(credentials_path: Path, token_path: Path):
 
     creds = None
     if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+        # A token granted before SCOPES grew still refreshes fine but then
+        # 403s on the new APIs, so treat a missing scope as no token.
+        granted = set(json.loads(token_path.read_text(encoding="utf-8")).get("scopes") or [])
+        if set(SCOPES) <= granted:
+            creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:

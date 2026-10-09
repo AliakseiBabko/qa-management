@@ -31,6 +31,12 @@ batch of chat content is a **new file** — e.g.
 stylistically: detection below dedups by filename, not content hash, so
 editing an already-logged file in place makes new content invisible to it.
 
+When the user gives the chat's link instead of pasted text, create that
+file with `.agents\scripts\fetch_chat_export.py --url <link> --project
+<Project> --since <day after the last logged batch>` (dry run first, then
+`--apply`). Take the start date from the project's `evidence_log`
+strategy-chat rows so batches neither overlap nor leave a gap.
+
 ## Required Start
 
 1. Check `../qa-management-roles/references/aliases.md` before treating an

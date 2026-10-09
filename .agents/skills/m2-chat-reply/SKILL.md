@@ -42,6 +42,12 @@ has already collected.
    or person — stop and point them at `show_project_state.py`,
    `search_workspace.py`, `gates`, `m2-project-status-report`, or ad hoc
    analysis instead; this skill doesn't apply.
+   When the user gives a Google Chat thread link instead of pasting the
+   message, read it with `.agents\scripts\fetch_chat_export.py --url <link>
+   --print` (the whole thread, nothing written). The incoming message is
+   normally the thread's last message from someone other than the user;
+   confirm when it is not obvious. Add `--days N` on the space link (no
+   thread) only when the thread alone lacks the context.
 2. Read `../qa-management-roles/references/chat-message-style-rules.md`.
 3. Read `../qa-management-roles/references/m2-role/m2-communication-visibility.md`
    (making M2's role explicit and avoiding an auditing tone in a reply).
