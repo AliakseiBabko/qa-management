@@ -1,6 +1,6 @@
 ---
 name: m2-project-tool
-description: Work with the company's internal project-management web app (the "project tool") as QA M2 - check that every active M2 project is set up there (M2 assigned as the QA Department Manager, strategy-chat link correct and the posting bot added), and publish the weekly QA status report or a project risk through its Activity Board / Risks tabs, which relay into the project's strategy chat. Use when the user asks to set up, check, or sync their projects in the project tool, or to post a weekly status/risk there. Not for drafting the status text itself (m2-project-status-report owns that) and not for Drive document updates.
+description: Work with the company's internal project-management web app (the "project tool", expected to become the department standard for M2 project management) as QA M2 - check that every active M2 project is set up there (M2 assigned as the QA Department Manager, strategy-chat link correct and the posting bot added), publish the weekly QA status report or a project risk through its Activity Board / Risks tabs (both relay into the project's strategy chat), and answer what an M2 can and cannot do in the tool. Use when the user asks to set up, check, or sync their projects in the project tool, to post a weekly status/risk there, or what the tool offers. Not for drafting the status text itself (m2-project-status-report owns that) and not for Drive document updates.
 ---
 
 # M2 Project Tool
@@ -10,7 +10,9 @@ CRM (Salesforce) and the HR system once a day, and gives every role
 (Sales, DC, PC, M2, M3) one shared project card. For M2 it replaces the
 hand-written weekly status in the strategy chat: a status report or risk
 created in the tool is relayed into that project's strategy chat by a
-polling job, usually within a minute.
+polling job, usually within a minute. It is expected to become the
+department standard for M2 project management, so treat it as the default
+destination for the regular weekly status once a project is connected.
 
 The tool's URL and product name identify the employer, so they are never
 written in this repository. Read the URL at runtime from the `Tools`
@@ -36,9 +38,17 @@ if it is not there, ask the user once and suggest logging it through
   which Sales, DC, and other departments read. Treat every create as a sent
   message: the user approves the exact text and the target project first.
 - **Two strategy chats can exist** (an internal one and one with the
-  client/Sales side). The link usually arrives from the CRM and is right in
-  most cases; before the first post on a project, open the linked chat and
-  confirm it is the internal strategy chat.
+  client/Sales side), and one client can also have several "(strategy)"
+  spaces that are really different engagements. The link usually arrives
+  from the CRM and is right in most cases; before the first post on a
+  project, confirm the linked space is that project's internal strategy
+  chat. Check its name and members through the Chat API (the
+  `chat.spaces`/`chat.memberships` read scopes, as `fetch_chat_export.py`
+  uses) rather than opening Google Chat in the browser.
+- **Scope is the projects where M2 is the QA Department Manager.** A project
+  in the user's `Mine` tab where they are only a Project Employee (their
+  own individual-contributor work, managed by another M2) is not theirs to
+  set up or post for; leave it out of audits.
 
 ## Required Start
 
@@ -116,18 +126,66 @@ Action plans (owner + deadline) and action-taken notes post into the same
 chat thread. Mirror any risk created here in Drive `project_risk` through
 the normal M2 cascade; the tool does not replace that record.
 
-## Other Capabilities (use only when asked)
+## What M2 Can Do In The Tool
 
-- Overview: project status / development potential / risk level selectors
-  (each change asks for a reason and lands in the activity log),
-  description, links (attach a Google Doc), intermediary chain.
-- Team tab per person: health status, extension prospect, comment,
-  1:1 summary, feedback (optionally visible to the employee), HR fields
-  (level, upcoming vacation, visa). 1:1s are normally kept by M1 - do not
-  duplicate the Drive 1:1 record here.
-- Audits: questionnaire templates applied to projects (for example an AI
-  usage survey). Read with `audit-templates`; fill only on request.
-- Feedback button: bugs and ideas go to the tool's team.
+As QA `Department Manager` on a project (permissions confirmed through
+`my-permissions`). Core M2 duties, in order of how often they matter:
+
+1. **Weekly status report** (Workflow B) - the routine duty.
+2. **Risks** (Workflow C) - raise, add an action plan, log actions taken,
+   close as successful/unsuccessful; every step posts to the chat thread.
+3. **Project indicators** - Status (active, pending, ...), Development
+   potential, Risk level. Each change asks for a reason and lands in the
+   activity log; keep Risk level consistent with the open risks.
+
+Also available, use only when asked:
+
+- Overview: description, links (for example a Google Doc), intermediary
+  chain, Project/Strategy/Accounting chat links.
+- Team tab per QA engineer: health status, extension prospect, comment,
+  1:1 notes, feedback (for example from the client, optionally made visible
+  to the employee); a generated Google Form can collect feedback from a
+  client-side lead, but agree that with Sales first. HR fields are
+  read-only context (level, upcoming vacation, visa, military status) and
+  help with availability planning.
+- Employee History: everyone who ever worked on the project and whether
+  they did the work (`employee`) or were presented to the client
+  (`declared`).
+- Audits: questionnaires applied to projects (for example an AI-usage
+  survey); M2 can also create a template for their own project.
+- Cross-project views: `/risks` filtered by department, People, Departments.
+- Feedback button: bugs and ideas go straight to the tool's team.
+
+## What M2 Cannot Do
+
+- Create projects (they come from the CRM daily).
+- Assign roles or managers (the M3 does; every role shows `canAssign:
+  false` for M2).
+- Change the team list (the RM fixes it in the CRM; refreshes next day).
+
+## Relation To Drive Records
+
+The tool does not sync with Drive. Until the user decides otherwise:
+
+- A risk raised in the tool is also kept in Drive `project_risk` through the
+  normal M2 cascade (the tool is the visible, shared channel; Drive keeps
+  the full M2 reasoning). Apply the department risk definition to both.
+- A status report posted through the tool is the delivered weekly status;
+  save a Drive copy under `status_reports` only if the user asks.
+- 1:1s stay in the Drive 1:1 records (normally kept by M1); do not
+  duplicate them in the tool's 1:1 notes.
+
+## Announced Roadmap (walkthrough, 2026-10-01)
+
+Not live yet; re-check before relying on any of it: a Delivery tab with
+the full project and client description (migrated from the PC/PMO
+system), a workload view of hours, sick days and vacations from the HR
+system, stop requests sent to the RM for approval and synced back to the
+CRM, onboarding checklists that announce a start in the strategy chat, a
+per-role home page listing pending statuses and new risks, more frequent
+CRM sync, and later the department metrics app's results. DC, PC/PMO and
+delivery managers are being moved onto the tool, with section-level edit
+rights split by role.
 
 ## Guardrails
 

@@ -72,8 +72,11 @@ Real weekly reports on these projects are posted directly into the
 project's own strategy chat — that's the default for a regular report,
 not a saved Doc. Ask if genuinely unclear, but default to:
 
-- **Regular weekly/status update** → chat-ready text for the project's
-  strategy chat (paste-ready, per Chat Text Shape). Only also save it as a
+- **Regular weekly/status update** → when the project is connected in the
+  company project tool, publish it there as a Status report (it relays to
+  the strategy chat) via `../m2-project-tool/SKILL.md`, Workflow B;
+  otherwise chat-ready text for the project's strategy chat (paste-ready,
+  per Chat Text Shape). Only also save it as a
   Doc under `status_reports` if the user asks for a kept copy, or if the
   project has no active strategy-chat channel to post into.
 - **On-demand / ad hoc status** ("what's the status right now") → returned
